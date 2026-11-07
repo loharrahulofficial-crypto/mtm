@@ -5,12 +5,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
+	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
 // boardProject is the project whose statuses define the columns: the
@@ -209,161 +212,346 @@ func center(s string, w int) string {
 	return strings.Repeat(" ", left) + s + strings.Repeat(" ", w-left-sd)
 }
 
-func renderBoard(m Model, w, h int) string {
+const boardCardH = 5
+
+// boardLayout computes the visible column window and column width so mouse
+// hit-testing matches the render exactly.
+func boardLayout(m Model, w int) (winStart, visCols, colW int) {
+	n := len(m.boardStatuses())
+	if n == 0 {
+		return 0, 0, 0
+	}
+	colW = 22
+	visCols = (w - 2 + 1) / (colW + 1)
+	if visCols < 1 {
+		visCols = 1
+	}
+	if n < visCols {
+		visCols = n
+	}
+	colW = (w - 2 - (visCols - 1)) / visCols
+	colW = clampInt(colW, 12, 48)
+	winStart = 0
+	if m.boardCol >= winStart+visCols {
+		winStart = m.boardCol - visCols + 1
+	}
+	if winStart > n-visCols {
+		winStart = n - visCols
+	}
+	if winStart < 0 {
+		winStart = 0
+	}
+	return winStart, visCols, colW
+}
+
+// renderBoardBody renders the board content (inner width × inner height).
+func renderBoardBody(m Model, w, h int) []string {
 	s := m.styles
 	now := m.clock.Now()
-	_ = now
 	statuses := m.boardStatuses()
 	cols := boardColumns(m)
 
 	n := len(statuses)
 	if n == 0 {
-		return s.dim.Render("no statuses")
-	}
-	colW := (w - (n - 1)) / n
-	if colW < 14 {
-		colW = 14
+		return []string{s.dim.Render("no statuses")}
 	}
 
-	sep := s.dim.Render("│")
+	winStart, visCols, colW := boardLayout(m, w)
+	view := winStart + visCols
 
-	var b strings.Builder
-	// Header line.
-	headerCells := make([]string, 0, n)
-	for i, st := range statuses {
+	lines := make([]string, 0, h)
+
+	// Header line: status · count over a thin underline.
+	headerCells := make([]string, 0, visCols)
+	underlineCells := make([]string, 0, visCols)
+	for i := winStart; i < view; i++ {
+		st := statuses[i]
 		count := 0
 		if i < len(cols) {
 			count = len(cols[i])
 		}
-		label := fmt.Sprintf("%s %d", strings.ToUpper(st.Name), count)
-		if i == m.boardCol {
-			headerCells = append(headerCells, s.accent.Width(colW).Render(center(label, colW)))
-		} else {
-			headerCells = append(headerCells, s.dim.Width(colW).Render(center(label, colW)))
+		name := strings.ToUpper(st.Name)
+		label := fmt.Sprintf("%s · %d", name, count)
+		hcell := s.dim
+		switch {
+		case m.boardDragging && i != m.boardCol:
+			hcell = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(lipgloss.Color(m.palette.SurfaceStrong)).Bold(true)
+		case m.boardDragging && i == m.boardDragHover:
+			hcell = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(lipgloss.Color(m.palette.SurfaceStrong)).Bold(true)
+		case i == m.boardCol && m.focus != focusSidebar:
+			hcell = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(lipgloss.Color(m.palette.Surface)).Bold(true)
 		}
+		headerCells = append(headerCells, hcell.Width(colW).Render(" "+truncatePlain(label, colW-1)))
+		underlineCells = append(underlineCells, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Border)).Background(lipgloss.Color(m.palette.Surface)).Render(strings.Repeat("─", colW)))
 	}
-	b.WriteString(strings.Join(headerCells, sep) + "\n")
-	b.WriteString(s.dim.Render(strings.Repeat("─", w)) + "\n")
+	hint := " "
+	if winStart > 0 {
+		hint = m.icon("chev_left")
+	}
+	moreRight := ""
+	if view < n {
+		moreRight = m.icon("chev_right")
+	}
+	header := hint + strings.Join(headerCells, " ")
+	header = padRightPlain(header, w-lipglossWidth(moreRight)) + moreRight
+	lines = append(lines, header)
+	lines = append(lines, "  "+strings.Join(underlineCells, " "))
 
-	bodyH := h - 3
-	if bodyH < 3 {
-		bodyH = 3
+	// Cards.
+	bodyH := h - 2
+	if bodyH < boardCardH {
+		bodyH = boardCardH
 	}
-	maxCards := bodyH / 3
+	maxCards := bodyH / boardCardH
+	if maxCards < 1 {
+		maxCards = 1
+	}
+	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
+	head := subtaskCounts(m.store.Tasks(), isDone)
 	for r := 0; r < maxCards; r++ {
-		cardLines := make([][]string, n)
-		maxLines := 3
-		for i := 0; i < n; i++ {
+		cardLines := make([][]string, 0, visCols)
+		for i := winStart; i < view; i++ {
 			if r < len(cols[i]) {
 				sel := i == m.boardCol && r == m.boardRow && m.focus != focusSidebar
-				cardLines[i] = renderCard(m, cols[i][r], colW, sel, now)
+				cardLines = append(cardLines, renderCard(m, cols[i][r], colW, sel, now, head))
+			} else if r == 0 {
+				cardLines = append(cardLines, cardPlaceholder(m, colW))
 			} else {
-				cardLines[i] = []string{strings.Repeat(" ", colW), strings.Repeat(" ", colW), strings.Repeat(" ", colW)}
+				cardLines = append(cardLines, blankCard(m, colW))
 			}
 		}
-		for lineIdx := 0; lineIdx < maxLines; lineIdx++ {
-			cells := make([]string, n)
-			for i := 0; i < n; i++ {
-				cells[i] = cardLines[i][lineIdx]
+		for lineIdx := 0; lineIdx < boardCardH; lineIdx++ {
+			cells := make([]string, 0, len(cardLines))
+			for _, cl := range cardLines {
+				cells = append(cells, cl[lineIdx])
 			}
-			b.WriteString(strings.Join(cells, sep) + "\n")
+			lines = append(lines, "  "+strings.Join(cells, " "))
 		}
 	}
 	// Overflow indicator.
-	var overflow []string
-	anyOverflow := false
-	for i := 0; i < n; i++ {
-		extra := 0
-		if i < len(cols) {
-			extra = len(cols[i]) - maxCards
+	for i := winStart; i < view; i++ {
+		if i < len(cols) && len(cols[i]) > maxCards {
+			lines = append(lines, fmt.Sprintf("  %s", s.muted.Render(truncatePlain(fmt.Sprintf("+%d more in %s", len(cols[i])-maxCards, strings.ToLower(statuses[i].Name)), w-2))))
+			break
 		}
-		label := ""
-		if extra > 0 {
-			anyOverflow = true
-			label = fmt.Sprintf(" +%d more", extra)
-		}
-		overflow = append(overflow, s.dim.Width(colW).Render(label))
 	}
-	if anyOverflow {
-		b.WriteString(strings.Join(overflow, sep) + "\n")
-	}
-	// Pad remaining height.
-	for lineCount := strings.Count(b.String(), "\n"); lineCount < h-1; lineCount++ {
-		b.WriteString(strings.Repeat(" ", w) + "\n")
-	}
-	b.WriteString(s.dim.Render("  h/l column · H/L move card · x done · D due · a add"))
-	out := b.String()
-	return strings.TrimSuffix(out, "\n")
+	return lines
 }
 
-func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time) []string {
-	s := m.styles
+func blankCard(m Model, w int) []string {
+	blank := strings.Repeat(" ", w)
+	fill := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface)).Render(blank)
+	out := make([]string, boardCardH)
+	for i := range out {
+		out[i] = fill
+	}
+	return out
+}
+
+func cardPlaceholder(m Model, w int) []string {
+	empty := make([]string, boardCardH)
+	for i := range empty {
+		empty[i] = strings.Repeat(" ", w)
+	}
+	mid := "empty"
+	empty[boardCardH/2] = center(m.styles.muted.Render(mid), w)
+	return empty
+}
+
+func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head map[string][2]int) []string {
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
 	done := isDone(t.Project, t.Status)
+	projectColor := theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))
+	hl := func(bg lipgloss.Color) lipgloss.Style {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(projectColor)).Background(bg)
+	}
+	ray := lipgloss.Color(m.palette.SurfaceRaised)
 
-	inner := w - 1
-	title := truncatePlain(t.Title, inner-1)
-	pill := priorityPlain(t.Priority)
-	due := duePlain(t.Due, now)
-	meta := pill + " " + due
-	meta = truncatePlain(meta, inner-1)
-
+	cardBg := ray
+	var border lipgloss.Style
 	if selected {
-		return []string{
-			s.selected.Width(w).Render(" " + title),
-			s.selected.Width(w).Render(" " + meta),
-			s.selected.Width(w).Render(""),
+		cardBg = lipgloss.Color(m.palette.SurfaceRaised)
+		border = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(cardBg)
+	} else {
+		border = lipgloss.NewStyle().Background(cardBg)
+	}
+	fill := func(st lipgloss.Style) lipgloss.Style { return st.Background(cardBg) }
+
+	stripe := hl(cardBg).Render("▌")
+
+	// Title wrapped to max 2 lines.
+	titleW := w - 3
+	cut1, cut2 := wrapTitle(t.Title, titleW)
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(cardBg)
+	if done {
+		titleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Strikethrough(true).Background(cardBg)
+	}
+	line1 := stripe + " " + titleStyle.Render(padRightPlain(cut1, titleW))
+	line2 := stripe + " " + titleStyle.Render(padRightPlain(cut2, titleW))
+
+	// Meta: priority dot + label, due chip, tags, subtask progress.
+	dot := lipgloss.NewStyle().Background(cardBg).Render("●")
+	popping := m.animTaskID == t.ID && m.animFrame > 0
+	prioTxt := strings.ToLower(t.Priority)
+	switch strings.ToLower(t.Priority) {
+	case "urgent":
+		dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Danger)).Background(cardBg).Render("●")
+	case "high":
+		dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.HeatHot)).Background(cardBg).Render("●")
+	case "medium":
+		dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Warning)).Background(cardBg).Render("●")
+	default:
+		dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(cardBg).Render("●")
+	}
+	if popping {
+		if m.animFrame%2 == 0 {
+			dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(cardBg).Bold(true).Render("✦")
+		} else {
+			dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Success)).Background(cardBg).Bold(true).Render("✔")
 		}
 	}
-	l1 := " " + title
-	l2 := " " + meta
-	if done {
-		l1 = s.done.Render(l1)
-		l2 = s.dim.Render(l2)
+	meta := stripe + " " + dot + " " + fill(lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft))).Render(padRightPlain(prioTxt, 6))
+
+	if t.Due != "" {
+		label, heat := gauges.DueLabel(t.Due, now)
+		dc := lipgloss.NewStyle().Background(cardBg)
+		switch heat {
+		case gauges.HeatWarm:
+			dc = dc.Foreground(lipgloss.Color(m.palette.HeatWarm))
+		case gauges.HeatHot:
+			dc = dc.Foreground(lipgloss.Color(m.palette.HeatHot)).Bold(true)
+		case gauges.HeatOverdue:
+			dc = dc.Foreground(lipgloss.Color(m.palette.HeatOverdue)).Bold(true)
+		default:
+			dc = dc.Foreground(lipgloss.Color(m.palette.MutedSoft))
+		}
+		if done {
+			dc = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(cardBg)
+		}
+		meta += dc.Render(label) + " "
 	}
-	return []string{
-		padRight(l1, w),
-		padRight(l2, w),
-		strings.Repeat(" ", w),
+
+	if len(t.Tags) > 0 {
+		tags := t.Tags
+		if len(tags) > 1 {
+			tags = tags[:1]
+		}
+		meta += fill(lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted))).Render("#" + tags[0])
 	}
+
+	if head[t.ID][1] > 0 {
+		frac := float64(head[t.ID][0]) / float64(head[t.ID][1])
+		fillBar, _ := gauges.Bar(frac, 4)
+		meta += hl(cardBg).Render(fillBar) + fill(lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted))).Render(fmt.Sprintf(" %d/%d", head[t.ID][0], head[t.ID][1]))
+	}
+
+	lines := []string{line1, line2, padRightCard(meta, w, cardBg)}
+
+	if selected {
+		top := border.Render("╭" + strings.Repeat("─", w-2) + "╮")
+		bot := border.Render("╰" + strings.Repeat("─", w-2) + "╯")
+		framed := []string{top}
+		for _, l := range lines {
+			framed = append(framed, border.Render("│")+padRightCard(l, w-2, cardBg)+border.Render("│"))
+		}
+		return append(framed, bot)
+	}
+	blank := strings.Repeat(" ", w)
+	out := []string{fill(lipgloss.NewStyle()).Render(blank)}
+	for _, l := range lines {
+		out = append(out, padRightCard(l, w, cardBg))
+	}
+	return append(out, lipgloss.NewStyle().Background(cardBg).Render(blank))
+}
+
+func padRightCard(line string, w int, bg lipgloss.Color) string {
+	if lipgloss.Width(line) > w {
+		return truncatePlain(line, w)
+	}
+	return line + lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", w-lipgloss.Width(line)))
+}
+
+// wrapTitle word-wraps a title into at most two lines of width cells each.
+// Overlong second lines are ellipsis-truncated.
+func wrapTitle(s string, width int) (string, string) {
+	if width <= 0 {
+		return "", ""
+	}
+	words := strings.Fields(s)
+	if len(words) == 0 {
+		return "", ""
+	}
+	var l1, l2 string
+	i := 0
+	for _, word := range words {
+		candidate := word
+		if l1 != "" {
+			candidate = l1 + " " + word
+		}
+		if runewidth.StringWidth(candidate) <= width {
+			l1 = candidate
+			i++
+			continue
+		}
+		break
+	}
+	remainder := strings.Join(words[i:], " ")
+	l2 = truncatePlain(remainder, width)
+	return truncatePlain(l1, width), l2
 }
 
 // clickBoard handles mouse press/release on the board. Columns are laid out
 // left→right; a press selects the card under the cursor, a release moves it
-// into the column under the cursor (drag-to-move).
+// into the column under the cursor (drag-to-move). Motion during a drag
+// tracks the hovered column for the drop-target highlight.
 func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
 	cols := boardColumns(m)
+	statuses := m.boardStatuses()
 	n := len(cols)
 	if n == 0 {
 		return m, nil
 	}
-	mainW := m.width
-	if sw := sideWidth(m.width, m.sidebarHidden); sw > 0 {
-		mainW -= sw
+	// x is main-pane-relative (sidebar + gutter already removed by the caller).
+	sidebarW := sideWidth(m.width, m.sidebarHidden)
+	detailW := detailWidth(m.width, m.detailOn)
+	gutters := 0
+	if sidebarW > 0 {
+		gutters++
 	}
-	if dw := detailWidth(m.width, m.detailOn); dw > 0 {
-		mainW -= dw
+	if detailW > 0 {
+		gutters++
 	}
-	sepW := 1
-	colW := (mainW - (n-1)*sepW) / n
-	if colW < 14 {
-		colW = 14
+	mainW := m.width - sidebarW - detailW - gutters
+	innerW := mainW - 2
+	winStart, visCols, colW := boardLayout(m, innerW)
+	if visCols < 1 {
+		return m, nil
 	}
-	stride := colW + sepW
-	col := x / stride
-	if x < 0 || col >= n {
+	local := x - 2 // panel pad (1) + body inset (1)
+	view := winStart + visCols
+	col := -1
+	for i := winStart; i < view; i++ {
+		off := 2 + (i-winStart)*(colW+1)
+		if local >= off && local < off+colW {
+			col = i
+			break
+		}
+	}
+	if col < 0 {
 		if release {
 			m.boardDragging = false
+			m.boardDragHover = -1
 		}
 		return m, nil
 	}
-	row := (y - 2) / 3 // header(0) + separator(1), each card is 3 lines
+	row := (y - 3) / boardCardH // pad(1) + header(2)
 
 	if release {
 		if !m.boardDragging {
 			return m, nil
 		}
 		m.boardDragging = false
+		m.boardDragHover = -1
 		card := m.selectedBoardTask()
 		if card == nil {
 			return m, nil
@@ -371,7 +559,6 @@ func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
 		if col == m.boardCol {
 			return m, nil
 		}
-		statuses := m.boardStatuses()
 		newStatus := statuses[col].Name
 		msg, err := actions.SetStatus(m.store, card, newStatus)
 		if err != nil {
@@ -388,10 +575,16 @@ func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
 		return m, m.afterChange("status: " + card.Title)
 	}
 
+	if m.boardDragging {
+		m.boardDragHover = col
+		return m, nil
+	}
+
 	// Press: select card and begin drag.
 	if row >= 0 && col < n && row < len(cols[col]) {
 		m.boardCol, m.boardRow = col, row
 		m.boardDragging = true
+		m.boardDragHover = col
 		m.syncCursorToBoardCard()
 	}
 	return m, nil

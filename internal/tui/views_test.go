@@ -49,8 +49,8 @@ func TestCalendarCursorStartsToday(t *testing.T) {
 		t.Fatalf("calDay location = %v, want %v", loc, time.Local)
 	}
 	m = press(t, m, "3")
-	cal := renderCalendar(m, m.width, m.height)
-	if !strings.Contains(cal, calendarMonthTitle(m)) {
+	cal := strings.Join(renderCalendarBody(m, m.width-2, m.height-3), "\n")
+	if !strings.Contains(cal, strings.ToUpper(calendarMonthTitle(m))) {
 		t.Fatalf("calendar title missing: %q", firstLines(cal, 2))
 	}
 }
@@ -116,6 +116,7 @@ func TestListNoDueHasNoStrayDash(t *testing.T) {
 	})
 	upd, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = upd.(Model)
+	m = press(t, m, "1") // list view
 	v := m.View()
 	line := ""
 	for _, l := range strings.Split(v, "\n") {
@@ -131,12 +132,13 @@ func TestListNoDueHasNoStrayDash(t *testing.T) {
 		t.Fatalf("stray — on no-due row: %q", line)
 	}
 	// A row WITH a due keeps its due cell.
+	far := time.Now().AddDate(0, 0, 10)
 	m2, _ := newTestModel(t, []*core.Task{
-		{Title: "has due", Status: "todo", Priority: "low", Kind: core.KindTask, Due: "2026-11-15"},
+		{Title: "has due", Status: "todo", Priority: "low", Kind: core.KindTask, Due: far.Format("2006-01-02")},
 	})
 	upd, _ = m2.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	list := renderContents(upd.(Model))
-	if !strings.Contains(stripANSI(list), "11-15") {
+	list := renderContents(press(t, upd.(Model), "1"))
+	if !strings.Contains(stripANSI(list), far.Format("Jan 2")) {
 		t.Fatalf("due date missing from list: %q", stripANSI(list))
 	}
 }

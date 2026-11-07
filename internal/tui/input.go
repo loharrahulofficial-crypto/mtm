@@ -254,6 +254,15 @@ func (m Model) execCommand(value string) (tea.Model, tea.Cmd) {
 	case "list", "view1":
 		m.view = viewList
 		return m, nil
+	case "home", "view0":
+		m.view = viewHome
+		return m, nil
+	case "focus":
+		if t := m.selectedTask(); t != nil {
+			return m.enterFocusTask(t)
+		}
+		m.statusMsg = "no task selected to focus"
+		return m, nil
 	case "board", "kanban", "view2":
 		m.view = viewBoard
 		m.resetBoardCursor()

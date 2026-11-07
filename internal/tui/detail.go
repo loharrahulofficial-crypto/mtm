@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
+	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
 type detailData struct {
@@ -31,6 +33,9 @@ func (m *Model) detailTask() *core.Task {
 		if m.calAgendaSel >= 0 && m.calAgendaSel < len(agenda) {
 			return agenda[m.calAgendaSel]
 		}
+	}
+	if m.view == viewHome {
+		return m.homeSelectedTask()
 	}
 	return m.selectedTask()
 }
@@ -59,169 +64,173 @@ func (m *Model) glamourRender(body string, width int) string {
 
 func (m Model) renderDetail(w, h int) string {
 	s := m.styles
-	inner := w - 3 // border + padding
+	inner := w - 2
 	if inner < 10 {
-		return ""
+		return renderPanel(m, "", w, h, m.focus == focusDetail, []string{s.muted.Render("pane too narrow")})
 	}
 
 	t := m.detailTask()
-	var b strings.Builder
+
+	bgSurface := lipgloss.Color(m.palette.Surface)
+	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bgSurface)
+	meta := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgSurface)
+	bright := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(bgSurface).Bold(true)
 
 	if t == nil {
-		b.WriteString(s.dim.Render("no task selected"))
-		return paneWithBorder(m, b.String(), w, h)
+		empty := []string{
+			"",
+			s.muted.Render("  Nothing selected."),
+			s.muted.Render("  Pick a task and it shows up here."),
+		}
+		return renderPanel(m, "", w, h, m.focus == focusDetail, empty)
 	}
 
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
 	done := isDone(t.Project, t.Status)
 	now := m.clock.Now()
 
-	// Title.
-	title := truncatePlain(t.Title, inner)
-	b.WriteString(s.accent.Width(inner).Render(" "+title) + "\n")
-	meta := fmt.Sprintf(" %s · %s", t.ID, t.Project)
+	body := []string{}
+
+	// Title (up to 2 lines, wrapped).
+	for _, l := range wrapLines(t.Title, inner-1, 2) {
+		body = append(body, bright.Render(" "+l))
+	}
+	// Project + kind line with course stripe.
+	color := theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))
+	stripe := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bgSurface).Render("▌")
+	sub := " " + stripe + " " + t.Project
 	if t.Kind != "" && t.Kind != "task" {
-		meta += " · " + t.Kind
+		sub += "  ·  " + t.Kind
 	}
 	if t.Archived {
-		meta += " · archived"
+		sub += "  ·  archived"
 	}
-	b.WriteString(s.dim.Width(inner).Render(meta) + "\n\n")
+	body = append(body, meta.Render(sub))
+	body = append(body, "")
 
-	// Badges row.
-	badges := s.statusDone.Render("✔ " + t.Status)
-	if !done {
-		p, err := m.store.GetProject(t.Project)
-		if err == nil && strings.EqualFold(t.Status, p.DoneStatus()) {
-			badges = s.statusDone.Render("✔ " + t.Status)
-		} else if p != nil && len(p.Statuses) > 0 && strings.EqualFold(t.Status, p.Statuses[0].Name) {
-			badges = s.dim.Render("○ " + t.Status)
-		} else {
-			badges = s.statusDoing.Render("◐ " + t.Status)
-		}
+	// Chip row: status + priority.
+	statusChip := ""
+	if done {
+		statusChip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Success)).Bold(true).Render(" done ")
+	} else if p, err := m.store.GetProject(t.Project); err == nil && len(p.Statuses) > 0 && strings.EqualFold(t.Status, p.Statuses[0].Name) {
+		statusChip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(lipgloss.Color(m.palette.SurfaceStrong)).Render(" " + strings.ToLower(t.Status) + " ")
+	} else {
+		statusChip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Blue)).Bold(true).Render(" " + strings.ToLower(t.Status) + " ")
 	}
-	b.WriteString(" " + badges + "  " + s.priorityBadge(t.Priority) + "\n\n")
+	body = append(body, " "+statusChip+"  "+s.priorityBadge(t.Priority))
+	body = append(body, "")
 
-	// Meta rows.
-	row := func(label, value string) {
-		if value == "" {
+	// Meta rows: aligned label/value pairs.
+	label := func(s string) string {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgSurface).Width(10).Render(s)
+	}
+	value := func(s string) string {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bgSurface).Render(s)
+	}
+	row := func(l, v string) {
+		if strings.TrimSpace(v) == "" {
 			return
 		}
-		b.WriteString(s.dim.Render(padRight(label, 10)) + value + "\n")
+		body = append(body, " "+label(l)+value(v))
 	}
-	row("due", s.dueBadge(t.Due, done, now)+dueSuffix(t, now))
+	if t.Due != "" {
+		dueLabel, heat := gauges.DueLabel(t.Due, now)
+		dc := lipgloss.NewStyle().Background(bgSurface)
+		switch heat {
+		case gauges.HeatWarm:
+			dc = dc.Foreground(lipgloss.Color(m.palette.HeatWarm))
+		case gauges.HeatHot:
+			dc = dc.Foreground(lipgloss.Color(m.palette.HeatHot)).Bold(true)
+		case gauges.HeatOverdue:
+			dc = dc.Foreground(lipgloss.Color(m.palette.HeatOverdue)).Bold(true)
+		default:
+			dc = dc.Foreground(lipgloss.Color(m.palette.Text))
+		}
+		if done {
+			dc = meta
+		}
+		row("DUE", dc.Render(dueLabel))
+	}
 	if len(t.Tags) > 0 {
-		row("tags", strings.Join(func() []string {
-			out := make([]string, len(t.Tags))
-			for i, tag := range t.Tags {
-				out[i] = "#" + tag
-			}
-			return out
-		}(), " "))
+		parts := make([]string, len(t.Tags))
+		for i, tag := range t.Tags {
+			parts[i] = "#" + tag
+		}
+		row("TAGS", strings.Join(parts, "  "))
 	}
 	if t.Recurrence != "" {
-		row("repeats", t.Recurrence)
+		row("REPEATS", t.Recurrence)
 	}
 	if t.EstimateMinutes > 0 {
-		row("estimate", fmt.Sprintf("%dm", t.EstimateMinutes))
+		row("ESTIMATE", fmt.Sprintf("%dm", t.EstimateMinutes))
 	}
 	if t.Reminder != "" {
-		row("reminder", t.Reminder)
+		row("REMINDER", t.Reminder)
 	}
 	if t.Created != "" {
-		row("created", t.Created)
+		row("CREATED", t.Created)
 	}
 	if t.Completed != "" {
-		row("completed", t.Completed)
+		row("COMPLETED", t.Completed)
 	}
-	row("updated", t.Updated)
+	if t.Updated != "" {
+		row("UPDATED", t.Updated)
+	}
 
-	// Subtask progress bar.
+	// Subtask progress.
 	doneN, totalN, _ := core.SubtaskProgress(m.store.Tasks(), t.ID, isDone)
 	if totalN > 0 {
-		b.WriteString("\n")
-		pct := int(float64(doneN) / float64(totalN) * 100)
-		b.WriteString(s.dim.Render(padRight("subtasks", 10)) + progressBarGlyph(pct, 16) + fmt.Sprintf(" %d/%d\n", doneN, totalN))
+		body = append(body, "")
+		frac := float64(doneN) / float64(totalN)
+		frac = easedFrac(m, frac)
+		barW := clampInt(inner-16, 8, 18)
+		barFill, barTrack := gauges.Bar(frac, barW)
+		fill := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bgSurface).Render(barFill)
+		track := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Border)).Background(bgSurface).Render(barTrack)
+		body = append(body, " "+label("SUBTASKS")+fill+track+value(fmt.Sprintf("  %d/%d", doneN, totalN)))
 	}
 
 	// Notes.
-	b.WriteString("\n" + s.paneTitle.Width(inner).Render("notes") + "\n")
-	body := strings.TrimRight(t.Body, "\n")
-	if body == "" {
-		b.WriteString(s.dim.Render(" (empty — m to write, M in $EDITOR)") + "\n")
-	} else {
-		rendered := m.glamourRender(body, inner-2)
-		lines := strings.Split(rendered, "\n")
-		// Scroll the notes region with detailScroll.
-		start := m.detailScroll
-		if start > len(lines)-1 {
-			start = len(lines) - 1
-		}
-		if start < 0 {
-			start = 0
-		}
-		notesH := h - strings.Count(b.String(), "\n") - 2
-		if notesH < 2 {
-			notesH = 2
-		}
-		end := start + notesH
-		if end > len(lines) {
-			end = len(lines)
-		}
-		for _, l := range lines[start:end] {
-			b.WriteString(l + "\n")
-		}
+	body = append(body, "")
+	body = append(body, " "+s.sectionLabel.Render(letterspace("N O T E S")))
+	notesBody := strings.TrimRight(t.Body, "\n")
+	if notesBody == "" {
+		body = append(body, muted.Render(" No notes yet. Press m to write."))
+		return renderPanel(m, "", w, h, m.focus == focusDetail, body)
 	}
-	return paneWithBorder(m, b.String(), w, h)
+	notesW := inner - 1
+	if notesW < 8 {
+		notesW = 8
+	}
+	rendered := m.glamourRender(notesBody, notesW)
+	notesLines := strings.Split(rendered, "\n")
+	start := m.detailScroll
+	if start > len(notesLines)-1 {
+		start = len(notesLines) - 1
+	}
+	if start < 0 {
+		start = 0
+	}
+	notesH := h - 2 - len(body) // inner height minus lines already written
+	if notesH < 2 {
+		notesH = 2
+	}
+	end := start + notesH
+	if end > len(notesLines) {
+		end = len(notesLines)
+	}
+	for _, l := range notesLines[start:end] {
+		body = append(body, " "+padToWidth(l, notesW, bgSurface))
+	}
+	return renderPanel(m, "", w, h, m.focus == focusDetail, body)
 }
 
+// homeSelectedTask is defined in homeview.go; the detail pane reuses it in
+// Home mode.
 func dueSuffix(t *core.Task, now time.Time) string {
 	if t.Due == "" {
 		return ""
 	}
-	d, err := core.ParseDue(t.Due, now.Location())
-	if err != nil {
-		return ""
-	}
-	if len(t.Due) > len("2006-01-02") {
-		if d.Before(now) {
-			return "  (overdue)"
-		}
-		return ""
-	}
-	day := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, now.Location())
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	days := int(day.Sub(today).Hours() / 24)
-	switch {
-	case days < 0:
-		return fmt.Sprintf("  (%dd overdue)", -days)
-	case days == 0:
-		return "  (today)"
-	case days == 1:
-		return "  (tomorrow)"
-	default:
-		return fmt.Sprintf("  (in %dd)", days)
-	}
-}
-
-func progressBarGlyph(pct, width int) string {
-	filled := pct * width / 100
-	if filled > width {
-		filled = width
-	}
-	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
-}
-
-// paneWithBorder renders content in a pane with a left border and padding.
-// The reserved width w includes the border column: the content is laid out
-// at w-1 so the finished block is exactly w wide (bug: it used to overflow
-// by one column and shift the whole screen).
-func paneWithBorder(m Model, content string, w, h int) string {
-	pane := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(lipgloss.Color(m.palette.Muted)).
-		Padding(0, 1).
-		Width(w - 1).
-		Height(h)
-	return pane.Render(content)
+	label, _ := gauges.DueLabel(t.Due, now)
+	return "  (" + label + ")"
 }

@@ -6,9 +6,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderFooterBar renders the bottom line: view tabs + status or the input bar.
-// Layout rule: the middle message is truncated to fit first; the trailing
-// right side (help hint, clock) is never truncated.
+// renderFooterBar renders the statusline: view pills on the left, transient
+// message + sync state in the middle, help and clock on the right.
+// Layout rule: the middle message is truncated first; the right side
+// (help > sync > clock) is never truncated — the clock drops first when
+// width is tight, then the sync text; ? help never drops.
 func (m Model) renderFooterBar(width int) string {
 	s := m.styles
 
@@ -18,10 +20,9 @@ func (m Model) renderFooterBar(width int) string {
 	}
 
 	right := m.footerRight(width)
-	left := m.footerLeft()
+	left := m.footerLeft(width)
 
-	// Measure the pieces exactly as they will be rendered (styled once,
-	// measured after styling, never wrapped again).
+	// Measure the pieces exactly as they will be rendered.
 	leftW, rightW := lipgloss.Width(left), lipgloss.Width(right)
 	budget := width - leftW - rightW - 2 // middle padding cells
 	if budget < 0 {
@@ -33,51 +34,89 @@ func (m Model) renderFooterBar(width int) string {
 	}
 	middleStyle := s.footer
 	needles := strings.ToLower(middle)
-	if strings.Contains(needles, "paused") || strings.Contains(needles, "failed") || strings.Contains(needles, "conflict") {
+	if strings.Contains(needles, "paused") || strings.Contains(needles, "failed") || strings.Contains(needles, "conflict") || strings.Contains(needles, "sync error") {
 		middleStyle = s.syncBad
 	}
-	line := left + middleStyle.Render(middle) + right
+	fill := func() string { return middleStyle.Render(middle) }
+
+	line := left + fill() + right
 	// Last resort: pad/trim to exactly width without touching the ends.
 	if w := lipgloss.Width(line); w < width {
 		padLeft := (width - w) / 2
-		line = left + strings.Repeat(" ", padLeft) + middleStyle.Render(middle) +
+		line = left + strings.Repeat(" ", padLeft) + fill() +
 			strings.Repeat(" ", width-w-padLeft) + right
 	}
 	return s.footer.Width(width).Render(line)
 }
 
-func (m Model) footerLeft() string {
-	tabs := []string{}
-	tabDefs := []struct {
-		key, label string
-		view       viewID
-	}{
-		{"1", "List", viewList},
-		{"2", "Board", viewBoard},
-		{"3", "Calendar", viewCalendar},
-	}
-	for _, td := range tabDefs {
-		label := " " + td.key + " " + td.label + " "
-		if m.view == td.view {
-			tabs = append(tabs, m.styles.footerKey.Render(label))
-		} else {
-			tabs = append(tabs, m.styles.footer.Render(label))
-		}
-	}
-	return strings.Join(tabs, "")
+type pillSeg struct {
+	view     viewID
+	rendered string
 }
 
-// footerRight builds the right-hand segment. The wall clock renders from
-// the same Clock that stamps task frontmatter (D-011) so the two can never
-// drift apart — but it is the first segment dropped when width is tight;
-// sync state and the help hint always fit.
+// footerPillSegments is the single source for the pill row — the statusline
+// and the mouse hit-testing both consume it.
+func (m Model) footerPillSegments(width int) []pillSeg {
+	s := m.styles
+	if width < 30 {
+		return nil
+	}
+	pills := []struct {
+		key   string
+		label string
+		icon  string
+		view  viewID
+	}{
+		{"0", "Home", m.icon("home"), viewHome},
+		{"1", "List", m.icon("list"), viewList},
+		{"2", "Board", m.icon("board"), viewBoard},
+		{"3", "Calendar", m.icon("calendar"), viewCalendar},
+	}
+	compact := width < 90
+	activeOnly := width < 56
+	out := []pillSeg{}
+	for _, p := range pills {
+		active := m.view == p.view
+		if activeOnly && !active {
+			continue
+		}
+		text := p.key + " " + p.label
+		if p.icon != "" && !compact {
+			text = p.icon + " " + text
+		}
+		var rendered string
+		if active {
+			rendered = s.pillActive.Render(" " + text + " ")
+		} else {
+			rendered = s.pillInactive.Render(" " + text + " ")
+		}
+		out = append(out, pillSeg{p.view, rendered})
+	}
+	return out
+}
+
+// footerLeft renders the view pills. Compact forms drop detail when space
+// is tight (rule: right side never truncates).
+func (m Model) footerLeft(width int) string {
+	segs := m.footerPillSegments(width)
+	out := make([]string, 0, len(segs))
+	for _, s := range segs {
+		out = append(out, s.rendered)
+	}
+	return strings.Join(out, "")
+}
+
+// footerRight builds the right-hand segment: sync state + help + clock.
+// The wall clock renders from the same Clock that stamps task frontmatter
+// (D-011) so the two can never drift apart — but it is the first segment
+// dropped when width is tight; sync state and the help hint always fit.
 func (m Model) footerRight(width int) string {
 	s := m.styles
 	help := " " + m.keymap.Seq(aHelp) + " help "
 	base := s.footer.Render(" local repo " + help)
 	switch m.syncSt {
 	case syncSyncing:
-		base = s.footer.Render(m.spinner.View()+" syncing ") + s.footer.Render(help)
+		base = s.footer.Render(" "+m.spinner.View()+" syncing ") + s.footer.Render(help)
 	case syncConflict:
 		base = s.syncBad.Render(" ⚠ conflicts "+m.keymap.Seq(aConflicts)+" to fix ") + s.footer.Render(help)
 	case syncOffline:
@@ -97,14 +136,14 @@ func (m Model) footerRight(width int) string {
 		}
 	}
 	clockSeg := s.footer.Render(" " + m.clock.Now().Format("15:04") + " ")
-	if lipgloss.Width(m.footerLeft())+lipgloss.Width(base)+lipgloss.Width(clockSeg)+2 > width {
+	if lipgloss.Width(m.footerLeft(width))+lipgloss.Width(base)+lipgloss.Width(clockSeg)+2 > width {
 		return base // too tight — the clock yields, sync state and help stay
 	}
 	return clockSeg + base
 }
 
-// footerMiddle is the transient status / filter message and (in the redesign)
-// the active timer. Never shown at the cost of the right side.
+// footerMiddle is the transient status / filter message. Never shown at the
+// cost of the right side.
 func (m Model) footerMiddle() string {
 	msg := m.statusMsg
 	if m.searchQuery != "" {

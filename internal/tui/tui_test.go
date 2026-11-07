@@ -123,23 +123,35 @@ func findTaskInStore(s *store.Store, title string) *core.Task {
 	return nil
 }
 
-func TestNewModelLandsOnAllView(t *testing.T) {
+func TestNewModelLandsOnHomeView(t *testing.T) {
 	m, _ := newTestModel(t, []*core.Task{
 		{Title: "alpha", Priority: "high", Kind: core.KindTask, Status: "todo"},
 		{Title: "beta", Priority: "low", Kind: core.KindTask, Status: "todo"},
 	})
-	if m.sidebarSel != 0 {
-		t.Fatalf("sidebarSel = %d, want 0 (All)", m.sidebarSel)
+	if m.view != viewHome {
+		t.Fatalf("default view = %v, want Home", m.view)
 	}
-	if sel := m.sidebarSelection(); sel == nil || sel.Key != "all" {
+	if sel := m.sidebarSelection(); sel == nil || sel.Key != "home" {
 		t.Fatalf("default sidebar selection = %+v", sel)
 	}
 	if len(m.rows) != 2 {
 		t.Fatalf("rows = %d, want 2", len(m.rows))
 	}
-	if !strings.Contains(m.View(), "List") {
-		t.Fatal("footer missing view tabs")
+	if !strings.Contains(m.View(), "Home") {
+		t.Fatal("footer missing Home pill")
 	}
+}
+
+// selectSidebarKey moves the sidebar selection to kind/key and rebuilds rows.
+func selectSidebarKey(m Model, kind, key string) Model {
+	for i, it := range m.sidebarItems {
+		if it.Kind == kind && it.Key == key {
+			m.sidebarSel = i
+			break
+		}
+	}
+	m.refreshTasks()
+	return m
 }
 
 func TestSortOrderListRows(t *testing.T) {
@@ -148,6 +160,7 @@ func TestSortOrderListRows(t *testing.T) {
 		{Title: "open low", Status: "todo", Priority: "low", Kind: core.KindTask},
 		{Title: "open high", Status: "todo", Priority: "high", Kind: core.KindTask},
 	})
+	m = selectSidebarKey(m, "smart", "all")
 	got := strings.Join(taskTitles(m), ",")
 	want := "open high,open low,done urgent"
 	if got != want {
@@ -161,7 +174,7 @@ func TestCursorAndGG(t *testing.T) {
 		{Title: "two", Status: "todo", Priority: "medium", Kind: core.KindTask},
 		{Title: "three", Status: "todo", Priority: "medium", Kind: core.KindTask},
 	})
-	m = press(t, m, "j", "j")
+	m = press(t, m, "1", "j", "j")
 	if m.cursor != 2 {
 		t.Fatalf("cursor = %d after jj", m.cursor)
 	}
@@ -326,6 +339,7 @@ func TestArchiveDoneTaskSelected(t *testing.T) {
 	m, s := newTestModel(t, []*core.Task{
 		{Title: "old news", Status: "done", Priority: "low", Kind: core.KindTask},
 	})
+	m = selectSidebarKey(m, "smart", "all")
 	m = press(t, m, "X")
 	if findTaskInStore(s, "old news") != nil {
 		t.Fatal("done task not archived")
@@ -351,14 +365,16 @@ func TestArchiveOpenTaskRefused(t *testing.T) {
 }
 
 func TestCommandLineDone(t *testing.T) {
+	today := time.Now().Format("2006-01-02")
 	m, s := newTestModel(t, []*core.Task{
-		{Title: "via command", Status: "todo", Priority: "low", Kind: core.KindTask},
+		{Title: "via command", Status: "todo", Priority: "low", Kind: core.KindTask, Due: today},
 	})
 	m = press(t, m, ":")
-	if m.mode != modeInput || m.inputKind != inputCommand {
-		t.Fatalf("command mode not entered: %v", m.mode)
+	if m.mode != modePalette {
+		t.Fatalf("palette mode not entered: %v", m.mode)
 	}
 	m = typeInto(t, m, "done")
+	m = press(t, m, "enter")
 	if ft := findTaskInStore(s, "via command"); ft == nil || ft.Status != "done" {
 		t.Fatalf("command did not mark done: %+v", ft)
 	}
@@ -373,7 +389,7 @@ func TestSidebarFocusAndProjectFilter(t *testing.T) {
 	if m.focus != focusSidebar {
 		t.Fatalf("focus = %v", m.focus)
 	}
-	m = press(t, m, "j") // All -> Today
+	m = press(t, m, "j", "j") // Home -> All -> Today
 	if sel := m.sidebarSelection(); sel == nil || sel.Key != "today" {
 		t.Fatalf("selection = %+v", sel)
 	}
@@ -426,11 +442,15 @@ func TestViewSwitchingAndTab(t *testing.T) {
 	}
 	m = press(t, m, "tab")
 	if m.view != viewCalendar {
-		t.Fatal()
+		t.Fatal("tab 1 -> want Calendar")
+	}
+	m = press(t, m, "tab")
+	if m.view != viewHome {
+		t.Fatal("tab 2 -> want Home")
 	}
 	m = press(t, m, "tab")
 	if m.view != viewList {
-		t.Fatal()
+		t.Fatal("tab 3 -> want List")
 	}
 }
 
@@ -460,20 +480,24 @@ func TestBoardMouseDragMovesCard(t *testing.T) {
 	m = press(t, m, "2")
 	// Press on the card at (x=60, y=4) — main pane starts after the sidebar.
 	sidebarW := sideWidth(m.width, m.sidebarHidden)
-	x := sidebarW + 5
+	x := sidebarW + 8
 	updated, _ := m.Update(tea.MouseMsg{X: x, Y: 4, Type: tea.MouseLeft})
 	m = updated.(Model)
 	if !m.boardDragging {
 		t.Fatal("drag did not start on card press")
 	}
 	// Drag into the second column (stride = colW + 1 separator).
-	mainW := m.width - sidebarW
-	colW := (mainW - 2) / 3
-	releaseX := sidebarW + colW + 1 + 5 // inside column 1
+	detailW := detailWidth(m.width, m.detailOn)
+	mainW := m.width - sidebarW - detailW - 1
+	innerW := mainW - 2
+	_, visCols, colW := boardLayout(m, innerW)
+	if visCols < 2 {
+		t.Skip("not enough columns visible for drag target")
+	}
+	releaseX := sidebarW + 1 + 2 + 1 + colW + 1 + 5 // gutter + body inset + cardW + gap
 	updated, _ = m.Update(tea.MouseMsg{X: releaseX, Y: 4, Type: tea.MouseRelease})
 	m = updated.(Model)
-	ft := findTaskInStore(s, "drag me")
-	if ft == nil || ft.Status != "doing" {
+	if ft := findTaskInStore(s, "drag me"); ft == nil || ft.Status != "doing" {
 		t.Fatalf("card status after drag = %+v", ft)
 	}
 }

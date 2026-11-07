@@ -57,6 +57,7 @@ func (m *Model) refreshTasks() {
 	filtered := base.Apply(m.store.Tasks())
 	core.SortTasks(filtered, m.cfg.Sort, isDone)
 	m.rows = flattenRows(filtered)
+	m.computeGroups()
 
 	// Restore selection by id if possible.
 	m.cursor = 0
@@ -69,7 +70,18 @@ func (m *Model) refreshTasks() {
 		}
 	}
 	m.clampCursor()
+	if max := m.totalListLines() - m.visibleListRows(); max >= 0 && m.scroll > max {
+		m.scroll = max
+	}
 	m.ensureCursorVisible()
+	homeData := buildHomeData(*m)
+	m.homeCache = &homeData
+	if n := len(homeData.todayRows); m.homeSel >= n {
+		m.homeSel = n - 1
+	}
+	if m.homeSel < 0 {
+		m.homeSel = 0
+	}
 }
 
 func (m *Model) clampCursor() {
@@ -136,6 +148,8 @@ func (m *Model) sidebarFilter() core.Filter {
 		return core.Filter{}
 	}
 	switch sel.Kind {
+	case "home":
+		return core.Filter{}
 	case "smart":
 		if sel.Key == "all" {
 			// All shows everything, done included (done sorts last), so
@@ -176,6 +190,7 @@ func (m *Model) buildSidebar() []sidebarItem {
 	}
 
 	items := []sidebarItem{
+		{Kind: "home", Name: "Home", Key: "home"},
 		{Kind: "smart", Name: "All", Key: "all", Count: count(core.Filter{IncludeCompleted: true})},
 		{Kind: "smart", Name: "Today", Key: "today", Count: count(core.Filter{Due: "today"})},
 		{Kind: "smart", Name: "Week", Key: "week", Count: count(core.Filter{Due: "week"})},
@@ -222,29 +237,6 @@ func (m *Model) sidebarSelection() *sidebarItem {
 		return nil
 	}
 	return &m.sidebarItems[m.sidebarSel]
-}
-
-// selectableRows expands items with section headers (for rendering).
-func sidebarRows(items []sidebarItem) []sidebarRow {
-	var rows []sidebarRow
-	lastKind := ""
-	sel := 0
-	for _, it := range items {
-		if it.Kind != lastKind {
-			switch it.Kind {
-			case "smart":
-				rows = append(rows, sidebarRow{header: "SMART", sel: -1})
-			case "view":
-				rows = append(rows, sidebarRow{header: "VIEWS", sel: -1})
-			case "project":
-				rows = append(rows, sidebarRow{header: "PROJECTS", sel: -1})
-			}
-			lastKind = it.Kind
-		}
-		rows = append(rows, sidebarRow{sel: sel})
-		sel++
-	}
-	return rows
 }
 
 // refreshAfterStoreOp rebuilds rows, sidebar and clamped cursor after a mutation.
@@ -305,6 +297,11 @@ func (m *Model) toggleDoneAction() tea.Cmd {
 		return nil
 	}
 	m.statusMsg = "done " + t.ID + spawnSuffix(spawnMsg)
+	m.animTaskID = t.ID
+	if m.animations {
+		m.animFrame = animFrames
+		return tea.Batch(m.afterChange("done: "+t.Title), animTickCmd())
+	}
 	return m.afterChange("done: " + t.Title)
 }
 

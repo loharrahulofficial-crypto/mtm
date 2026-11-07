@@ -25,7 +25,8 @@ import (
 type viewID int
 
 const (
-	viewList viewID = iota
+	viewHome viewID = iota
+	viewList
 	viewBoard
 	viewCalendar
 )
@@ -48,6 +49,8 @@ const (
 	modeHelp            // keybinding help overlay
 	modeConflict        // sync conflict resolution screen
 	modeNotes           // built-in textarea notes editor
+	modeFocus           // full-screen single-task focus (Pomodoro)
+	modePalette         // command palette overlay
 )
 
 // inputKind identifies what the input bar is editing.
@@ -127,17 +130,26 @@ type Model struct {
 	filter      core.Filter
 	needle      string
 
+	// home dashboard
+	homeSel   int
+	homeCache *homeData
+
 	// list
 	rows   []flatRow
 	cursor int
 	scroll int
+	// rowLines maps a row index to its screen line within the list body
+	// (group headers consume extra lines). Rebuilt by refreshTasks.
+	rowLines   []int
+	groupHeads []string // header label before row i ("" = none)
 
 	// board
-	boardCol      int
-	boardRow      int
-	boardDragging bool
-	boardDragFrom int
-	boardDragCol  int
+	boardCol       int
+	boardRow       int
+	boardDragging  bool
+	boardDragFrom  int
+	boardDragCol   int
+	boardDragHover int
 
 	// calendar
 	calMonth     time.Time
@@ -173,6 +185,23 @@ type Model struct {
 	conflictSel    int
 	conflictDone   map[string]bool
 	conflictReturn modeID
+
+	// focus timer (Pomodoro)
+	focusEnd       time.Time
+	focusRemaining time.Duration
+	focusPaused    bool
+	focusTotal     time.Duration
+
+	// command palette
+	paletteQuery  string
+	paletteSel    int
+	paletteItems  []paletteItem
+	paletteRecent []string
+	paletteInput  textinput.Model
+
+	// animations
+	animFrame  int // 0 = idle; >0 = frames left in a pop/ease animation
+	animTaskID string
 
 	// sync
 	pendingCommits []string
@@ -221,7 +250,7 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 		root:           s.Root,
 		clock:          clk,
 		mode:           modeNormal,
-		view:           viewList,
+		view:           viewHome,
 		focus:          focusMain,
 		keymap:         DefaultKeyMap(),
 		styles:         newStyles(pal),
@@ -240,6 +269,7 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 		lastSync:       time.Time{},
 		icons:          buildIcons(cfg.UI.Icons),
 		animations:     cfg.UI.Animations,
+		paletteInput:   textinput.New(),
 	}
 	if unknown := m.keymap.ApplyOverrides(cfg.Keys); len(unknown) > 0 {
 		m.statusMsg = fmt.Sprintf("ignoring unknown keys: entries: %s", strings.Join(unknown, ", "))

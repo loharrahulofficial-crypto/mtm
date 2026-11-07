@@ -31,7 +31,7 @@ func mkTasks(n int) []*core.Task {
 // always be exactly height rows of exactly width cells, and the selected
 // row must always be visibly rendered.
 func TestFrameExactlyFitsTerminal(t *testing.T) {
-	for _, size := range []struct{ w, h int }{{80, 24}, {120, 40}, {200, 50}, {78, 10}} {
+	for _, size := range []struct{ w, h int }{{80, 24}, {120, 40}, {200, 50}, {78, 15}, {60, 15}} {
 		for _, n := range []int{0, 2, 3, 17, 120} {
 			m, _ := newTestModel(t, mkTasks(n))
 			upd, _ := m.Update(tea.WindowSizeMsg{Width: size.w, Height: size.h})
@@ -52,12 +52,13 @@ func TestFrameExactlyFitsTerminal(t *testing.T) {
 }
 
 func TestSelectedRowAlwaysVisible(t *testing.T) {
-	for _, h := range []int{10, 24, 40} {
+	for _, h := range []int{15, 24, 40} {
 		for _, n := range []int{2, 3, 17, 50} {
 			m, _ := newTestModel(t, mkTasks(n))
 			upd, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: h})
 			m = upd.(Model)
 			m.sidebarHidden = true // main pane only: no width noise
+			m = press(t, m, "1")   // list view
 			vis := m.visibleListRows()
 			// Walk to the last row and back with every navigation path.
 			for _, key := range []string{"G", "g", "G", "k", "j", "down", "up", "ctrl+d", "G"} {
@@ -83,11 +84,35 @@ func TestMouseWheelKeepsCursorVisible(t *testing.T) {
 	m, _ := newTestModel(t, mkTasks(30))
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
 	m = updated.(Model)
+	m = press(t, m, "1") // list view
 	for i := 0; i < 20; i++ {
 		m = press(t, m, "down")
 	}
 	v := m.View()
 	if !strings.Contains(v, m.selectedTask().Title) {
 		t.Fatalf("selected %q hidden after wheel-walk", m.selectedTask().Title)
+	}
+}
+
+// Below 60×15 the app refuses to lay out and shows a clean message instead
+// of a broken pane salad; the frame is still exactly w×h.
+func TestTerminalTooSmallMessage(t *testing.T) {
+	m, _ := newTestModel(t, mkTasks(3))
+	for _, size := range []struct{ w, h int }{{59, 15}, {60, 14}, {40, 12}, {1, 1}, {8, 4}} {
+		upd, _ := m.Update(tea.WindowSizeMsg{Width: size.w, Height: size.h})
+		m2 := upd.(Model)
+		v := m2.View()
+		lines := strings.Split(v, "\n")
+		if len(lines) != size.h {
+			t.Errorf("%dx%d: %d lines, want %d", size.w, size.h, len(lines), size.h)
+		}
+		if size.w >= 15 && !strings.Contains(v, "bigger terminal") {
+			t.Errorf("%dx%d: missing too-small message", size.w, size.h)
+		}
+		for i, l := range lines {
+			if w := lipgloss.Width(l); w > size.w {
+				t.Errorf("%dx%d line %d: %d cells, want <= %d", size.w, size.h, i, w, size.w)
+			}
+		}
 	}
 }

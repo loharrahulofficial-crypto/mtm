@@ -103,6 +103,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.pendingKey = ""
 		}
 		return m, nil
+
+	case focusTickMsg:
+		return m.handleFocusTick()
+
+	case animTickMsg:
+		if m.animFrame > 1 {
+			m.animFrame--
+			return m, animTickCmd()
+		}
+		m.animFrame = 0
+		m.animTaskID = ""
+		return m, nil
 	}
 	return m.dispatch(msg)
 }
@@ -164,4 +176,23 @@ func (m *Model) maybeReloadTheme() {
 	m.themeMod = cur
 	m.glamourRenderer = nil // glamour rebuilt lazily
 	m.statusMsg = "theme: " + pal.Name
+}
+
+// animTickMsg advances the checkbox-pop / bar-ease animation.
+const animFrames = 5
+
+type animTickMsg struct{}
+
+func animTickCmd() tea.Cmd {
+	return tea.Tick(80*time.Millisecond, func(time.Time) tea.Msg { return animTickMsg{} })
+}
+
+// easedFrac returns frac with an ease-in from the current animation frame,
+// so bars sweep up to their new value instead of jumping.
+func easedFrac(m Model, frac float64) float64 {
+	if m.animFrame <= 0 {
+		return frac
+	}
+	e := float64(animFrames-m.animFrame) / float64(animFrames)
+	return frac * e
 }

@@ -88,6 +88,10 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateConflictKey(msg)
 	case modeNotes:
 		return m.updateNotesKey(msg)
+	case modeFocus:
+		return m.updateFocusKey(msg)
+	case modePalette:
+		return m.updatePaletteKey(msg)
 	default:
 		return m.updateNormalKey(msg)
 	}
@@ -146,12 +150,23 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		m.view = viewBoard
 		m.resetBoardCursor()
 		return m, nil
+	case aViewHome:
+		m.view = viewHome
+		return m, nil
 	case aViewCalendar:
 		m.view = viewCalendar
 		return m, nil
 	case aCycleView:
-		m.view = (m.view + 1) % 3
+		m.view = (m.view + 1) % 4
 		return m, nil
+	case aFocus:
+		if t := m.selectedTask(); t != nil {
+			return m.enterFocusTask(t)
+		}
+		m.statusMsg = "no task selected to focus"
+		return m, nil
+	case aPalette, aPaletteColon:
+		return m, m.openPalette()
 	case aHelp:
 		m.mode = modeHelp
 		m.helpSel = 0
@@ -170,15 +185,7 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		m.focus = (m.focus + 1) % 3
 		return m, nil
 	case aSync:
-		if m.syncSt == syncConflict {
-			m.statusMsg = "sync paused — resolve conflicts first (ctrl+x)"
-			return m, nil
-		}
-		m.syncSt = syncSyncing
-		m.statusMsg = "syncing…"
-		msgs := m.pendingCommits
-		m.pendingCommits = nil
-		return m, m.flushWith(msgs)
+		return m.startSync()
 	case aConflicts:
 		if st, err := m.repo.LoadState(); err == nil && st.Conflicted {
 			m.startConflictMode(st.Files, "sync paused — conflicts need resolution")
@@ -196,6 +203,8 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		return m.updateBoardKey(act)
 	case viewCalendar:
 		return m.updateCalendarKey(act)
+	case viewHome:
+		return m.updateHomeKey(act)
 	}
 	return m, nil
 }
@@ -227,20 +236,32 @@ func (m *Model) moveSidebarSelection(delta int) {
 	if m.sidebarSel >= len(m.sidebarItems) {
 		m.sidebarSel = len(m.sidebarItems) - 1
 	}
+	if sel := m.sidebarSelection(); sel != nil {
+		switch sel.Kind {
+		case "home":
+			m.view = viewHome
+		default:
+			if m.view == viewHome {
+				m.view = viewList
+			}
+		}
+	}
 	m.refreshTasks()
 }
 
 // ensureCursorVisible scrolls the list window so cursor is on screen.
+// Scroll is tracked in body-line units (group headers consume lines).
 func (m *Model) ensureCursorVisible() {
 	visible := m.visibleListRows()
 	if visible <= 0 {
 		return
 	}
-	if m.cursor < m.scroll {
-		m.scroll = m.cursor
+	cursorLine := m.rowsLine(m.cursor)
+	if cursorLine < m.scroll {
+		m.scroll = cursorLine
 	}
-	if m.cursor >= m.scroll+visible {
-		m.scroll = m.cursor - visible + 1
+	if cursorLine >= m.scroll+visible {
+		m.scroll = cursorLine - visible + 1
 	}
 	if m.scroll < 0 {
 		m.scroll = 0
@@ -248,8 +269,9 @@ func (m *Model) ensureCursorVisible() {
 }
 
 func (m Model) visibleListRows() int {
-	// The list pane occupies the full content height (footer is separate).
-	h := m.height - 1
+	// The list body excludes the footer (1), the panel chrome (2) and the
+	// pinned header row (1).
+	h := m.height - 1 - 2 - 1
 	if h < 1 {
 		return 1
 	}
@@ -291,7 +313,7 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 
 	mainX := x
 	if sidebarW > 0 {
-		mainX = x - sidebarW
+		mainX = x - sidebarW - 1 // sidebar + gutter
 	}
 	if detailW > 0 && x >= m.width-detailW {
 		mainX = -1 // not over the main pane
@@ -315,15 +337,12 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Footer tabs?
-	footerY := m.height - 1
-	if y == footerY {
-		switch {
-		case x <= 12:
-			m.view = viewList
-		case x <= 24:
-			m.view = viewBoard
-		case x <= 36:
-			m.view = viewCalendar
+	if y == m.height-1 {
+		if v, ok := m.footerPillAt(x); ok {
+			m.view = v
+			if v == viewBoard {
+				m.resetBoardCursor()
+			}
 		}
 		return m, nil
 	}
@@ -333,6 +352,16 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		m.focus = focusSidebar
 		if idx := m.sidebarIndexAt(y); idx >= 0 {
 			m.sidebarSel = idx
+			if sel := m.sidebarSelection(); sel != nil {
+				switch sel.Kind {
+				case "home":
+					m.view = viewHome
+				default:
+					if m.view == viewHome {
+						m.view = viewList
+					}
+				}
+			}
 			m.refreshTasks()
 			m.sidebarItems = m.buildSidebar()
 			m.focus = focusMain
@@ -350,7 +379,7 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	m.focus = focusMain
 	switch m.view {
 	case viewList:
-		if idx := m.listIndexAt(y, 0); idx >= 0 {
+		if idx := m.listIndexAt(y, 2); idx >= 0 {
 			m.cursor = idx
 			m.clampCursor()
 		}
@@ -372,17 +401,30 @@ func (m *Model) focusTo(x, sidebarW, mainW, detailW int) {
 	}
 }
 
-// listIndexAt maps a y coordinate (0-based from top of content) to a row index.
+// listIndexAt maps a y coordinate (0-based from top of content, including
+// the panel's top chrome row) to a row index. Group-header lines map to -1.
 func (m Model) listIndexAt(y, topPad int) int {
-	idx := m.scroll + (y - topPad)
-	if idx < 0 || idx >= len(m.rows) {
-		return -1
+	line := m.scroll + (y - topPad)
+	if i := searchRowLine(m.rowLines, line); i >= 0 {
+		return i
 	}
-	return idx
+	return -1
+}
+
+func searchRowLine(rowLines []int, line int) int {
+	for i, l := range rowLines {
+		if l == line {
+			return i
+		}
+	}
+	return -1
 }
 
 func (m Model) sidebarIndexAt(y int) int {
-	row := 0
+	if y < brandLines {
+		return -1
+	}
+	row := brandLines
 	for _, r := range sidebarRows(m.sidebarItems) {
 		if y == row {
 			return r.sel // -1 for headers (not selectable)
@@ -390,4 +432,103 @@ func (m Model) sidebarIndexAt(y int) int {
 		row++
 	}
 	return -1
+}
+
+// startSync begins a debounced sync cycle (shared by key binding + palette).
+func (m Model) startSync() (Model, tea.Cmd) {
+	if m.syncSt == syncConflict {
+		m.statusMsg = "sync paused — resolve conflicts first (ctrl+x)"
+		return m, nil
+	}
+	m.syncSt = syncSyncing
+	m.statusMsg = "syncing…"
+	msgs := m.pendingCommits
+	m.pendingCommits = nil
+	return m, m.flushWith(msgs)
+}
+
+// footerPillAt maps an x coordinate on the statusline to the view pill under it.
+func (m Model) footerPillAt(x int) (viewID, bool) {
+	pos := 0
+	for _, seg := range m.footerPillSegments(m.width) {
+		w := lipglossWidth(seg.rendered)
+		if x >= pos && x < pos+w {
+			return seg.view, true
+		}
+		pos += w
+	}
+	return 0, false
+}
+
+// updateHomeKey handles Home: j/k move the timeline cursor, other actions
+// fall through to the shared task actions (which act on the Home selection).
+func (m Model) updateHomeKey(act string) (tea.Model, tea.Cmd) {
+	// When the sidebar is focused, j/k/pgup/pgdn drive it like everywhere else.
+	if m.focus == focusSidebar {
+		switch act {
+		case aUp:
+			m.moveSidebarSelection(-1)
+			return m, nil
+		case aDown:
+			m.moveSidebarSelection(+1)
+			return m, nil
+		case aPageUp:
+			m.moveSidebarSelection(-5)
+			return m, nil
+		case aPageDown:
+			m.moveSidebarSelection(+5)
+			return m, nil
+		case aTop:
+			m.sidebarSel = 0
+			m.refreshTasks()
+			return m, nil
+		case aBottom:
+			m.sidebarSel = len(m.sidebarItems) - 1
+			m.refreshTasks()
+			return m, nil
+		}
+		return m, nil
+	}
+	n := len(m.homeRows())
+	switch act {
+	case aUp:
+		if m.homeSel > 0 {
+			m.homeSel--
+		}
+		return m, nil
+	case aDown:
+		if m.homeSel < n-1 {
+			m.homeSel++
+		}
+		return m, nil
+	case aPageUp:
+		m.homeSel -= 6
+		if m.homeSel < 0 {
+			m.homeSel = 0
+		}
+		return m, nil
+	case aPageDown:
+		m.homeSel += 6
+		if m.homeSel > n-1 {
+			m.homeSel = n - 1
+		}
+		if n == 0 {
+			m.homeSel = 0
+		}
+		return m, nil
+	case aTop:
+		m.homeSel = 0
+		return m, nil
+	case aBottom:
+		m.homeSel = n - 1
+		if m.homeSel < 0 {
+			m.homeSel = 0
+		}
+		return m, nil
+	default:
+		if m2, cmd, handled := m.updateSimpleTaskAction(act); handled {
+			return m2, cmd
+		}
+	}
+	return m, nil
 }

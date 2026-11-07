@@ -9,10 +9,14 @@ import (
 // help display.
 const (
 	aQuit         = "quit"
+	aViewHome     = "view_home"
 	aViewList     = "view_list"
 	aViewBoard    = "view_board"
 	aViewCalendar = "view_calendar"
 	aCycleView    = "cycle_view"
+	aFocus        = "focus"
+	aPalette      = "palette"
+	aPaletteColon = "palette_colon"
 	aUp           = "up"
 	aDown         = "down"
 	aLeft         = "left"
@@ -50,7 +54,7 @@ const (
 )
 
 var actionOrder = []string{
-	aQuit, aViewList, aViewBoard, aViewCalendar, aCycleView,
+	aQuit, aViewHome, aViewList, aViewBoard, aViewCalendar, aCycleView, aFocus, aPalette,
 	aUp, aDown, aLeft, aRight, aTop, aBottom, aPageDown, aPageUp,
 	aSearch, aSearchNext, aSearchPrev, aCommand,
 	aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle,
@@ -61,10 +65,13 @@ var actionOrder = []string{
 
 var actionDescriptions = map[string]string{
 	aQuit:         "quit",
+	aViewHome:     "home view",
 	aViewList:     "list view",
 	aViewBoard:    "board view",
 	aViewCalendar: "calendar view",
 	aCycleView:    "cycle views",
+	aFocus:        "focus current task",
+	aPalette:      "command palette",
 	aUp:           "move up",
 	aDown:         "move down",
 	aLeft:         "move left / column",
@@ -112,10 +119,14 @@ type KeyMap struct {
 func DefaultKeyMap() KeyMap {
 	return KeyMap{binds: map[string]string{
 		aQuit:         "q",
+		aViewHome:     "0",
 		aViewList:     "1",
 		aViewBoard:    "2",
 		aViewCalendar: "3",
 		aCycleView:    "tab",
+		aFocus:        "F",
+		aPalette:      "ctrl+p",
+		aPaletteColon: ":",
 		aUp:           "k",
 		aDown:         "j",
 		aLeft:         "h",
@@ -127,29 +138,29 @@ func DefaultKeyMap() KeyMap {
 		aSearch:       "/",
 		aSearchNext:   "n",
 		aSearchPrev:   "N",
-		aCommand:      ":",
-		aAdd:          "a",
-		aAddSubtask:   "A",
-		aToggleDone:   "x",
-		aDelete:       "dd",
-		aStatus:       "s",
-		aPriority:     "p",
-		aDue:          "D",
-		aTags:         "t",
-		aTitle:        "e",
-		aNotes:        "m",
-		aNotesEditor:  "M",
-		aEditFile:     "E",
-		aArchive:      "X",
-		aSync:         "S",
-		aDetail:       "v",
-		aSidebar:      "ctrl+b",
-		aFocusLeft:    "ctrl+h",
-		aFocusRight:   "ctrl+l",
-		aConflicts:    "ctrl+x",
-		aHelp:         "?",
-		aJumpLeft:     "H",
-		aJumpRight:    "L",
+
+		aAdd:         "a",
+		aAddSubtask:  "A",
+		aToggleDone:  "x",
+		aDelete:      "dd",
+		aStatus:      "s",
+		aPriority:    "p",
+		aDue:         "D",
+		aTags:        "t",
+		aTitle:       "e",
+		aNotes:       "m",
+		aNotesEditor: "M",
+		aEditFile:    "E",
+		aArchive:     "X",
+		aSync:        "S",
+		aDetail:      "v",
+		aSidebar:     "ctrl+b",
+		aFocusLeft:   "ctrl+h",
+		aFocusRight:  "ctrl+l",
+		aConflicts:   "ctrl+x",
+		aHelp:        "?",
+		aJumpLeft:    "H",
+		aJumpRight:   "L",
 	}}
 }
 
