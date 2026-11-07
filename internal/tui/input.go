@@ -129,6 +129,10 @@ func (m Model) submitInput() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) submitQuickAdd(value, parent string) (tea.Model, tea.Cmd) {
+	return m.submitQuickAddKind(value, parent, "")
+}
+
+func (m Model) submitQuickAddKind(value, parent, kind string) (tea.Model, tea.Cmd) {
 	m.mode = modeNormal
 	m.input.Blur()
 	if value == "" {
@@ -136,6 +140,7 @@ func (m Model) submitQuickAdd(value, parent string) (tea.Model, tea.Cmd) {
 	}
 	t, err := actions.QuickAddTask(m.cfg, m.store, value, actions.QuickAddOverrides{
 		Parent: parent,
+		Kind:   kind,
 		Now:    m.clock.Now(),
 	})
 	if err != nil {
@@ -182,6 +187,12 @@ func (m Model) execCommand(value string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.submitQuickAdd(arg, "")
+	case "exam":
+		if arg == "" {
+			m.statusMsg = "usage: :exam <title> — creates an exam"
+			return m, nil
+		}
+		return m.submitQuickAddKind(arg, "", "exam")
 	case "subtask":
 		if arg == "" {
 			m.statusMsg = "usage: :subtask <text>"

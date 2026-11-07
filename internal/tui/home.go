@@ -26,8 +26,7 @@ type homeData struct {
 	exams     []examCard
 	courses   []courseRow
 
-	heatmap   [7 * 16]int
-	heatWeeks [16]bool // which buckets have activity (always all true; kept simple)
+	heatmap   [7 * 26]int
 	weekHours [7]float64
 	weekTotal float64
 }
@@ -89,7 +88,8 @@ func buildHomeData(m Model) homeData {
 	now := m.clock.Now()
 	d.now = now
 
-	// Week-of-semester for the brand line (sidebar shows the same).
+	// Week-of-semester for the home header (only when a semester is
+	// configured).
 	if cfg := m.cfg; cfg.UI.SemesterStart != "" {
 		if start, err := time.ParseInLocation("2006-01-02", cfg.UI.SemesterStart, now.Location()); err == nil {
 			week := int(now.Sub(start).Hours()/(24*7)) + 1
@@ -105,9 +105,6 @@ func buildHomeData(m Model) homeData {
 			}
 			d.weekLine = fmt.Sprintf("Week %d of %d", week, weeks)
 		}
-	}
-	if d.weekLine == "" {
-		d.weekLine = m.palette.Name
 	}
 
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
@@ -152,10 +149,10 @@ func buildHomeData(m Model) homeData {
 		if stamp != "" {
 			if ts, err := time.ParseInLocation(core.TimestampFormat, stamp, now.Location()); err == nil {
 				dayIdx := int(todayStart.Sub(time.Date(ts.Year(), ts.Month(), ts.Day(), 0, 0, 0, 0, now.Location())).Hours() / (24 * 7))
-				if dayIdx >= 0 && dayIdx < 16 {
-					col := 15 - dayIdx
+				if dayIdx >= 0 && dayIdx < 26 {
+					col := 25 - dayIdx
 					row := int(ts.Weekday()+6) % 7
-					d.heatmap[row*16+col]++
+					d.heatmap[row*26+col]++
 				}
 			}
 		}

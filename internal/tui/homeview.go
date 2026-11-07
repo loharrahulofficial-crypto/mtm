@@ -24,211 +24,169 @@ func renderHomeBody(m Model, w, h int) []string {
 	bgBase := lipgloss.Color(m.palette.Base)
 	base := lipgloss.NewStyle().Background(bgBase)
 
+	sparse := len(m.store.Tasks()) <= 3
+
 	lines := []string{}
 	lines = append(lines, homeHeaderLine(m, w, d))
-	lines = append(lines, homeGreetingLine(m, d, w))
 	lines = append(lines, "")
-	avail := h - len(lines)
-	if avail < 5 {
+	lines = append(lines, homeGreetingLine(m, d, w))
+	stripRows := 0
+	if sparse {
+		stripRows = 1
+	}
+	avail := h - len(lines) - stripRows
+	if avail < 8 {
 		// Extremely short: just header + greeting.
+		if sparse {
+			lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgBase).Render(" a add · F focus · ctrl+p palette · ? help"))
+		}
 		return lines
 	}
-
-	// Panel heights hug content; leftover stays blank canvas at the bottom.
-	timed := 0
-	for _, t := range d.todayRows {
-		if len(t.Due) > len("2006-01-02") {
-			timed = 1
-			break
+	row1H := (avail * 45) / 100
+	row2H := (avail * 25) / 100
+	row3H := avail - row1H - row2H
+	// Minimums; HEATMAP needs room for its legend row.
+	if row3H < 9 {
+		row3H = 9
+	}
+	if row1H < 7 {
+		row1H = 7
+	}
+	if row2H < 6 {
+		row2H = 6
+	}
+	if total := row1H + row2H + row3H; total > avail {
+		row1H -= total - avail
+		if row1H < 5 {
+			row2H -= 5 - row1H
+			row1H = 5
 		}
 	}
-	todayNeed := clampInt(4+len(d.todayRows)+timed, 7, 18)
-	examsNeed := 2
-	if len(d.exams) > 0 {
-		examsNeed += 5 * len(d.exams)
-		if examsNeed > 13 {
-			examsNeed = 13
-		}
-	}
-	coursesNeed := clampInt(3+len(d.courses), 6, 12)
-	row1H := clampInt(max3(todayNeed, examsNeed, coursesNeed), 8, 20)
 
-	heatNeed := 10 // 7 rows + title + legend
-	row2H := clampInt(heatNeed, 8, max(8, avail-row1H-1))
-
-	if row2H < 8 {
-		row2H = 8
-	}
-
+	gutter := 1
 	switch {
 	case w >= 150:
-		gutter := 1
-		todayW := (w*46 + 99) / 100
+		todayW := (w*44 + 99) / 100
 		examsW := (w * 24) / 100
 		coursesW := w - todayW - examsW - 2*gutter
-		heatW := todayW + examsW + gutter
-		thisW := w - heatW - gutter
 		row1 := hstack([][]string{
 			splitPane(m, "TODAY", todayW, row1H, m.focus == focusMain, todayBody(m, todayW-2, row1H, d)),
 			splitPane(m, "EXAMS", examsW, row1H, false, examsBody(m, examsW-2, row1H, d)),
 			splitPane(m, "COURSES", coursesW, row1H, false, coursesBody(m, coursesW-2, row1H, d)),
 		}, gutter, base)
 		row2 := hstack([][]string{
-			splitPane(m, "HEATMAP", heatW, row2H, false, heatmapBody(m, heatW-2, row2H, d)),
-			splitPane(m, "THIS WEEK", thisW, row2H, false, thisWeekBody(m, thisW-2, row2H, d)),
+			splitPane(m, "THIS WEEK", w, row2H, false, thisWeekBody(m, w-2, row2H, d)),
+		}, gutter, base)
+		row3 := hstack([][]string{
+			splitPane(m, "HEATMAP", w, row3H, false, heatmapBody(m, w-2, row3H, d)),
 		}, gutter, base)
 		lines = append(lines, row1...)
-		lines = append(lines, "")
 		lines = append(lines, row2...)
+		lines = append(lines, row3...)
 	case w >= 100:
-		gutter := 1
-		topH := row1H
-		midH := clampInt(max3(coursesNeed, 7, 7), 7, 12)
-		botH := clampInt(avail-topH-midH-2, 6, 12)
-		todayW := (w * 56) / 100
+		todayW := (w*56 + 99) / 100
 		examsW := w - todayW - gutter
-		coursesW := (w * 52) / 100
+		coursesW := (w*52 + 99) / 100
 		weekW := w - coursesW - gutter
-		heatW := w
 		row1 := hstack([][]string{
-			splitPane(m, "TODAY", todayW, topH, m.focus == focusMain, todayBody(m, todayW-2, topH, d)),
-			splitPane(m, "EXAMS", examsW, topH, false, examsBody(m, examsW-2, topH, d)),
+			splitPane(m, "TODAY", todayW, row1H, m.focus == focusMain, todayBody(m, todayW-2, row1H, d)),
+			splitPane(m, "EXAMS", examsW, row1H, false, examsBody(m, examsW-2, row1H, d)),
 		}, gutter, base)
 		row2 := hstack([][]string{
-			splitPane(m, "COURSES", coursesW, midH, false, coursesBody(m, coursesW-2, midH, d)),
-			splitPane(m, "THIS WEEK", weekW, midH, false, thisWeekBody(m, weekW-2, midH, d)),
+			splitPane(m, "COURSES", coursesW, row2H, false, coursesBody(m, coursesW-2, row2H, d)),
+			splitPane(m, "THIS WEEK", weekW, row2H, false, thisWeekBody(m, weekW-2, row2H, d)),
+		}, gutter, base)
+		row3 := hstack([][]string{
+			splitPane(m, "HEATMAP", w, row3H, false, heatmapBody(m, w-2, row3H, d)),
 		}, gutter, base)
 		lines = append(lines, row1...)
-		lines = append(lines, "")
 		lines = append(lines, row2...)
-		lines = append(lines, "")
-		lines = append(lines, splitPane(m, "HEATMAP", heatW, botH, false, heatmapBody(m, heatW-2, botH, d))...)
+		lines = append(lines, row3...)
 	default:
-		// Stacked: each panel gets the height its content needs; TODAY and
-		// HEATMAP flex to absorb leftover canvas.
-		panels := []struct {
-			title string
-			need  int
-			body  func(innerW, innerH int) []string
+		// Stacked: each panel gets a proportional share of the available
+		// height; TODAY and HEATMAP flex to absorb the leftover.
+		blocks := []struct {
+			title  string
+			weight int
+			body   func(iw, ih int) []string
 		}{
-			{"TODAY", todayNeed, func(iw, ih int) []string { return todayBody(m, iw, ih, d) }},
-			{"THIS WEEK", 7, func(iw, ih int) []string { return thisWeekBody(m, iw, ih, d) }},
-			{"COURSES", clampInt(3+len(d.courses), 6, 12), func(iw, ih int) []string { return coursesBody(m, iw, ih, d) }},
-			{"EXAMS", clampInt(2+max(1, len(d.exams))*5, 7, 12), func(iw, ih int) []string { return examsBody(m, iw, ih, d) }},
-			{"HEATMAP", 10, func(iw, ih int) []string { return heatmapBody(m, iw, ih, d) }},
+			{"TODAY", 3, func(iw, ih int) []string { return todayBody(m, iw, ih, d) }},
+			{"THIS WEEK", 1, func(iw, ih int) []string { return thisWeekBody(m, iw, ih, d) }},
+			{"COURSES", 2, func(iw, ih int) []string { return coursesBody(m, iw, ih, d) }},
+			{"EXAMS", 2, func(iw, ih int) []string { return examsBody(m, iw, ih, d) }},
+			{"HEATMAP", 3, func(iw, ih int) []string { return heatmapBody(m, iw, ih, d) }},
 		}
-		blanks := len(panels) - 1
-		room := avail - blanks
-		if room < 5*len(panels) {
-			room = 5 * len(panels)
+		totalWeight := 0
+		for _, b := range blocks {
+			totalWeight += b.weight
 		}
-		heights := make([]int, len(panels))
-		total := 0
-		for i, p := range panels {
-			heights[i] = p.need
-			total += p.need
+		// Minimum panel heights shrink on small terminals so all five fit
+		// exactly into the available rows.
+		minH := 2
+		if avail >= 30 {
+			minH = 4
+		} else if avail >= 20 {
+			minH = 3
 		}
-		caps := []int{22, 8, 12, 12, 13}
-		if total <= room {
-			// Flex toward content needs, then distribute leftover round-robin.
-			leftover := room - total
-			for leftover > 0 {
-				gave := false
-				for i := range heights {
-					if heights[i] < caps[i] {
-						add := 1
-						if heights[i]+add > caps[i] {
-							add = caps[i] - heights[i]
-						}
-						heights[i] += add
-						leftover -= add
-						gave = true
-					}
-					if leftover == 0 {
+		heights := make([]int, len(blocks))
+		assigned := 0
+		for i, b := range blocks {
+			heights[i] = avail * b.weight / totalWeight
+			if heights[i] < minH {
+				heights[i] = minH
+			}
+			assigned += heights[i]
+		}
+		// Distribute the remainder round-robin between the flex panels
+		// (TODAY first, HEATMAP second).
+		for assigned < avail {
+			for _, idx := range []int{0, 4} {
+				heights[idx]++
+				assigned++
+				if assigned == avail {
+					break
+				}
+			}
+		}
+		for assigned > avail {
+			decreased := false
+			for i := range heights {
+				if heights[i] > minH {
+					heights[i]--
+					assigned--
+					decreased = true
+					if assigned == avail {
 						break
 					}
 				}
-				if !gave {
-					heights[0] += leftover // TODAY absorbs residue
-					break
-				}
 			}
-		} else {
-			// Overfull: shrink proportionally, floor 5.
-			scaled := make([]int, len(heights))
-			scaledTotal := 0
-			for i := range heights {
-				scaled[i] = heights[i] * room / total
-				if scaled[i] < 5 {
-					scaled[i] = 5
-				}
-				scaledTotal += scaled[i]
+			if !decreased {
+				break
 			}
-			for rem := room - scaledTotal; rem != 0; {
-				for i := 0; i < len(scaled) && rem != 0; i++ {
-					if rem > 0 {
-						scaled[i]++
-						rem--
-					} else if scaled[i] > 5 {
-						scaled[i]--
-						rem++
-					}
-				}
-				if rem < 0 && func() bool {
-					for _, h := range scaled {
-						if h > 5 {
-							return true
-						}
-					}
-					return false
-				}() == false {
-					break
-				}
-			}
-			heights = scaled
 		}
 		focused := m.focus == focusMain
-		for i, p := range panels {
-			ph := heights[i]
-			body := p.body(w-2, ph-2)
-			if i > 0 {
-				lines = append(lines, "")
-			}
-			lines = append(lines, splitPane(m, p.title, w, ph, focused && i == 0, body)...)
+		for i, b := range blocks {
+			body := b.body(w-2, heights[i]-2)
+			lines = append(lines, splitPane(m, b.title, w, heights[i], focused && i == 0, body)...)
 		}
+	}
+	if sparse {
+		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgBase).Render(" a add · F focus · ctrl+p palette · ? help"))
 	}
 	return lines
 }
 
-// homeHeaderLine renders "mtm · Sat 7 Nov · Week 11 of 16" left and the
-// clock + sync glyph right, on base.
+// homeHeaderLine renders the quiet date line: "Sat 7 Nov" on the left (plus
+// "· Week N of M" only when a semester is configured). No clock, no sync
+// pill — the statusline owns both.
 func homeHeaderLine(m Model, w int, d homeData) string {
-	left := m.styles.pillActive.Render(" mtm ") + "  " +
-		lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(lipgloss.Color(m.palette.Base)).
-			Render(d.dateLine+" · "+d.weekLine)
-
-	s := m.styles
-	syncGlyph := ""
-	switch m.syncSt {
-	case syncOK:
-		syncGlyph = s.syncOK.Render(" ✓ synced ")
-	case syncSyncing:
-		syncGlyph = s.footer.Render(" " + m.spinner.View() + " syncing ")
-	case syncConflict:
-		syncGlyph = s.syncBad.Render(" ⚠ conflicts ")
-	case syncOffline:
-		syncGlyph = s.footer.Render(" ○ offline ")
-	default:
-		syncGlyph = s.footer.Render(" ○ local ")
+	left := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(lipgloss.Color(m.palette.Base)).Bold(true).
+		Render(" " + d.dateLine)
+	if d.weekLine != "" {
+		left += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(lipgloss.Color(m.palette.Base)).
+			Render(" · " + d.weekLine)
 	}
-	clock := s.pillActive.Render(" " + m.clock.Now().Format("15:04") + " ")
-	right := syncGlyph + clock
-
-	pad := w - lipgloss.Width(left) - lipgloss.Width(right)
-	if pad < 1 {
-		pad = 1
-	}
-	return left + strings.Repeat(" ", pad) + right
+	return left
 }
 
 // homeGreetingLine renders the time-aware greeting with due/overdue counts.
@@ -448,7 +406,7 @@ func examsBody(m Model, w, h int, d homeData) []string {
 	if len(d.exams) == 0 {
 		return []string{
 			"",
-			muted.Render(" ✦ no exams — enjoy the calm"),
+			muted.Render(" ✦ no exams yet — add one with :exam"),
 		}
 	}
 	if h < 4 {
@@ -515,6 +473,9 @@ func examsBody(m Model, w, h int, d homeData) []string {
 
 // coursesBody renders one row per course: stripe, name, bar, percent.
 func coursesBody(m Model, w, h int, d homeData) []string {
+	if h < 1 {
+		h = 1
+	}
 	bgSurface := lipgloss.Color(m.palette.Surface)
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bgSurface)
 
@@ -543,7 +504,9 @@ func coursesBody(m Model, w, h int, d homeData) []string {
 	return lines
 }
 
-// heatmapBody renders the 16-week completion heatmap (Mon..Sun rows).
+// heatmapBody renders the completion heatmap (Mon..Sun rows) at 2-cell
+// granularity: as many week-columns as fit (max 26), a visible subtle track
+// for empty days, and a `less ▪▪▪▪ more` legend.
 func heatmapBody(m Model, w, h int, d homeData) []string {
 	bgSurface := lipgloss.Color(m.palette.Surface)
 
@@ -569,7 +532,7 @@ func heatmapBody(m Model, w, h int, d homeData) []string {
 		}
 	}
 	cell := func(v int) string {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Heatmap[level(v)])).Background(bgSurface).Render("█") + " "
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Heatmap[level(v)])).Background(bgSurface).Render("██") + " "
 	}
 	rowLabel := func(i int) string {
 		names := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
@@ -580,21 +543,29 @@ func heatmapBody(m Model, w, h int, d homeData) []string {
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgSurface).Width(4).Render(label)
 	}
 
+	const labelW = 5
+	weeks := (w - labelW) / 3
+	if weeks > 26 {
+		weeks = 26
+	}
+	if weeks < 4 {
+		weeks = 4
+	}
+
 	lines := []string{}
 	for row := 0; row < 7 && row < h-1; row++ {
 		line := " " + rowLabel(row)
-		for col := 0; col < 16; col++ {
-			line += cell(d.heatmap[row*16+col])
+		for col := 26 - weeks; col < 26; col++ {
+			line += cell(d.heatmap[row*26+col])
 		}
 		lines = append(lines, line)
 	}
 	// Legend: less → more.
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgSurface)
-	legend := "      " + muted.Render("less") + " "
-	for i := 0; i < 5; i++ {
-		legend += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Heatmap[i])).Background(bgSurface).Render("█") + " "
+	cellS := func(i int) string {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Heatmap[i])).Background(bgSurface).Render("▪") + " "
 	}
-	legend += muted.Render("more")
+	legend := "      " + muted.Render("less ") + cellS(1) + cellS(2) + cellS(3) + cellS(4) + muted.Render("more")
 	lines = append(lines, legend)
 	return lines
 }
@@ -617,15 +588,4 @@ func thisWeekBody(m Model, w, h int, d homeData) []string {
 		muted.Render(" last 7 days"),
 	}
 	return lines
-}
-
-func max3(a, b, c int) int {
-	m := a
-	if b > m {
-		m = b
-	}
-	if c > m {
-		m = c
-	}
-	return m
 }

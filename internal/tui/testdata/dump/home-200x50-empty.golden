@@ -1,50 +1,50 @@
-                            mtm   Sat 7 Nov · mtm-default                                                                                           ○ local  14:32                                      
-   mtm   study desk         Good afternoon, Rahul.  0 due today · 0 overdue                                                                                                                             
-  mtm-default                                                                                                                                                                                           
-                           ╭─ T O D A Y ──────────────────────────────────────────────────────────────╮   E X A M S ──────────────────────────────────────────────                                      
-  V I E W S ────────────   │                                                                          │                                                                                                 
-   Home                   │ ✦ nothing due today — a clear day                                        │   ✦ no exams — enjoy the calm                                                                   
-   All                    │   press a to add something for later                                     │                                                                                                 
-   Today                  │                                                                          │                                                                                                 
-   Week                   │                                                                          │                                                                                                 
-   Overdue                │                                                                          │                                                                                                 
-  C O U R S E S ────────   ╰──────────────────────────────────────────────────────────────────────────╯                                                                                                 
-  ▌ inbox ░░░░                                                                                                                                                                                          
-                             C O U R S E S ─────────────────────────────────────────────────────    T H I S W E E K ──────────────────────────────────────────────                                      
+                            Sat 7 Nov                                                                                                                                                                   
+   mtm   study desk                                                                                                                                                                                     
+  mtm-default               Good afternoon, Rahul.  0 due today · 0 overdue                                                                                                                             
+                           ╭─ T O D A Y ───────────────────────────────────────────────────────────────╮   E X A M S ─────────────────────────────────────────────                                      
+  V I E W S ────────────   │                                                                           │                                                                                                
+   Home                   │ ✦ nothing due today — a clear day                                         │   ✦ no exams yet — add one with :exam                                                          
+   All                    │   press a to add something for later                                      │                                                                                                
+   Today                  │                                                                           │                                                                                                
+   Week                   │                                                                           │                                                                                                
+   Overdue                │                                                                           │                                                                                                
+  C O U R S E S ────────   │                                                                           │                                                                                                
+  ▌ inbox ░░░░             │                                                                           │                                                                                                
+                           │                                                                           │                                                                                                
+                           │                                                                           │                                                                                                
+                           │                                                                           │                                                                                                
+                           │                                                                           │                                                                                                
+                           │                                                                           │                                                                                                
+                           │                                                                           │                                                                                                
+                           │                                                                           │                                                                                                
+                           │                                                                           │                                                                                                
+                           │                                                                           │                                                                                                
+                           │                                                                           │                                                                                                
+                           ╰───────────────────────────────────────────────────────────────────────────╯                                                                                                
+                             C O U R S E S ──────────────────────────────────────────────────────    T H I S W E E K ─────────────────────────────────────────────            Nothing selected          
+                                                                                                                                                                      pick a task and it shows up here  
+                             ✦ no courses yet — add one with `mtm project add`                       ▁▁▁▁▁▁▁                                                                                            
+                                                                                                     0.0 h study hours                                                                                  
                                                                                                                                                                                                         
-                             ✦ no courses yet — add one with `mtm project add`                      ▁▁▁▁▁▁▁                                                                                             
-                                                                                                    0.0 h study hours                                                                                   
+                                                                                                     last 7 days                                                                                        
                                                                                                                                                                                                         
-                                                                                                    last 7 days                                                                                         
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
                                                                                                                                                                                                         
                                                                                                                                                                                                         
                              H E A T M A P ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────                                      
-                             Mon █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                                                                                                        
-                                 █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                                                                                                        
-                             Wed █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                                                                              Nothing selected          
-                                 █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                                                                      pick a task and it shows up here  
-                             Fri █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                                                                                                        
-                                 █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                                                                                                        
-                             Sun █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                                                                                                        
-                                  less █ █ █ █ █ more                                                                                                                                                   
+                             Mon ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                                                                                          
+                                 ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                                                                                          
+                             Wed ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                                                                                          
+                                 ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                                                                                          
+                             Fri ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                                                                                          
+                                 ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                                                                                          
+                             Sun ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                                                                                          
+                                  less ▪ ▪ ▪ ▪ more                                                                                                                                                     
                                                                                                                                                                                                         
                                                                                                                                                                                                         
                                                                                                                                                                                                         
                                                                                                                                                                                                         
                                                                                                                                                                                                         
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
-                                                                                                                                                                                                        
+                            a add · F focus · ctrl+p palette · ? help                                                                                                                                   
   0 Home   1 List   2 Board   3 Calendar                                                                                                                                  14:32  local repo  ? help 

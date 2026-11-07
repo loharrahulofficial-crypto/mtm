@@ -80,6 +80,26 @@ func TestCalendarDetailFollowsSelectionEmptyDay(t *testing.T) {
 	}
 }
 
+// ":exam <title>" creates an exam (kind=exam) — the Home empty state points
+// users at it.
+func TestExecCommandExamCreatesExamKind(t *testing.T) {
+	m, _ := newTestModel(t, nil)
+	out, _ := m.execCommand("exam DBMS midterm 2026-11-20")
+	m2, ok := out.(Model)
+	if !ok {
+		t.Fatalf("execCommand returned %T", out)
+	}
+	found := false
+	for _, tk := range m2.store.Tasks() {
+		if tk.Kind == "exam" && strings.Contains(tk.Title, "DBMS midterm") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal(":exam did not create an exam-kind task")
+	}
+}
+
 func calendarMonthTitle(m Model) string {
 	return m.calMonth.Format("January 2006")
 }
