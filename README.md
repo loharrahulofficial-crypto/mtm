@@ -41,6 +41,57 @@ auto-resolved** — sync pauses, `mtm sync --status` shows the state and the
 conflicting files; fix them, commit, then `mtm sync`, or `mtm sync --abort`
 to drop the pull entirely.
 
+## Multi-device setup (sync over SSH)
+
+`mtm` syncs the data repo (`~/.local/share/mtm`) through any git remote.
+The recommended setup is a private GitHub repo reached over a dedicated SSH
+host alias with its own deploy key, so `mtm` never touches your personal
+GitHub credentials. This is the exact layout used on the primary machine:
+
+```sshconfig
+# ~/.ssh/config
+Host github-mtm
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/mtm_data
+  IdentitiesOnly yes
+```
+
+One-time setup per **account** (or per second machine):
+
+```sh
+# 1. dedicated keypair (no passphrase so automated sync can use it)
+ssh-keygen -t ed25519 -f ~/.ssh/mtm_data -N "" -C "mtm-data deploy key"
+
+# 2. add ~/.ssh/mtm_data.pub as a deploy key with WRITE access on the
+#    private repo that holds the data (e.g. <you>/mtm-data):
+#    repo → Settings → Deploy keys → Add deploy key (Allow write access)
+
+# 3. verify
+ssh -T github-mtm
+```
+
+On a **second machine**, one command clones the existing data repo and
+wires it up:
+
+```sh
+mtm init --remote git@github-mtm:<you>/mtm-data.git
+```
+
+`mtm init --remote` clones instead of creating an empty repo whenever the
+target directory is missing/empty and the remote has commits. If the target
+already holds an initialized repo, it just adds/updates `origin` and pushes
+with the upstream set. `mtm sync --status` confirms the link
+(`remote: origin (git@github-mtm:...)`, `ahead: 0 commit(s)`).
+
+If both sides were initialized independently (unrelated histories), the
+pull is refused with instructions; the safest fix is to delete the local
+repo directory and re-run `mtm init --remote` so it clones.
+
+To add the same alias on another machine, copy the `Host github-mtm` block
+(steps 1–3 above with a new key, or by copying the existing keypair —
+your call on trust boundaries).
+
 ## Usage
 
 ```sh
