@@ -1,0 +1,7 @@
+description: college/os
+color: green
+statuses:
+    - name: todo
+    - name: doing
+    - name: done
+      done: true

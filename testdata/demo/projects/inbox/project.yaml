@@ -1,0 +1,6 @@
+description: inbox
+statuses:
+    - name: todo
+    - name: doing
+    - name: done
+      done: true

@@ -1,0 +1,7 @@
+description: college/maths
+color: yellow
+statuses:
+    - name: todo
+    - name: doing
+    - name: done
+      done: true

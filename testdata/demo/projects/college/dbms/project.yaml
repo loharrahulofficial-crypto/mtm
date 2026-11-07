@@ -1,0 +1,7 @@
+description: college/dbms
+color: blue
+statuses:
+    - name: todo
+    - name: doing
+    - name: done
+      done: true
