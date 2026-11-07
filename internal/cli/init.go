@@ -25,12 +25,34 @@ func newInitCmd() *cobra.Command {
 	return cmd
 }
 
+// dirMissingOrEmpty reports whether path does not exist or is an empty
+// directory — the only cases where cloning into it is safe.
+func dirMissingOrEmpty(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.IsDir() {
+		return false, fmt.Errorf("%s exists and is not a directory", path)
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	return len(entries) == 0, nil
+}
+
 func runInit(remote string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 	root := cfg.DataRepoPath()
+	remoteName := cfg.Sync.Remote
+	cloned := false
 
 	// Default config, only when missing.
 	if _, statErr := os.Stat(config.Path()); os.IsNotExist(statErr) {
@@ -38,6 +60,27 @@ func runInit(remote string) error {
 			note("could not write default config: %v", err)
 		} else {
 			fmt.Printf("config: wrote default to %s\n", config.Path())
+		}
+	}
+
+	// Fresh machine + remote with an existing repo: clone, don't init over it.
+	if remote != "" {
+		already := sync.New(root).IsRepo()
+		if !already {
+			empty, err := dirMissingOrEmpty(root)
+			if err != nil {
+				return err
+			}
+			if empty {
+				if err := sync.Clone(remote, root); err != nil {
+					note("clone of %s failed: %v — initializing a fresh local repo instead", remote, err)
+				} else {
+					cloned = true
+					fmt.Printf("repo: cloned %s into %s\n", remote, root)
+				}
+			} else {
+				note("%s is not empty and not a git repo — initializing a fresh repo instead of cloning", root)
+			}
 		}
 	}
 
@@ -79,23 +122,29 @@ func runInit(remote string) error {
 	}
 
 	if remote != "" {
-		remoteName := cfg.Sync.Remote
 		if err := repo.AddRemote(remoteName, remote); err != nil {
 			return fmt.Errorf("add remote %s: %w", remoteName, err)
 		}
 		fmt.Printf("remote: %s -> %s\n", remoteName, remote)
 		if _, err := repo.Sync(remoteName); err != nil {
-			if err == sync.ErrConflicted {
+			switch {
+			case err == sync.ErrConflicted:
 				note("sync paused: conflicts need manual resolution — run `mtm sync --status`")
-			} else {
+			case sync.IsUnrelatedHistories(err):
+				note("local and remote histories are unrelated (both sides initialized?).")
+				note("to keep both sides: git -C %s pull --rebase --allow-unrelated-histories origin", root)
+				note("or start over from the remote: delete %s and re-run `mtm init --remote %s`", root, remote)
+			default:
 				note("push failed: %v — repo committed locally; push later with `mtm sync`", err)
 			}
 		} else {
-			fmt.Println("sync: pushed to remote")
+			fmt.Println("sync: up to date with remote (pushed)")
 		}
 	}
 
-	if already {
+	if cloned {
+		fmt.Printf("data repo cloned at %s\n", root)
+	} else if already {
 		fmt.Printf("data repo already initialized at %s\n", root)
 	} else {
 		fmt.Printf("data repo initialized at %s\n", root)

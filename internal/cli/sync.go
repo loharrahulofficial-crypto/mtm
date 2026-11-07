@@ -39,10 +39,12 @@ func newSyncCmd() *cobra.Command {
 				}
 				fmt.Printf("repo:    %s\n", root)
 				fmt.Printf("branch:  %s\n", st.Branch)
-				if st.RemoteURL != "" {
+				if st.RemoteConfigured {
 					fmt.Printf("remote:  %s (%s)\n", st.Remote, st.RemoteURL)
 				} else {
 					fmt.Printf("remote:  %s (not configured)\n", st.Remote)
+					fmt.Printf("hint:    add one with `mtm init --remote <url>` (clones existing repos),\n")
+					fmt.Printf("         or manually: git -C %s remote add %s <url>\n", root, st.Remote)
 				}
 				fmt.Printf("ahead:   %d commit(s)\n", st.Ahead)
 				if st.State.Conflicted {

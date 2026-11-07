@@ -21,6 +21,27 @@ type Repo struct{ Path string }
 // New returns a Repo rooted at path.
 func New(path string) Repo { return Repo{Path: path} }
 
+// Clone clones url into dest (which must not exist or be empty).
+func Clone(url, dest string) error {
+	parent := filepath.Dir(dest)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "clone", url, dest)
+	cmd.Dir = parent
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git clone: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// IsUnrelatedHistories reports whether err came from a pull/rebase that
+// refused because the local and remote histories share no ancestors.
+func IsUnrelatedHistories(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "unrelated histories")
+}
+
 // State is the persisted sync state. Conflicted pauses all auto-sync.
 type State struct {
 	Conflicted bool      `json:"conflicted"`
@@ -213,9 +234,35 @@ type SyncResult struct {
 // ErrConflicted is returned when sync pauses due to a conflict (D-003).
 var ErrConflicted = errors.New("sync paused: conflicts need manual resolution")
 
+// HasRemoteBranch reports whether remote has a branch named branch.
+func (r Repo) HasRemoteBranch(remote, branch string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := r.git(ctx, "ls-remote", "--heads", remote, branch)
+	if err != nil {
+		return false, err
+	}
+	return out != "", nil
+}
+
+func (r Repo) pullOrConflict(args ...string) (bool, error) {
+	ctx := context.Background()
+	if _, err := r.gitDefault(ctx, append([]string{"pull", "--rebase"}, args...)...); err != nil {
+		files, ferr := r.ConflictedFiles()
+		if ferr == nil && len(files) > 0 {
+			_ = r.SaveState(State{Conflicted: true, Files: files, Since: time.Now(), Reason: err.Error()})
+			return false, ErrConflicted
+		}
+		// Not a conflict (offline, auth, etc.) — leave state untouched.
+		return false, err
+	}
+	return true, nil
+}
+
 // Sync pulls --rebase then pushes. It never auto-resolves a conflict: on
 // conflict the repo is marked conflicted and ErrConflicted is returned.
-// When no remote exists it is a no-op.
+// When no remote exists it is a no-op; when the remote lacks the current
+// branch (fresh remote) the pull is skipped.
 func (r Repo) Sync(remote string) (SyncResult, error) {
 	var res SyncResult
 	st, err := r.LoadState()
@@ -228,30 +275,43 @@ func (r Repo) Sync(remote string) (SyncResult, error) {
 	if !r.HasRemote(remote) {
 		return res, nil
 	}
-	ctx := context.Background()
-	if _, err := r.gitDefault(ctx, "pull", "--rebase", remote); err != nil {
-		files, ferr := r.ConflictedFiles()
-		if ferr == nil && len(files) > 0 {
-			_ = r.SaveState(State{Conflicted: true, Files: files, Since: time.Now(), Reason: err.Error()})
-			return res, ErrConflicted
-		}
-		// Not a conflict (offline, auth, etc.) — leave state untouched.
+	branch, err := r.Branch()
+	if err != nil {
 		return res, err
 	}
-	res.Pulled = true
-	// Push, setting upstream on first push.
-	if _, err := r.gitDefault(ctx, "rev-parse", "--abbrev-ref", "@{upstream}"); err != nil {
-		branch, berr := r.Branch()
-		if berr != nil {
-			return res, berr
+	_, upstreamErr := func() (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return r.gitDefault(ctx, "rev-parse", "--abbrev-ref", "@{upstream}")
+	}()
+	if upstreamErr == nil {
+		pulled, err := r.pullOrConflict()
+		if err != nil {
+			return res, err
 		}
-		if _, err := r.gitDefault(ctx, "push", "-u", remote, branch); err != nil {
+		res.Pulled = pulled
+	} else {
+		exists, err := r.HasRemoteBranch(remote, branch)
+		if err != nil {
+			return res, err
+		}
+		if exists {
+			pulled, err := r.pullOrConflict(remote, branch)
+			if err != nil {
+				return res, err
+			}
+			res.Pulled = pulled
+		} // fresh remote: nothing to pull
+	}
+	// Push, setting upstream on first push.
+	if _, err := r.gitDefault(context.Background(), "rev-parse", "--abbrev-ref", "@{upstream}"); err != nil {
+		if _, err := r.gitDefault(context.Background(), "push", "-u", remote, branch); err != nil {
 			return res, err
 		}
 		res.Pushed = true
 		return res, nil
 	}
-	if _, err := r.gitDefault(ctx, "push"); err != nil {
+	if _, err := r.gitDefault(context.Background(), "push"); err != nil {
 		return res, err
 	}
 	res.Pushed = true
@@ -268,12 +328,13 @@ func (r Repo) Abort() error {
 
 // Status describes the repo's sync status for `mtm sync --status`.
 type Status struct {
-	Initialized bool
-	Branch      string
-	Remote      string
-	RemoteURL   string
-	Ahead       int
-	State       State
+	Initialized      bool
+	Branch           string
+	Remote           string
+	RemoteURL        string
+	RemoteConfigured bool
+	Ahead            int
+	State            State
 }
 
 // GetStatus gathers sync status; zero values when not a git repo.
@@ -288,6 +349,7 @@ func (r Repo) GetStatus(remote string) Status {
 	st.Remote = remote
 	if url, err := r.RemoteURL(remote); err == nil {
 		st.RemoteURL = url
+		st.RemoteConfigured = true
 	}
 	st.Ahead, _ = r.Ahead()
 	st.State, _ = r.LoadState()
