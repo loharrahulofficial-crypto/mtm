@@ -352,7 +352,7 @@ func listRowLine(m Model, w, i, statusW, prioW, courseW int, now time.Time, isDo
 		tagsW = runewidth.StringWidth(tagStr) + 1
 	}
 	subW := lipgloss.Width(sub)
-	titleBudget := w - leftFixed - runewidth.StringWidth(indent) - runewidth.StringWidth(tree) - dueW - tagsW - subW - 2
+	titleBudget := w - leftFixed - lipgloss.Width(indent) - lipgloss.Width(tree) - dueW - tagsW - subW - 2
 	if courseW > 0 {
 		titleBudget -= courseW + 2
 	}

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
 )
 
 // Panel rendering for the Study Desk design language.
@@ -99,27 +98,43 @@ func panelTitleRow(m Model, title string, w int, surface lipgloss.Style) string 
 		surface.Render(" "+strings.Repeat("─", ruleLen)+" ")
 }
 
+// titledBorder renders one edge of a rounded box, width cells. top edges
+// embed the letterspaced caps title; the filler is computed from the display
+// width of the FINAL title string (letterspacing, padding, icons included),
+// never from len() or raw rune counts — a border that stops short of the
+// corner breaks the frame's vertical rhythm.
+func titledBorder(title string, w int, top bool, edge, titleStyle lipgloss.Style) string {
+	cornerL, cornerR, fill := "╭", "╮", "─"
+	if !top {
+		cornerL, cornerR = "╰", "╯"
+	}
+	if !top || strings.TrimSpace(title) == "" || w < 5 {
+		if w < 2 {
+			return edge.Render(cornerL)
+		}
+		return edge.Render(cornerL + strings.Repeat(fill, w-2) + cornerR)
+	}
+	cap := titleStyle.Render(letterspace(strings.ToUpper(title)))
+	// ╭─ TITLE ───╮
+	const pre, tail = 3, 2 // "╭─ " and " "+cornerR
+	inner := w - pre - tail
+	if lipgloss.Width(cap) > inner {
+		cap = clipStyled(cap, inner)
+	}
+	fillN := inner - lipgloss.Width(cap)
+	if fillN < 0 {
+		fillN = 0
+	}
+	return edge.Render("╭─ ") + cap + edge.Render(" "+strings.Repeat(fill, fillN)+cornerR)
+}
+
 // panelEdge draws the top or bottom edge of a focused panel, embedding an
 // optional letterspaced title in the top edge.
 func panelEdge(m Model, w int, top bool, title string, border, surface lipgloss.Style) string {
 	if w < 2 {
 		return border.Render("│")
 	}
-	cornerL, cornerR, fill := "╭", "╮", "─"
-	if !top {
-		cornerL, cornerR = "╰", "╯"
-	}
-	if title == "" {
-		return border.Render(cornerL + strings.Repeat(fill, w-2) + cornerR)
-	}
-	cap := m.styles.sectionLabel.Render(letterspace(strings.ToUpper(title)))
-	// ╭─ TITLE ─────╮ — title starts 2 cells in, padded with fill to the end.
-	prefix := cornerL + fill + " "
-	suffixLen := w - 2 - runewidth.StringWidth(prefix) - runewidth.StringWidth(cap) - 1
-	if suffixLen < 0 {
-		suffixLen = 0
-	}
-	return border.Render(prefix) + cap + border.Render(" "+strings.Repeat(fill, suffixLen)+cornerR)
+	return titledBorder(title, w, top, border, m.styles.sectionLabel)
 }
 
 // clipStyled truncates a line that may contain ANSI escape sequences to

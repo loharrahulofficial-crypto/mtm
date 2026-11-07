@@ -1,10 +1,10 @@
-                           ╭─ B O A R D ────╮                                                                           
+                           ╭─ B O A R D ──────────────────────────────────────────╮                                     
    mtm   study desk        │  TODO · 50                 DOING · 0               │    task number 00 with a reasonably  
   mtm-default              │  ───────────────────────── ─────────────────────────│    long                              
                            │  ╭───────────────────────╮                          │    ▌ inbox                           
-  V I E W S ────────────   │  │[38;2;146;162;121;48;2…│                          │                                                            
-   Home                   │  │[38;2;146;162;121;48;2…│ [38;2;161;175;169;48;2;2…│                                                   todo   [URG]                     
-   All                50  │  │[38;2;146;162;121;48;2…│                          │                                                            
+  V I E W S ────────────   │  │▌ task number 00 with a│                          │                                      
+   Home                   │  │▌ reasonably long descr│           empty          │     todo   [URG]                     
+   All                50  │  │▌ ● urgentoverdue 3d   │                          │                                      
    Today               4  │  ╰───────────────────────╯                          │    DUE       overdue 3d              
    Week               21  │                                                     │    CREATED   2026-11-07T14:32        
    Overdue 13             │  ▌ task number 28 with a                            │    UPDATED   2026-11-07T14:32        

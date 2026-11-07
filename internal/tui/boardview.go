@@ -204,9 +204,9 @@ func padRight(s string, w int) string {
 }
 
 func center(s string, w int) string {
-	sd := runewidth.StringWidth(s)
+	sd := lipgloss.Width(s)
 	if sd >= w {
-		return truncatePlain(s, w)
+		return clipStyled(s, w)
 	}
 	left := (w - sd) / 2
 	return strings.Repeat(" ", left) + s + strings.Repeat(" ", w-left-sd)
@@ -466,9 +466,12 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 
 func padRightCard(line string, w int, bg lipgloss.Color) string {
 	if lipgloss.Width(line) > w {
-		return truncatePlain(line, w)
+		line = clipStyled(line, w)
 	}
-	return line + lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", w-lipgloss.Width(line)))
+	if pad := w - lipgloss.Width(line); pad > 0 {
+		line += lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", pad))
+	}
+	return line
 }
 
 // wrapTitle word-wraps a title into at most two lines of width cells each.

@@ -1,10 +1,10 @@
-                           ╭─ B O A R D ────╮                                                                           
+                           ╭─ B O A R D ──────────────────────────────────────────╮                                     
    mtm   study desk        │  TODO · 2                  DOING · 0               │    an extremely long title that      
   mtm-default              │  ───────────────────────── ─────────────────────────│    keeps                             
                            │  ╭───────────────────────╮                          │    ▌ inbox  ·  assignment            
-  V I E W S ────────────   │  │[38;2;146;162;121;48;2…│                          │                                                            
-   Home                   │  │[38;2;146;162;121;48;2…│ [38;2;161;175;169;48;2;2…│                                                   todo   [HIGH]                    
-   All                 2  │  │[38;2;146;162;121;48;2…│                          │                                                            
+  V I E W S ────────────   │  │▌ an extremely long    │                          │                                      
+   Home                   │  │▌ title that keeps on g│           empty          │     todo   [HIGH]                    
+   All                 2  │  │▌ ● high  today        │                          │                                      
    Today               1  │  ╰───────────────────────╯                          │    DUE       today                   
    Week                1  │                                                     │    CREATED   2026-11-07T14:32        
    Overdue 1              │  ▌ short title                                      │    UPDATED   2026-11-07T14:32        

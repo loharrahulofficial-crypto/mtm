@@ -2,10 +2,9 @@ package tui
 
 import (
 	"strings"
-	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // View renders the whole screen.
@@ -133,33 +132,13 @@ func spliceLine(base string, left, width int, boxLine string, fill lipgloss.Colo
 	suffixW := width - left - boxW
 	suffix := ""
 	if suffixW > 0 {
-		suffix = clipStyled(dropCells(base, left), suffixW)
+		suffix = clipStyled(ansi.Cut(base, left, ansi.StringWidth(base)), suffixW)
 		if pad := suffixW - lipgloss.Width(suffix); pad > 0 {
 			suffix += lipgloss.NewStyle().Background(fill).Render(strings.Repeat(" ", pad))
 		}
 		suffix = bgOpen(fill) + suffix
 	}
 	return prefix + boxLine + suffix
-}
-
-// dropCells removes the first n display cells from a styled line, escape
-// sequences preserved.
-func dropCells(line string, n int) string {
-	consumed, i := 0, 0
-	for i < len(line) && consumed < n {
-		if line[i] == 0x1b && i+1 < len(line) && line[i+1] == '[' {
-			j := i + 2
-			for j < len(line) && !(line[j] >= 'a' && line[j] <= 'z') && !(line[j] >= 'A' && line[j] <= 'Z') {
-				j++
-			}
-			i = j + 1
-			continue
-		}
-		r, size := utf8.DecodeRuneInString(line[i:])
-		consumed += runewidth.RuneWidth(r)
-		i += size
-	}
-	return line[i:]
 }
 
 func paneBorderLeft(m *Model) lipgloss.Style {
