@@ -100,6 +100,22 @@ func TestExecCommandExamCreatesExamKind(t *testing.T) {
 	}
 }
 
+// Multi-word section labels must keep readable gaps between words: three
+// plain spaces, or the label collapses into one long letter-run.
+func TestLetterspaceWordGap(t *testing.T) {
+	got := letterspace("THIS WEEK")
+	if !strings.Contains(got, "S   W") {
+		t.Fatalf("word gap is not three spaces: %q", got)
+	}
+	if strings.Contains(got, "S W") {
+		t.Fatalf("word gap collapsed to one space: %q", got)
+	}
+	// Single words are unchanged in shape.
+	if got := letterspace("TODAY"); !strings.HasPrefix(got, "T"+thinSpace+"O") {
+		t.Fatalf("single-word label mangled: %q", got)
+	}
+}
+
 func calendarMonthTitle(m Model) string {
 	return m.calMonth.Format("January 2006")
 }

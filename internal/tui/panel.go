@@ -18,8 +18,9 @@ import (
 
 const thinSpace = " " // U+2009 thin space
 
-// letterspace expands caps section labels with thin spaces, word by word:
-// "THIS WEEK" → "T H I S W E E K" (spaces stay single cells).
+// letterspace expands caps section labels with thin spaces between letters,
+// leaving THREE plain spaces between words so multi-word labels stay readable
+// ("THIS WEEK" → "T H I S   W E E K", not "T H I S W E E K").
 func letterspace(s string) string {
 	words := strings.Fields(s)
 	out := make([]string, 0, len(words))
@@ -34,7 +35,7 @@ func letterspace(s string) string {
 		}
 		out = append(out, strings.Join(parts, ""))
 	}
-	return strings.Join(out, " ")
+	return strings.Join(out, "   ")
 }
 
 // renderPanelBorderless renders body as a solid surface slab with no border
@@ -109,7 +110,7 @@ func panelTitleRow(m Model, title string, w int, surface lipgloss.Style) string 
 	if strings.TrimSpace(title) == "" {
 		return surface.Render(strings.Repeat(" ", w))
 	}
-	text := m.styles.sectionLabel.Render(letterspace(strings.ToUpper(title)))
+	text := sectionLabelText(m, title)
 	textW := lipgloss.Width(text)
 	lead := 2
 	ruleLen := w - lead - textW - 2
@@ -125,7 +126,7 @@ func panelTitleRow(m Model, title string, w int, surface lipgloss.Style) string 
 // width of the FINAL title string (letterspacing, padding, icons included),
 // never from len() or raw rune counts — a border that stops short of the
 // corner breaks the frame's vertical rhythm.
-func titledBorder(title string, w int, top bool, edge, titleStyle lipgloss.Style) string {
+func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style) string {
 	cornerL, cornerR, fill := "╭", "╮", "─"
 	if !top {
 		cornerL, cornerR = "╰", "╯"
@@ -136,7 +137,7 @@ func titledBorder(title string, w int, top bool, edge, titleStyle lipgloss.Style
 		}
 		return edge.Render(cornerL + strings.Repeat(fill, w-2) + cornerR)
 	}
-	cap := titleStyle.Render(letterspace(strings.ToUpper(title)))
+	cap := sectionLabelText(m, title)
 	// ╭─ TITLE ───╮
 	const pre, tail = 3, 2 // "╭─ " and " "+cornerR
 	inner := w - pre - tail
@@ -156,7 +157,7 @@ func panelEdge(m Model, w int, top bool, title string, border, surface lipgloss.
 	if w < 2 {
 		return border.Render("│")
 	}
-	return titledBorder(title, w, top, border, m.styles.sectionLabel)
+	return titledBorder(m, title, w, top, border)
 }
 
 // clipStyled truncates a line that may contain ANSI escape sequences to
@@ -178,10 +179,16 @@ func repeatStr(s string, n int) []string {
 	return lines
 }
 
+// sectionLabelText renders the shared letterspaced caps section label
+// (styled); every panel, border and sidebar section label flows through here.
+func sectionLabelText(m Model, label string) string {
+	return m.styles.sectionLabel.Render(letterspace(strings.ToUpper(label)))
+}
+
 // sectionLabel renders a quiet caps label with a trailing hairline rule,
 // used for sidebar sections.
 func sectionLabel(m Model, label string, w int) string {
-	text := m.styles.sectionLabel.Render(letterspace(strings.ToUpper(label)))
+	text := sectionLabelText(m, label)
 	ruleLen := w - lipgloss.Width(text) - ContentInset - 2
 	if ruleLen < 1 {
 		ruleLen = 1
