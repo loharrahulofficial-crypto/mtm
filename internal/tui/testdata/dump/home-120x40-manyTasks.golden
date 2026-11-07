@@ -23,8 +23,8 @@
                                                                                                                         
                              E X A M S ───────────────────────────────────────────                                      
                                                                                                                         
-                             ✦ no exams yet — add one with :exam                                                        
-                                                                                                                        
+                             ✦ no exams yet                                                                             
+                               :exam <course> <name> <date>                                                             
                                                                                                                         
                                                                                                                         
                              H E A T M A P ───────────────────────────────────────                                      

@@ -81,23 +81,27 @@ func Sparkline(values []float64) string {
 	return b.String()
 }
 
-// blockDigits is the 3-row font used for the exam countdown. Glyphs are
-// 5 cells wide, joined by a 2-cell gap. All ten digits are distinct.
+// blockDigits is the 3-row font used for the exam countdown. Each glyph is
+// 5 cells wide and built from half-block pairs (▀▄█) so strokes stay solid —
+// the earlier rounded box-drawing glyphs (╭─╮│) collapsed into unreadable
+// box fragments at terminal sizes. Glyphs are joined by a 2-cell gap.
+// 0-9 plus 'd' (for the "6d" countdown). All twelve glyphs are distinct.
 var blockDigits = map[rune][3]string{
-	'0': {"╭───╮", "│   │", "╰───╯"},
-	'1': {"  █  ", "  █  ", "  █  "},
-	'2': {"╭───╮", "────╮", "╭────"},
-	'3': {"╭───╮", "────╮", "────╯"},
-	'4': {"│   │", "╰───╮", "    │"},
-	'5': {"╭───╮", "╭────", "────╯"},
-	'6': {"╭───╮", "╭────", "╰───╯"},
-	'7': {"╭───╮", "    │", "    │"},
-	'8': {"╭───╮", "├───┤", "╰───╯"},
-	'9': {"╭───╮", "╰───╮", "────╯"},
+	'0': {"▄▀▀▀▄", "█   █", "▀▄▄▄▀"},
+	'1': {"  █  ", "  █  ", "▄▄█▄▄"},
+	'2': {"▀▀▀▀█", " ▄▀▀ ", "█▄▄▄▄"},
+	'3': {"▀▀▀▀█", " ███ ", "▄▄▄▄█"},
+	'4': {"█   █", "▀▀▀▀█", "    █"},
+	'5': {"█▀▀▀▀", "████ ", "▄▄▄▄█"},
+	'6': {"█▀▀▀ ", "█▀▀▀█", "▀▄▄▄▀"},
+	'7': {"▀▀▀▀█", "    █", "    █"},
+	'8': {"▄▀▀▀▄", "█████", "▀▄▄▄▀"},
+	'9': {"▄▀▀▀▄", "▀▄▄▄▀", " ▄▄▄▀"},
+	'd': {"    █", "▄▀▀▄█", "▀▄▄▀█"},
 }
 
-// Digits renders s (digits only) as three rows of the block font.
-// Unknown runes render as blank cells of the digit width.
+// Digits renders s (digits and 'd' only) as three rows of the block font.
+// Unknown runes render as blank cells of the glyph width.
 func Digits(s string) [3]string {
 	var out [3]string
 	for row := 0; row < 3; row++ {

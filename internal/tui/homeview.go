@@ -399,6 +399,22 @@ func dueMinutes(due string) int {
 	return 0
 }
 
+// examCardsHeight is the total rows the block-digit cards need.
+func examCardsHeight(exams []examCard) int {
+	total := 0
+	for _, e := range exams {
+		card := 4 // name + 3 digit rows
+		if e.weight >= 0 || e.subTotal > 0 {
+			card++ // meta line
+		}
+		if e.subTotal > 0 {
+			card++ // topics bar
+		}
+		total += card + 1 // trailing gap
+	}
+	return total
+}
+
 // examsBody renders up to two exam countdown cards.
 func examsBody(m Model, w, h int, d homeData) []string {
 	bgSurface := lipgloss.Color(m.palette.Surface)
@@ -407,45 +423,37 @@ func examsBody(m Model, w, h int, d homeData) []string {
 	if len(d.exams) == 0 {
 		return []string{
 			"",
-			muted.Render(" ✦ no exams yet — add one with :exam"),
+			muted.Render(" ✦ no exams yet"),
+			muted.Render("   :exam <course> <name> <date>"),
 		}
 	}
-	if h < 4 {
-		// Too short for block digits — single-line summary per exam.
+	// Too short for block-digit cards: a single styled line per exam, so
+	// every exam stays visible. A card costs name+digits (+meta)(+bar)+gap.
+	if need := examCardsHeight(d.exams); h < need {
 		lines := []string{}
 		for i, e := range d.exams {
 			if i >= h {
 				break
 			}
-			name := truncatePlain(e.task.Title, w-16)
-			lines = append(lines, fmt.Sprintf(" ✦ %s — %dd", name, e.daysLeft))
+			stripe := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.CourseColor(m.palette, e.task.Project, projectColorOverride(m, e.task.Project)))).Background(bgSurface).Render("▌")
+			txt := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bgSurface)
+			name := truncatePlain(e.task.Title, w-10)
+			lines = append(lines, " "+stripe+" "+txt.Render(name)+muted.Render(fmt.Sprintf(" — %dd", e.daysLeft)))
+		}
+		if extra := len(d.exams) - len(lines); extra > 0 && len(lines) < h {
+			lines = append(lines, muted.Render(fmt.Sprintf(" +%d more", extra)))
 		}
 		return lines
 	}
 	lines := []string{}
-	perCard := h / len(d.exams)
-	if perCard > 6 {
-		perCard = 6
-	}
-	for i, e := range d.exams {
-		if i > 0 && len(lines)+perCard > h {
-			break
-		}
+	for _, e := range d.exams {
 		color := theme.CourseColor(m.palette, e.task.Project, projectColorOverride(m, e.task.Project))
 		name := truncatePlain(e.task.Title, w-1)
 		lines = append(lines, m.styles.header.Render(" "+name))
 
-		digits := gauges.Digits(fmt.Sprintf("%d", e.daysLeft))
-		days := "days"
-		if e.daysLeft == 1 {
-			days = "day"
-		}
+		digits := gauges.Digits(fmt.Sprintf("%dd", e.daysLeft))
 		for row := 0; row < 3; row++ {
-			line := "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bgSurface).Render(digits[row])
-			if row == 1 {
-				line += " " + muted.Render(days)
-			}
-			lines = append(lines, line)
+			lines = append(lines, "  "+lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bgSurface).Render(digits[row]))
 		}
 		// Weight + topics covered bar.
 		meta := ""

@@ -76,8 +76,38 @@ func TestSparkline(t *testing.T) {
 	}
 }
 
+// TestBlockDigitsSnapshot pins the exact 3-row art for every glyph (0-9 and
+// 'd'). The countdown reads at a glance only if each glyph is drawn
+// deliberately; if this fails, someone changed the font without looking at it.
+func TestBlockDigitsSnapshot(t *testing.T) {
+	want := map[rune][3]string{
+		'0': {"▄▀▀▀▄", "█   █", "▀▄▄▄▀"},
+		'1': {"  █  ", "  █  ", "▄▄█▄▄"},
+		'2': {"▀▀▀▀█", " ▄▀▀ ", "█▄▄▄▄"},
+		'3': {"▀▀▀▀█", " ███ ", "▄▄▄▄█"},
+		'4': {"█   █", "▀▀▀▀█", "    █"},
+		'5': {"█▀▀▀▀", "████ ", "▄▄▄▄█"},
+		'6': {"█▀▀▀ ", "█▀▀▀█", "▀▄▄▄▀"},
+		'7': {"▀▀▀▀█", "    █", "    █"},
+		'8': {"▄▀▀▀▄", "█████", "▀▄▄▄▀"},
+		'9': {"▄▀▀▀▄", "▀▄▄▄▀", " ▄▄▄▀"},
+		'd': {"    █", "▄▀▀▄█", "▀▄▄▀█"},
+	}
+	for r, wantRows := range want {
+		g := Digits(string(r))
+		for row := 0; row < 3; row++ {
+			if g[row] != wantRows[row] {
+				t.Errorf("digit %q row %d = %q, want %q", r, row, g[row], wantRows[row])
+			}
+			if len([]rune(g[row])) != 5 {
+				t.Errorf("digit %q row %d = %d cells, want 5", r, row, len([]rune(g[row])))
+			}
+		}
+	}
+}
+
 func TestDigitsRenderThreeRows(t *testing.T) {
-	for _, d := range "0123456789" {
+	for _, d := range "0123456789d" {
 		g := Digits(string(d))
 		for row := 0; row < 3; row++ {
 			if len([]rune(g[row])) != 5 {
@@ -91,12 +121,12 @@ func TestDigitsRenderThreeRows(t *testing.T) {
 			t.Errorf("digits 12 row %d width = %d, want %d", row, len([]rune(g[row])), DigitWidth(2))
 		}
 	}
-	// every digit distinct
+	// every glyph distinct
 	seen := map[[3]string]rune{}
-	for _, d := range "0123456789" {
+	for _, d := range "0123456789d" {
 		g := Digits(string(d))
 		if prev, dup := seen[g]; dup {
-			t.Errorf("digits %q and %q render identically", prev, d)
+			t.Errorf("glyphs %q and %q render identically", prev, d)
 		}
 		seen[g] = d
 	}

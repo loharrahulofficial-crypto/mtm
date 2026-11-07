@@ -188,6 +188,44 @@ func coursesFixture(t *testing.T) *store.Store {
 	)
 }
 
+// Phase 4 data: two exams across two courses, topic progress on the nearest
+// one — what Home should surface and what the calendar marks with ✦. The
+// near exam is single-digit days-left, the far one two-digit.
+func examsFixture(t *testing.T) *store.Store {
+	ts := DumpFixedTime
+	stamp := ts.Format(core.TimestampFormat)
+	dbmsWeight := 0.3
+	osWeight := 0.1
+	tasks := []fixtureTask{
+		{id: "x00001", title: "DBMS midterm — relational algebra + SQL", project: "college/dbms", status: "todo", priority: "urgent", kind: "exam", due: ts.AddDate(0, 0, 6).Format("2006-01-02") + "T09:00", created: stamp, updated: stamp, weight: &dbmsWeight, estimate: 120, body: "Syllabus: ch 1-6. Focus on normalization + transactions."},
+		{id: "x00002", title: "OS quiz — scheduling & deadlocks", project: "college/os", status: "todo", priority: "high", kind: "exam", due: ts.AddDate(0, 0, 12).Format("2006-01-02") + "T10:00", created: stamp, updated: stamp, weight: &osWeight, estimate: 45},
+	}
+	// Topic progress for the DBMS exam (topics bar): 4 of 6 revised.
+	for i := 1; i <= 6; i++ {
+		status := "todo"
+		if i <= 4 {
+			status = "done"
+		}
+		tasks = append(tasks, fixtureTask{
+			id: fmt.Sprintf("x%05d", 10000+i), title: fmt.Sprintf("Revise ch.%d", i),
+			project: "college/dbms", status: status, priority: "medium", kind: "task",
+			created: stamp, updated: stamp, parent: "x00001",
+			completed: doneStamp(status, stamp),
+		})
+	}
+	// One maths task so all three courses appear on Home.
+	tasks = append(tasks, fixtureTask{
+		id: "x00090", title: "Maths — integration by parts set", project: "college/maths", status: "todo",
+		priority: "medium", kind: "assignment", due: ts.AddDate(0, 0, 2).Format("2006-01-02") + "T18:00",
+		created: stamp, updated: stamp,
+	})
+	return fixtureStore(t, tasks,
+		struct{ name, color string }{"college/dbms", "blue"},
+		struct{ name, color string }{"college/os", "green"},
+		struct{ name, color string }{"college/maths", "yellow"},
+	)
+}
+
 func doneStamp(status, stamp string) string {
 	if status == "done" {
 		return stamp
@@ -215,6 +253,7 @@ var fixtures = map[string]func(t *testing.T) *store.Store{
 	"subtasks":     subtasksFixture,
 	"courses":      coursesFixture,
 	"boardColumns": boardColumnsFixture,
+	"exams":        examsFixture,
 }
 
 func dumpConfig() config.Config {
@@ -271,8 +310,29 @@ func TestDumpGolden(t *testing.T) {
 					}
 				})
 			}
+			// The ≥150-column (three-band) Home layout with the Phase 4
+			// exam cards: block digits, topics bar, both exams visible.
+			if view == "home" && size == "200x50" {
+				t.Run(view+"_"+size+"_exams", func(t *testing.T) {
+					golden := filepath.Join(dir, view+"-"+size+"-exams.golden")
+					got := renderFixture(t, view, size, "exams")
+					if update {
+						if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
+							t.Fatal(err)
+						}
+						return
+					}
+					want, err := os.ReadFile(golden)
+					if err != nil {
+						t.Fatalf("missing golden %s (run MTM_UPDATE_GOLDEN=1 to create)", golden)
+					}
+					if got != string(want) {
+						t.Fatalf("dump mismatch in %s\n--- got ---\n%s\n--- want ---\n%s", golden, got, want)
+					}
+				})
+			}
 			// Richer states at the canonical size.
-			for _, state := range []string{"manyTasks", "longTitles", "subtasks", "courses", "boardColumns"} {
+			for _, state := range []string{"manyTasks", "longTitles", "subtasks", "courses", "boardColumns", "exams"} {
 				t.Run(view+"_"+size+"_"+state, func(t *testing.T) {
 					if size != "120x40" {
 						t.Skip("rich states only at 120x40")
