@@ -203,15 +203,6 @@ func padRight(s string, w int) string {
 	return s + strings.Repeat(" ", d)
 }
 
-func center(s string, w int) string {
-	sd := lipgloss.Width(s)
-	if sd >= w {
-		return clipStyled(s, w)
-	}
-	left := (w - sd) / 2
-	return strings.Repeat(" ", left) + s + strings.Repeat(" ", w-left-sd)
-}
-
 const boardCardH = 5
 
 // boardLayout computes the visible column window and column width so mouse
@@ -222,14 +213,14 @@ func boardLayout(m Model, w int) (winStart, visCols, colW int) {
 		return 0, 0, 0
 	}
 	colW = 22
-	visCols = (w - 2 + 1) / (colW + 1)
+	visCols = (w - boardInset + boardGap) / (colW + boardGap)
 	if visCols < 1 {
 		visCols = 1
 	}
 	if n < visCols {
 		visCols = n
 	}
-	colW = (w - 2 - (visCols - 1)) / visCols
+	colW = (w - boardInset - (visCols-1)*boardGap) / visCols
 	colW = clampInt(colW, 12, 48)
 	winStart = 0
 	if m.boardCol >= winStart+visCols {
@@ -242,6 +233,32 @@ func boardLayout(m Model, w int) (winStart, visCols, colW int) {
 		winStart = 0
 	}
 	return winStart, visCols, colW
+}
+
+// boardInset is the 1-cell base-colored inset at the left and right edge of
+// the board body; boardGap is the 1-cell base-colored gap between columns.
+const (
+	boardInset = 1
+	boardGap   = 1
+)
+
+// baseInsetRow renders one board row: a 1-cell base-colored inset (which
+// carries the scroll chevron when set), cells joined by the base gutter,
+// then base-colored padding to w; rightHint pins at the right edge.
+func baseInsetRow(baseBG lipgloss.Style, gutter, inset string, cells []string, w int, rightHint string) string {
+	line := inset + strings.Join(cells, gutter)
+	if rightHint != "" {
+		if pad := w - lipgloss.Width(line) - lipgloss.Width(rightHint); pad > 0 {
+			line += baseBG.Render(strings.Repeat(" ", pad))
+		} else if lipgloss.Width(line) > w-lipgloss.Width(rightHint) {
+			line = clipStyled(line, w-lipgloss.Width(rightHint))
+		}
+		return line + rightHint
+	}
+	if pad := w - lipgloss.Width(line); pad > 0 {
+		line += baseBG.Render(strings.Repeat(" ", pad))
+	}
+	return line
 }
 
 // renderBoardBody renders the board content (inner width × inner height).
@@ -259,9 +276,14 @@ func renderBoardBody(m Model, w, h int) []string {
 	winStart, visCols, colW := boardLayout(m, w)
 	view := winStart + visCols
 
+	baseBG := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base))
+	gutter := baseBG.Render(strings.Repeat(" ", boardGap))
+	mutedBGBase := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(lipgloss.Color(m.palette.Base))
+
 	lines := make([]string, 0, h)
 
-	// Header line: status · count over a thin underline.
+	// Header line: status · count over a thin underline; the 1-cell base
+	// inset carries the ‹ › chevrons when scrolled.
 	headerCells := make([]string, 0, visCols)
 	underlineCells := make([]string, 0, visCols)
 	for i := winStart; i < view; i++ {
@@ -284,18 +306,16 @@ func renderBoardBody(m Model, w, h int) []string {
 		headerCells = append(headerCells, hcell.Width(colW).Render(" "+truncatePlain(label, colW-1)))
 		underlineCells = append(underlineCells, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Border)).Background(lipgloss.Color(m.palette.Surface)).Render(strings.Repeat("─", colW)))
 	}
-	hint := " "
+	dirg := baseBG.Render(" ")
 	if winStart > 0 {
-		hint = m.icon("chev_left")
+		dirg = mutedBGBase.Render(m.icon("chev_left"))
 	}
-	moreRight := ""
+	rightHint := ""
 	if view < n {
-		moreRight = m.icon("chev_right")
+		rightHint = mutedBGBase.Render(m.icon("chev_right"))
 	}
-	header := hint + strings.Join(headerCells, " ")
-	header = padRightPlain(header, w-lipglossWidth(moreRight)) + moreRight
-	lines = append(lines, header)
-	lines = append(lines, "  "+strings.Join(underlineCells, " "))
+	lines = append(lines, baseInsetRow(baseBG, gutter, dirg, headerCells, w, rightHint))
+	lines = append(lines, baseInsetRow(baseBG, gutter, baseBG.Render(" "), underlineCells, w, ""))
 
 	// Cards.
 	bodyH := h - 2
@@ -325,13 +345,14 @@ func renderBoardBody(m Model, w, h int) []string {
 			for _, cl := range cardLines {
 				cells = append(cells, cl[lineIdx])
 			}
-			lines = append(lines, "  "+strings.Join(cells, " "))
+			lines = append(lines, baseInsetRow(baseBG, gutter, baseBG.Render(" "), cells, w, ""))
 		}
 	}
 	// Overflow indicator.
 	for i := winStart; i < view; i++ {
 		if i < len(cols) && len(cols[i]) > maxCards {
-			lines = append(lines, fmt.Sprintf("  %s", s.muted.Render(truncatePlain(fmt.Sprintf("+%d more in %s", len(cols[i])-maxCards, strings.ToLower(statuses[i].Name)), w-2))))
+			more := fmt.Sprintf("+%d more in %s", len(cols[i])-maxCards, strings.ToLower(statuses[i].Name))
+			lines = append(lines, padToWidth(baseBG.Render(" ")+s.muted.Render(truncatePlain(more, w-2)), w, lipgloss.Color(m.palette.Surface)))
 			break
 		}
 	}
@@ -339,23 +360,30 @@ func renderBoardBody(m Model, w, h int) []string {
 }
 
 func blankCard(m Model, w int) []string {
-	blank := strings.Repeat(" ", w)
-	fill := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface)).Render(blank)
+	fill := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface))
 	out := make([]string, boardCardH)
 	for i := range out {
-		out[i] = fill
+		out[i] = fill.Render(strings.Repeat(" ", w))
 	}
 	return out
 }
 
 func cardPlaceholder(m Model, w int) []string {
-	empty := make([]string, boardCardH)
-	for i := range empty {
-		empty[i] = strings.Repeat(" ", w)
+	surf := lipgloss.Color(m.palette.Surface)
+	fill := lipgloss.NewStyle().Background(surf)
+	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(surf)
+	out := make([]string, boardCardH)
+	for i := range out {
+		out[i] = fill.Render(strings.Repeat(" ", w))
 	}
-	mid := "empty"
-	empty[boardCardH/2] = center(m.styles.muted.Render(mid), w)
-	return empty
+	txt := "No tasks"
+	tw := lipgloss.Width(txt)
+	left := (w - tw) / 2
+	if left < 0 {
+		left = 0
+	}
+	out[boardCardH/2] = fill.Render(strings.Repeat(" ", left)) + muted.Render(txt) + fill.Render(strings.Repeat(" ", w-left-tw))
+	return out
 }
 
 func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head map[string][2]int) []string {
@@ -389,28 +417,17 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 	line1 := stripe + " " + titleStyle.Render(padRightPlain(cut1, titleW))
 	line2 := stripe + " " + titleStyle.Render(padRightPlain(cut2, titleW))
 
-	// Meta: priority dot + label, due chip, tags, subtask progress.
-	dot := lipgloss.NewStyle().Background(cardBg).Render("●")
+	// Meta: priority badge chip, due chip, tags, subtask progress.
+	chip := priorityChip(m, t.Priority, cardBg)
 	popping := m.animTaskID == t.ID && m.animFrame > 0
-	prioTxt := strings.ToLower(t.Priority)
-	switch strings.ToLower(t.Priority) {
-	case "urgent":
-		dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Danger)).Background(cardBg).Render("●")
-	case "high":
-		dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.HeatHot)).Background(cardBg).Render("●")
-	case "medium":
-		dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Warning)).Background(cardBg).Render("●")
-	default:
-		dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(cardBg).Render("●")
-	}
 	if popping {
 		if m.animFrame%2 == 0 {
-			dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(cardBg).Bold(true).Render("✦")
+			chip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Accent)).Bold(true).Render(" ✦ ")
 		} else {
-			dot = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Success)).Background(cardBg).Bold(true).Render("✔")
+			chip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Success)).Bold(true).Render(" ✔ ")
 		}
 	}
-	meta := stripe + " " + dot + " " + fill(lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft))).Render(padRightPlain(prioTxt, 6))
+	meta := stripe + " " + chip + " "
 
 	if t.Due != "" {
 		label, heat := gauges.DueLabel(t.Due, now)
@@ -454,14 +471,31 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 		for _, l := range lines {
 			framed = append(framed, border.Render("│")+padRightCard(l, w-2, cardBg)+border.Render("│"))
 		}
-		return append(framed, bot)
+		framed = append(framed, bot)
+		return strings.Split(paint(strings.Join(framed, "\n"), w, boardCardH, cardBg), "\n")
 	}
 	blank := strings.Repeat(" ", w)
 	out := []string{fill(lipgloss.NewStyle()).Render(blank)}
 	for _, l := range lines {
 		out = append(out, padRightCard(l, w, cardBg))
 	}
-	return append(out, lipgloss.NewStyle().Background(cardBg).Render(blank))
+	out = append(out, lipgloss.NewStyle().Background(cardBg).Render(blank))
+	return strings.Split(paint(strings.Join(out, "\n"), w, boardCardH, cardBg), "\n")
+}
+
+// priorityChip renders a priority as an intentional badge chip (accent-filled
+// bold label) rather than muted words; low uses a quiet strong-surface chip.
+func priorityChip(m Model, p string, bg lipgloss.Color) string {
+	switch strings.ToLower(strings.TrimSpace(p)) {
+	case "urgent":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Danger)).Bold(true).Render(" URG ")
+	case "high":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.HeatHot)).Bold(true).Render(" HIGH ")
+	case "medium":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Warning)).Bold(true).Render(" MED ")
+	default:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(lipgloss.Color(m.palette.SurfaceStrong)).Render(" LOW ")
+	}
 }
 
 func padRightCard(line string, w int, bg lipgloss.Color) string {
@@ -534,7 +568,7 @@ func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
 	view := winStart + visCols
 	col := -1
 	for i := winStart; i < view; i++ {
-		off := 2 + (i-winStart)*(colW+1)
+		off := boardInset + (i-winStart)*(colW+boardGap)
 		if local >= off && local < off+colW {
 			col = i
 			break

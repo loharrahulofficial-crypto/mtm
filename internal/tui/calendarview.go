@@ -159,6 +159,15 @@ func dayStartT(t time.Time) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
 }
 
+func center(s string, w int) string {
+	sd := lipgloss.Width(s)
+	if sd >= w {
+		return clipStyled(s, w)
+	}
+	left := (w - sd) / 2
+	return strings.Repeat(" ", left) + s + strings.Repeat(" ", w-left-sd)
+}
+
 func weekdayHeaders(weekStart string) []string {
 	short := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
 	ws := strings.ToLower(strings.TrimSpace(weekStart))
