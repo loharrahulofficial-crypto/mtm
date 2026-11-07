@@ -115,6 +115,45 @@ func dotCountForDay(m Model, day time.Time) (n int, anyOverdue bool) {
 	return n, anyOverdue
 }
 
+// calendarCellStyle picks the style for one day cell. Today keeps its own
+// filled-pill style even when the calendar cursor is on it — the old code
+// gave the selection precedence, and with a hot overdue day next to today
+// the "cursor" visually sat on yesterday. areSelected/today override the day's
+// own heat only when neither is special.
+func calendarCellStyle(m Model, day time.Time) lipgloss.Style {
+	s := m.styles
+	today := clockToday()
+	d := dayStartT(day)
+	isToday := d.Equal(today)
+	isSelected := d.Equal(dayStartT(m.calDay))
+	isThisMonth := day.Month() == m.calMonth.Month()
+	_, anyOverdue := dotCountForDay(m, day)
+	switch {
+	case isToday:
+		return s.dueToday // today keeps its filled pill even when selected
+	case isSelected:
+		return s.selected
+	case !isThisMonth:
+		return s.dim
+	case anyOverdue:
+		return s.overdue
+	default:
+		return s.base
+	}
+}
+
+// clockToday is midnight today in the local zone.
+func clockToday() time.Time {
+	n := time.Now()
+	return time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, n.Location())
+}
+
+// dayStartT is midnight of t in its own zone.
+func dayStartT(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
+}
+
 func weekdayHeaders(weekStart string) []string {
 	short := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
 	ws := strings.ToLower(strings.TrimSpace(weekStart))
@@ -126,8 +165,6 @@ func weekdayHeaders(weekStart string) []string {
 
 func renderCalendar(m Model, w, h int) string {
 	s := m.styles
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	var b strings.Builder
 
@@ -159,10 +196,7 @@ func renderCalendar(m Model, w, h int) string {
 	last := m.calMonth.AddDate(0, 1, -1)
 
 	cell := func(day time.Time) string {
-		isThisMonth := day.Month() == m.calMonth.Month()
-		isToday := day.Equal(today)
-		isSelected := day.Equal(m.calDay)
-		nDots, anyOverdue := dotCountForDay(m, day)
+		nDots, _ := dotCountForDay(m, day)
 
 		dayNum := fmt.Sprintf("%2d", day.Day())
 		dots := ""
@@ -174,19 +208,7 @@ func renderCalendar(m Model, w, h int) string {
 		}
 		line := dayNum + " " + dots
 
-		var style lipgloss.Style
-		switch {
-		case isSelected:
-			style = s.selected
-		case isToday:
-			style = s.dueToday
-		case !isThisMonth:
-			style = s.dim
-		case anyOverdue:
-			style = s.overdue
-		default:
-			style = s.base
-		}
+		style := calendarCellStyle(m, day)
 		_ = last
 		return style.Width(colW).Render(line)
 	}

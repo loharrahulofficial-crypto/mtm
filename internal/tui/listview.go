@@ -158,7 +158,13 @@ func renderList(m Model, w, h int) string {
 			statusStyle = s.statusDoing
 		}
 
-		fixed := runewidth.StringWidth(indent) + runewidth.StringWidth(tree) + 2 /* mark */ + 1 + len(statusChip) + 1 + len(prio) + 1 + runewidth.StringWidth(due) + 1
+		// Fixed columns: mark + status + priority + due (empty "—" was the
+		// stray dash artifact); title takes whatever is left.
+		dueCol := ""
+		if t.Due != "" {
+			dueCol = due
+		}
+		fixed := runewidth.StringWidth(indent) + runewidth.StringWidth(tree) + 2 /* mark */ + 1 + len(statusChip) + 1 + len(prio) + 1 + runewidth.StringWidth(dueCol) + 1
 		titleBudget := w - fixed
 		titlePlain := truncatePlain(t.Title+suffix, titleBudget)
 
@@ -166,11 +172,11 @@ func renderList(m Model, w, h int) string {
 		var line string
 		if focused {
 			plain := indent + tree + mark + " " + statusChip + " " + prio + " " + titlePlain
-			gap := w - runewidth.StringWidth(plain) - runewidth.StringWidth(due)
+			gap := w - runewidth.StringWidth(plain) - runewidth.StringWidth(dueCol)
 			if gap < 1 {
 				gap = 1
 			}
-			line = s.selected.Width(w).Render(plain + strings.Repeat(" ", gap) + due)
+			line = s.selected.Width(w).Render(plain + strings.Repeat(" ", gap) + dueCol)
 		} else {
 			statusMarkStyle := s.accent
 			if done {
@@ -182,7 +188,12 @@ func renderList(m Model, w, h int) string {
 			} else {
 				left += titlePlain
 			}
-			gap := w - lipgloss.Width(left) - lipgloss.Width(due)
+			if dueCol == "" {
+				// No due date: no chip, nothing dangling on the right.
+				lines = append(lines, s.base.Render(left))
+				continue
+			}
+			gap := w - lipgloss.Width(left) - lipgloss.Width(dueCol)
 			if gap < 1 {
 				gap = 1
 			}
