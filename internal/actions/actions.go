@@ -152,6 +152,7 @@ type QuickAddOverrides struct {
 	Due      string   // normalized via core.DueInput when DueSet
 	DueSet   bool
 	Kind     string // "" = task
+	Parent   string // "" = no parent
 	Now      time.Time
 }
 
@@ -228,6 +229,7 @@ func QuickAddTask(cfg config.Config, s *store.Store, raw string, ov QuickAddOver
 		Recurrence:      parsed.Recurrence,
 		EstimateMinutes: parsed.EstimateMinutes,
 		Kind:            kind,
+		Parent:          ov.Parent,
 	}
 	if err := s.Create(t); err != nil {
 		return nil, err

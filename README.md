@@ -11,12 +11,11 @@ One Go binary, two interfaces over one shared core:
 Tasks are stored as one Markdown file per task, inside a git repo that can
 auto-sync between devices. No database.
 
-> **Status: Phase 2 (smart features).** Everything in Phase 1, plus:
-> natural-language quick-add, `--due today|week|overdue`, `mtm today|week|overdue`,
-> recurring tasks (completing one spawns the next), subtasks with `%` complete,
-> `mtm note` / `mtm search`, saved views (`mtm views` / `mtm view <name>`),
-> `mtm summary` for shell startup.
-> Not yet: TUI, exams/grades/Pomodoro, export, iCal, systemd timer (Phases 3–5).
+> **Status: Phase 3 (TUI).** Phase 2 smart features, plus: `mtm archive` /
+> `mtm list --archived`, default task sorting (`sort:` in config), the full
+> interactive TUI (`mtm` with no arguments), Omarchy live theming, background
+> sync with a conflict-resolution screen.
+> Not yet: exams/grades/Pomodoro, export, iCal, systemd timer (Phases 4–5).
 
 ## Install
 
@@ -121,11 +120,16 @@ mtm rm 3db991                            # asks for confirmation (--force to ski
 mtm note 3db991 "asked prof about edge cases"   # appends a bullet line
 mtm sub 3db991 "draft outline"           # subtask under a task
 mtm search dbms                          # full-text: title, notes, tags
+mtm search --archived dbms               # also search archived tasks
+
+mtm archive                              # move all done tasks to archive/<project>/ (one commit)
+mtm archive --older-than 30d             # only tasks completed >30 days ago
+mtm list --archived                      # browse archived tasks
 
 mtm project add college/dbms --statuses backlog,todo,doing,blocked,done --done done
 mtm project list
 mtm project edit college/dbms            # edit project.yaml in $EDITOR
-mtm sync [--status] [--abort] [--json]
+mtm sync [--status] [--abort] [--json]  # conflicts: fix, then mtm sync --continue
 ```
 
 ### Recurrence
@@ -153,6 +157,54 @@ saved_views:
 Filter keys: `tag:`, `project:`, `status:`, `priority:` (low|medium|high|urgent),
 `due:` (today|week|overdue). Bare token `all` includes done tasks. Run with
 `mtm view <name>`, list with `mtm views`.
+
+### TUI
+
+`mtm` with no arguments launches the interactive TUI. `mtm --help` prints
+help instead; all subcommands behave as before. The TUI shows a sidebar
+(projects with progress, smart views All/Today/Week/Overdue, saved views),
+a main pane and an optional detail/notes preview pane (`v` to toggle). On
+narrow terminals the sidebar and detail pane collapse automatically.
+
+Views (`1` `2` `3` or `tab`):
+
+1. **List** — tree view with `↳` subtasks, priority/status badges and
+   due-date coloring (overdue / today / upcoming).
+2. **Kanban board** — columns come from the selected project's custom
+   statuses. `h`/`l` select a column, `H`/`L` move the card, or drag with
+   the mouse.
+3. **Calendar** — month grid with task dots, a day agenda below;
+   `h`/`l` (days), `H`/`L` (months), `j`/`k` scrolls the agenda.
+
+Keys: `gg`/`G` top/bottom, `/` live filter (full-text plus `tag:`
+`project:` `status:` `priority:` `due:` syntax, same parser as saved
+views), `n`/`N` next/prev match, `:` command line (e.g. `:add buy milk
+friday !high`, `:done`, `:status doing`, `:due 2026-11-20`), `a` add,
+`A` add subtask, `x` done (spawns recurring occurrence), `dd` delete
+(confirms), `D` due date, `t` tags, `e` title, `s` status, `p` priority,
+`m` notes editor, `M` notes in `$EDITOR`, `E` task file in `$EDITOR`,
+`S` sync now, `X` archive selected done task, `?` help overlay, `q` quit.
+Vim-style `h j k l` throughout; multi-key sequences (`gg`, `dd`) work
+with a short prefix timeout.
+
+Config (`~/.config/mtm/config.yaml`):
+
+```yaml
+sort: [done, due, priority, title]   # any order/subset of these keys
+keys:                                # action -> key sequence overrides
+  quit: q
+  toggle_done: x
+  add: a
+```
+
+Unknown `keys:` actions are ignored with a startup note. Colors come from
+the active Omarchy theme (`~/.local/state/omarchy/current/theme/`,
+`colors.toml`; terminal configs as fallback) and re-theme live when the
+theme changes. If the files are missing, a built-in default palette is
+used. Work is committed in small auto-commits and synced in the
+background (debounced); a sync conflict opens the conflict screen
+automatically for per-file **keep mine / keep theirs / edit merged in
+$EDITOR** resolution — nothing is ever auto-resolved.
 
 ### Shell startup summary
 
@@ -190,8 +242,9 @@ Free-form Markdown notes here.
 ```
 
 Completed tasks stay in place with `status` set to the project's done status
-and `completed:` set; archiving to `archive/` arrives with `mtm archive`
-(Phase 2+).
+and `completed:` set. `mtm archive` moves them to `archive/<project>/`
+keeping files byte-identical; they leave the index by default and stay
+searchable with `--archived`. Nothing is ever deleted.
 
 ## Data and config paths
 
@@ -209,11 +262,14 @@ make test vet fmt       # go test ./..., go vet, gofmt check
 make build              # bin/mtm
 ```
 
-Layering: `cmd/mtm` → `internal/cli` (Cobra) → `internal/core` (domain) →
-`internal/store` (files + index). `internal/parse` is the quick-add parser;
-`internal/sync` shells out to git; `internal/config` loads YAML over
-defaults; `internal/appname` holds the single source of the app/binary
-names.
+Layering: `cmd/mtm` → `internal/cli` (Cobra) / `internal/tui` (Bubble Tea)
+→ `internal/actions` (shared operations: quick-add, done/status transitions,
+commit+sync) → `internal/core` (domain) → `internal/store` (files + index).
+`internal/parse` is the quick-add parser; `internal/sync` shells out to
+git; `internal/config` loads YAML over defaults; `internal/appname` holds
+the single source of the app/binary names; `internal/theme` reads the
+Omarchy palette. The TUI has no business logic — it calls actions/core/
+store/sync.
 
 Commit messages of the data repo are deliberately free of tooling noise
 (no session tags): user data belongs to the user.

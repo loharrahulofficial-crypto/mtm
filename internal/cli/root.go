@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"os"
 
+	"golang.org/x/term"
+
 	"github.com/loharrahulofficial-crypto/mtm/internal/appname"
+	"github.com/loharrahulofficial-crypto/mtm/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +24,14 @@ func Execute() error {
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Bare `mtm` launches the TUI, but only on a terminal; otherwise
+			// print help (scripts keep the old behavior).
+			if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
+				return cmd.Help()
+			}
+			return tui.Run()
+		},
 	}
 	root.AddCommand(
 		newInitCmd(),

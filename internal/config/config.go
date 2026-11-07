@@ -25,7 +25,7 @@ type Config struct {
 	Pomodoro   PomodoroConfig `yaml:"pomodoro"`
 	SavedViews []SavedView    `yaml:"saved_views"`
 	// Keys overrides TUI key bindings: action name -> key(s), space-separated.
-	Keys map[string]string `yaml:"keys"`
+	Keys map[string]string `yaml:"keys,omitempty"`
 }
 
 type SyncConfig struct {

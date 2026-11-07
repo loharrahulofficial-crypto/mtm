@@ -208,26 +208,8 @@ func (s *Store) ArchiveDone(now time.Time, olderThan time.Duration, isDone func(
 	}
 	moved := 0
 	for _, oldRel := range moves {
-		oldPath := s.absPath(oldRel)
-		newRel := "archive/" + strings.TrimPrefix(oldRel, "projects/")
-		newPath := s.absPath(newRel)
-		if err := os.MkdirAll(filepath.Dir(newPath), 0o755); err != nil {
-			return moved, fmt.Errorf("archive: mkdir %s: %w", filepath.Dir(newRel), err)
-		}
-		if _, err := os.Stat(newPath); err == nil {
-			return moved, fmt.Errorf("archive: %s already exists — resolve it manually", newRel)
-		}
-		if err := os.Rename(oldPath, newPath); err != nil {
-			return moved, fmt.Errorf("archive: move %s: %w", oldRel, err)
-		}
-		for i, t := range s.tasks {
-			if s.paths[t.ID] != oldRel {
-				continue
-			}
-			t.Archived = true
-			s.paths[t.ID] = newRel
-			s.tasks = append(s.tasks[:i], s.tasks[i+1:]...)
-			break
+		if _, err := s.archiveOne(oldRel); err != nil {
+			return moved, err
 		}
 		moved++
 	}
@@ -237,6 +219,51 @@ func (s *Store) ArchiveDone(now time.Time, olderThan time.Duration, isDone func(
 		}
 	}
 	return moved, nil
+}
+
+// archiveOne moves the task file at oldRel (a projects/-relative path) to
+// archive/ and drops it from the default index. Returns the new relative
+// path.
+func (s *Store) archiveOne(oldRel string) (string, error) {
+	oldPath := s.absPath(oldRel)
+	newRel := "archive/" + strings.TrimPrefix(oldRel, "projects/")
+	newPath := s.absPath(newRel)
+	if err := os.MkdirAll(filepath.Dir(newPath), 0o755); err != nil {
+		return "", fmt.Errorf("archive: mkdir %s: %w", filepath.Dir(newRel), err)
+	}
+	if _, err := os.Stat(newPath); err == nil {
+		return "", fmt.Errorf("archive: %s already exists — resolve it manually", newRel)
+	}
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return "", fmt.Errorf("archive: move %s: %w", oldRel, err)
+	}
+	for i, t := range s.tasks {
+		if s.paths[t.ID] != oldRel {
+			continue
+		}
+		t.Archived = true
+		s.paths[t.ID] = newRel
+		s.tasks = append(s.tasks[:i], s.tasks[i+1:]...)
+		break
+	}
+	return newRel, nil
+}
+
+// ArchiveTask moves a single task's file to archive/<project>/ and removes
+// it from the default index. Used by the TUI's per-task archive action; the
+// file stays byte-identical.
+func (s *Store) ArchiveTask(t *core.Task) error {
+	rel, ok := s.paths[t.ID]
+	if !ok {
+		return fmt.Errorf("task %q is not in the index", t.ID)
+	}
+	if !strings.HasPrefix(rel, "projects/") {
+		return fmt.Errorf("task %q is already archived", t.ID)
+	}
+	if _, err := s.archiveOne(rel); err != nil {
+		return err
+	}
+	return s.saveCache()
 }
 
 // Diagnostics lists files that could not be read/parsed during indexing.
