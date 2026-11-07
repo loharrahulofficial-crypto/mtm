@@ -74,16 +74,6 @@ func newSyncCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if st.Conflicted {
-				fmt.Println("sync is paused: the data repo has unresolved conflicts")
-				for _, f := range st.Files {
-					fmt.Printf("  - %s\n", f)
-				}
-				fmt.Println("fix the files in the data repo, then `mtm sync --continue`;")
-				fmt.Println("or `mtm sync --abort` to undo the pull and re-enable sync")
-				return sync.ErrConflicted
-			}
-
 			if cont {
 				if repo.RebaseInProgress() {
 					if err := repo.RebaseContinue(); err != nil {
@@ -111,6 +101,15 @@ func newSyncCmd() *cobra.Command {
 				_ = res
 				fmt.Println("rebase continued; sync re-enabled")
 				return nil
+			}
+			if st.Conflicted {
+				fmt.Println("sync is paused: the data repo has unresolved conflicts")
+				for _, f := range st.Files {
+					fmt.Printf("  - %s\n", f)
+				}
+				fmt.Println("fix the files in the data repo, then `mtm sync --continue`;")
+				fmt.Println("or `mtm sync --abort` to undo the pull and re-enable sync")
+				return sync.ErrConflicted
 			}
 
 			res, err := repo.Sync(cfg.Sync.Remote)
