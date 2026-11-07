@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/loharrahulofficial-crypto/mtm/internal/core"
-	"github.com/loharrahulofficial-crypto/mtm/internal/parse"
 	"github.com/spf13/cobra"
+
+	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
+	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 )
 
 func newAddCmd() *cobra.Command {
@@ -43,72 +43,22 @@ Flags always win over parsed values. Remaining words become the title.`,
 			}
 			defer func() { _ = s.Close() }()
 
-			parsed := parse.QuickAdd(raw, time.Now())
-			title := parsed.Title
-			if title == "" {
-				return errors.New("no title left after parsing — did you mean to write some words of the task itself?")
-			}
-
-			// Flags win over parsed values.
 			changed := func(name string) bool { return cmd.Flags().Changed(name) }
-
-			if !changed("project") {
-				project = parsed.Project
+			ov := actions.QuickAddOverrides{Kind: kind}
+			if changed("project") {
+				ov.Project = project
 			}
-			if project == "" {
-				project = cfg.DefaultProject
-			}
-
 			if changed("priority") {
-				priority = strings.ToLower(strings.TrimSpace(priority))
-			} else {
-				priority = parsed.Priority
+				ov.Priority = strings.ToLower(strings.TrimSpace(priority))
 			}
-			if priority == "" {
-				priority = core.PriorityMedium
-			}
-			if !core.ValidPriority(priority) {
-				return fmt.Errorf("invalid priority %q (want low|medium|high|urgent)", priority)
-			}
-
-			var normalizedDue string
 			if changed("due") {
-				normalizedDue, err = core.DueInput(due)
-				if err != nil {
-					return err
-				}
-			} else {
-				normalizedDue = parsed.Due
+				ov.Due, ov.DueSet = due, true
 			}
-
-			var finalTags []string
 			if changed("tag") {
-				finalTags = parseTags(tags)
-			} else {
-				finalTags = parsed.Tags
+				ov.Tags = parseTags(tags)
 			}
-
-			kind = strings.ToLower(strings.TrimSpace(kind))
-			if !core.ValidKind(kind) {
-				return fmt.Errorf("invalid kind %q (want task|assignment|exam|study|project)", kind)
-			}
-
-			p, err := s.GetProject(project)
+			t, err := actions.QuickAddTask(cfg, s, raw, ov)
 			if err != nil {
-				return fmt.Errorf("project %q: %w — run `mtm project add %s`", project, err, project)
-			}
-			t := &core.Task{
-				Title:           title,
-				Project:         project,
-				Status:          firstStatusOf(p),
-				Priority:        priority,
-				Tags:            finalTags,
-				Due:             normalizedDue,
-				Recurrence:      parsed.Recurrence,
-				EstimateMinutes: parsed.EstimateMinutes,
-				Kind:            kind,
-			}
-			if err := s.Create(t); err != nil {
 				return err
 			}
 			commitAndSync(cfg, s.Root, "add: "+t.Title)
@@ -122,13 +72,6 @@ Flags always win over parsed values. Remaining words become the title.`,
 	cmd.Flags().StringVar(&due, "due", "", "due: YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 	cmd.Flags().StringVar(&kind, "kind", core.KindTask, "task|assignment|exam|study|project")
 	return cmd
-}
-
-func firstStatusOf(p *core.Project) string {
-	if p != nil && len(p.Statuses) > 0 {
-		return p.Statuses[0].Name
-	}
-	return "todo"
 }
 
 func parseTags(in []string) []string {

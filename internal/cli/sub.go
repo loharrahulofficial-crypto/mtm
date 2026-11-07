@@ -33,10 +33,14 @@ func newSubCmd() *cobra.Command {
 			if !core.ValidPriority(priority) {
 				return fmt.Errorf("invalid priority %q (want low|medium|high|urgent)", priority)
 			}
+			first := "todo"
+			if len(p.Statuses) > 0 {
+				first = p.Statuses[0].Name
+			}
 			child := &core.Task{
 				Title:    strings.Join(args[1:], " "),
 				Project:  parent.Project,
-				Status:   firstStatusOf(p),
+				Status:   first,
 				Priority: priority,
 				Kind:     core.KindTask,
 				Parent:   parent.ID,

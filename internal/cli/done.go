@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/spf13/cobra"
 )
 
@@ -23,23 +23,15 @@ func newDoneCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			p, err := s.GetProject(t.Project)
+			spawnMsg, err := actions.CompleteTask(s, t)
 			if err != nil {
-				return fmt.Errorf("project %q: %w", t.Project, err)
-			}
-			doneStatus := p.DoneStatus()
-			if doneStatus == "" {
-				return fmt.Errorf("project %q has no status marked done", t.Project)
-			}
-			t.Status = doneStatus
-			t.Completed = core.NowLocal()
-			spawnMsg := spawnNextOccurrence(s, t)
-			if err := s.Update(t); err != nil {
 				return err
 			}
 			commitAndSync(cfg, s.Root, "done: "+t.Title)
 			fmt.Printf("done %s  %s\n", t.ID, t.Title)
-			fmt.Print(spawnMsg)
+			if spawnMsg != "" {
+				fmt.Println(spawnMsg)
+			}
 			return nil
 		},
 	}

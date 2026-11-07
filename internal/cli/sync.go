@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
@@ -14,6 +15,7 @@ func newSyncCmd() *cobra.Command {
 	var (
 		status bool
 		abort  bool
+		cont   bool
 		asJSON bool
 	)
 	cmd := &cobra.Command{
@@ -53,7 +55,7 @@ func newSyncCmd() *cobra.Command {
 					for _, f := range st.State.Files {
 						fmt.Printf("  - %s\n", f)
 					}
-					fmt.Println("resolve: fix the files in the data repo, commit, then `mtm sync --abort` or run `mtm sync`")
+					fmt.Println("resolve: fix the files in the data repo (or `mtm sync --abort` to undo the pull and re-enable sync), then `mtm sync --continue`")
 					return nil
 				}
 				fmt.Println("state:   ok")
@@ -77,9 +79,38 @@ func newSyncCmd() *cobra.Command {
 				for _, f := range st.Files {
 					fmt.Printf("  - %s\n", f)
 				}
-				fmt.Println("fix the files in the data repo, commit the resolution, then `mtm sync`;")
+				fmt.Println("fix the files in the data repo, then `mtm sync --continue`;")
 				fmt.Println("or `mtm sync --abort` to undo the pull and re-enable sync")
 				return sync.ErrConflicted
+			}
+
+			if cont {
+				if repo.RebaseInProgress() {
+					if err := repo.RebaseContinue(); err != nil {
+						return err
+					}
+				} else {
+					files, ferr := repo.ConflictedFiles()
+					if ferr != nil || len(files) > 0 {
+						if len(files) == 0 {
+							files = []string{"?"}
+						}
+						return fmt.Errorf("no rebase in progress and unmerged files remain: %s", strings.Join(files, ", "))
+					}
+				}
+				if err := repo.ClearState(); err != nil {
+					return err
+				}
+				res, err := repo.Sync(cfg.Sync.Remote)
+				if err == sync.ErrConflicted {
+					return err
+				}
+				if err != nil {
+					return fmt.Errorf("sync failed: %w", err)
+				}
+				_ = res
+				fmt.Println("rebase continued; sync re-enabled")
+				return nil
 			}
 
 			res, err := repo.Sync(cfg.Sync.Remote)
@@ -89,7 +120,7 @@ func newSyncCmd() *cobra.Command {
 				for _, f := range st.Files {
 					fmt.Printf("  - %s\n", f)
 				}
-				fmt.Println("fix the files, commit, then `mtm sync`; inspect with `mtm sync --status`")
+				fmt.Println("fix the files, then `mtm sync --continue`; inspect with `mtm sync --status`")
 				return err
 			}
 			if err != nil {
@@ -108,6 +139,7 @@ func newSyncCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&status, "status", false, "show sync state (branch, remote, ahead, conflicts)")
 	cmd.Flags().BoolVar(&abort, "abort", false, "abort an in-progress rebase and clear the conflicted state")
+	cmd.Flags().BoolVar(&cont, "continue", false, "continue an in-progress rebase after manual resolution and resume sync")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON (with --status)")
 	return cmd
 }

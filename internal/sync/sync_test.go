@@ -192,3 +192,109 @@ func TestHasRemote(t *testing.T) {
 		t.Fatalf("url=%q err=%v", url, err)
 	}
 }
+
+func TestResolveConflictAndRebaseContinue(t *testing.T) {
+	_, a, b := setupClones(t)
+	// Both change the same line; B pushes; A pulls → conflict.
+	if err := os.WriteFile(filepath.Join(a, "task.md"), []byte("from a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repoA := New(a)
+	if _, err := repoA.CommitAll("a change"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(b, "task.md"), []byte("from b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repoB := New(b)
+	if _, err := repoB.CommitAll("b change"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repoB.Sync("origin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repoA.Sync("origin"); err != ErrConflicted {
+		t.Fatalf("expected ErrConflicted, got %v", err)
+	}
+	if !repoA.RebaseInProgress() {
+		t.Fatal("expected a rebase in progress")
+	}
+	st, err := repoA.LoadState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Files) != 1 || st.Files[0] != "task.md" {
+		t.Fatalf("conflicted files = %v", st.Files)
+	}
+	// Keep mine (local): during rebase, ours=remote so mine=--theirs.
+	if err := repoA.ResolveConflict("task.md", true); err != nil {
+		t.Fatal(err)
+	}
+	files, err := repoA.ConflictedFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 0 {
+		t.Fatalf("still conflicted after resolve: %v", files)
+	}
+	if err := repoA.RebaseContinue(); err != nil {
+		t.Fatal(err)
+	}
+	if err := repoA.ClearState(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(a, "task.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "from a\n" {
+		t.Fatalf("keepMine resolved to %q", data)
+	}
+	res, err := repoA.Sync("origin")
+	if err != nil {
+		t.Fatalf("sync after continue: %v", err)
+	}
+	if !res.Pushed {
+		t.Fatal("expected push after rebase continue")
+	}
+}
+
+func TestResolveConflictKeepTheirs(t *testing.T) {
+	_, a, b := setupClones(t)
+	if err := os.WriteFile(filepath.Join(a, "task.md"), []byte("from a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repoA := New(a)
+	if _, err := repoA.CommitAll("a change"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(b, "task.md"), []byte("from b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repoB := New(b)
+	if _, err := repoB.CommitAll("b change"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repoB.Sync("origin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repoA.Sync("origin"); err != ErrConflicted {
+		t.Fatalf("expected ErrConflicted, got %v", err)
+	}
+	if err := repoA.ResolveConflict("task.md", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := repoA.RebaseContinue(); err != nil {
+		t.Fatal(err)
+	}
+	if err := repoA.ClearState(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(a, "task.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "from b\n" {
+		t.Fatalf("keepTheirs resolved to %q", data)
+	}
+}

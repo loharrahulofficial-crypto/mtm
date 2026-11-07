@@ -318,6 +318,63 @@ func (r Repo) Sync(remote string) (SyncResult, error) {
 	return res, nil
 }
 
+// RebaseInProgress reports whether a git rebase is in progress
+// (rebase-merge or rebase-apply metadata exists in the git dir).
+func (r Repo) RebaseInProgress() bool {
+	gd, err := r.GitDir()
+	if err != nil {
+		return false
+	}
+	for _, d := range []string{"rebase-merge", "rebase-apply"} {
+		if fi, err := os.Stat(filepath.Join(gd, d)); err == nil && fi.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+// ResolveConflict stages a conflicted file choosing one side.
+// During a rebase, "mine" (your local commit) is git's --theirs and "theirs"
+// (the remote you rebase onto) is --ours. keepMine selects yours.
+// The file must currently be unmerged; the chosen side is checked out and
+// the path is staged. Never called implicitly by sync.
+func (r Repo) ResolveConflict(path string, keepMine bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	side := "--ours" // remote version
+	if keepMine {
+		side = "--theirs" // local version
+	}
+	if _, err := r.git(ctx, "checkout", side, "--", path); err != nil {
+		return err
+	}
+	_, err := r.git(ctx, "add", "--", path)
+	return err
+}
+
+// AddConflictPath stages an edited conflicted file (used after $EDITOR).
+func (r Repo) AddConflictPath(path string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err := r.git(ctx, "add", "--", path)
+	return err
+}
+
+// RebaseContinue continues an in-progress rebase accepting the default
+// commit message (GIT_EDITOR=true, never opens an editor).
+func (r Repo) RebaseContinue() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "rebase", "--continue")
+	cmd.Dir = r.Path
+	cmd.Env = append(os.Environ(), "GIT_EDITOR=true", "GIT_TERMINAL_PROMPT=0")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git rebase --continue: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // Abort stops an in-progress rebase and clears the conflicted state.
 func (r Repo) Abort() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

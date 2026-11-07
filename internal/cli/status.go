@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/spf13/cobra"
 )
 
@@ -36,23 +36,15 @@ func newStatusCmd() *cobra.Command {
 				}
 				return fmt.Errorf("unknown status %q in project %q (valid: %s)", args[1], t.Project, strings.Join(names, ", "))
 			}
-			wasDone := p.IsDoneStatus(t.Status)
-			t.Status = canonical
-			spawnMsg := ""
-			if p.IsDoneStatus(canonical) {
-				t.Completed = core.NowLocal()
-				if !wasDone {
-					spawnMsg = spawnNextOccurrence(s, t)
-				}
-			} else {
-				t.Completed = ""
-			}
-			if err := s.Update(t); err != nil {
+			spawnMsg, err := actions.SetStatus(s, t, canonical)
+			if err != nil {
 				return err
 			}
 			commitAndSync(cfg, s.Root, "status: "+t.Title)
 			fmt.Printf("%s  %s -> %s\n", t.ID, t.Title, canonical)
-			fmt.Print(spawnMsg)
+			if spawnMsg != "" {
+				fmt.Println(spawnMsg)
+			}
 			return nil
 		},
 	}

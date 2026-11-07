@@ -14,6 +14,9 @@ type Filter struct {
 	Priority         string
 	Due              string // "" | today | week | overdue
 	IncludeCompleted bool
+	// Contains is a free-text needle matched case-insensitively against
+	// title, body and tags. "" matches everything.
+	Contains string
 	// Now is injected for testability; zero means time.Now() at Apply time.
 	Now time.Time
 	// DoneCheck reports whether a task's status counts as done. May be nil,
@@ -67,6 +70,16 @@ func (f Filter) match(t *Task, now time.Time) bool {
 	}
 	if f.Priority != "" && !strings.EqualFold(t.Priority, f.Priority) {
 		return false
+	}
+	if f.Contains != "" {
+		haystack := strings.ToLower(strings.Join([]string{
+			t.Title,
+			t.Body,
+			strings.Join(t.Tags, " "),
+		}, "\n"))
+		if !strings.Contains(haystack, strings.ToLower(f.Contains)) {
+			return false
+		}
 	}
 	if f.Due != "" && !dueMatches(t.Due, f.Due, now) {
 		return false
