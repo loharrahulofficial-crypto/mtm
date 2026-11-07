@@ -116,6 +116,30 @@ func TestLetterspaceWordGap(t *testing.T) {
 	}
 }
 
+// Empty detail pane: centered, muted, no border.
+func TestDetailEmptyStateIsCenteredBorderless(t *testing.T) {
+	m, _ := newTestModel(t, nil)
+	detail := m.renderDetail(36, 30)
+	plain := stripANSI(detail)
+	if !strings.Contains(plain, "Nothing selected") {
+		t.Fatalf("empty state must name itself, got:\n%s", plain)
+	}
+	for _, g := range []string{"╭", "╮", "╰", "╯", "│"} {
+		if strings.Contains(plain, g) {
+			t.Fatalf("empty state must have no border, found %q in:\n%s", g, plain)
+		}
+	}
+	// Centered: the text starts well inside the pane, not at the left edge.
+	for _, l := range strings.Split(plain, "\n") {
+		if idx := strings.Index(l, "Nothing selected"); idx >= 0 {
+			if idx < 5 {
+				t.Fatalf("empty state not centered (starts at col %d):\n%s", idx, plain)
+			}
+			return
+		}
+	}
+}
+
 func calendarMonthTitle(m Model) string {
 	return m.calMonth.Format("January 2006")
 }
