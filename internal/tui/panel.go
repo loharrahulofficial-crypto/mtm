@@ -66,8 +66,8 @@ func renderPanel(m Model, title string, w, h int, focused bool, body []string) s
 	if innerW < 1 {
 		innerW = 1
 	}
-	if innerH < 1 {
-		innerH = 1
+	if innerH < 0 {
+		innerH = 0
 	}
 
 	// Content grid clipped to innerH rows; each row is padded to the inner

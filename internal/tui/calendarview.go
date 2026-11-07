@@ -126,12 +126,13 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 	case todayCell:
 		numStr = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Accent)).Bold(true).Render(" " + numStr + " ")
 	case isSelected:
-		numStr = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render(" " + numStr)
+		numStr = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render(numStr)
 	default:
-		numStr = lipgloss.NewStyle().Foreground(st.GetForeground()).Background(bg).Bold(st.GetBold()).Render(" " + numStr)
+		numStr = lipgloss.NewStyle().Foreground(st.GetForeground()).Background(bg).Bold(st.GetBold()).Render(numStr)
 	}
 
-	out := []string{gitRun(numStr)}
+	row0 := fill.Render(" ") + numStr
+	out := []string{gitRun(row0)}
 	for i := 1; i < cellH; i++ {
 		out = append(out, gitRun(""))
 	}
@@ -150,23 +151,27 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 			if done {
 				ts = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Strikethrough(true)
 			}
-			out[1+i] = gitRun(" " + ts.Render(truncatePlain(t.Title, cw-2)))
+			out[1+i] = gitRun(fill.Render(" ") + ts.Render(truncatePlain(t.Title, cw-2)))
 		}
 	}
 
 	// Dots row (bottom-left), with +N overflow and an exam marker.
 	colors, total, _, exam := dotsForDay(m, day)
-	dotsRow := " "
+	dotsRow := fill.Render(" ")
+	any := false
 	for _, c := range colors {
 		dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Background(bg).Render("●")
+		any = true
 	}
 	if total > len(colors) {
 		dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Render(fmt.Sprintf("+%d", total-len(colors)))
+		any = true
 	}
 	if exam {
 		dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render("✦")
+		any = true
 	}
-	dotsLine := cw > 0 && dotsRow != " "
+	dotsLine := any
 
 	// Bottom row: selected → accent underline rule; else dots.
 	last := cellH - 1
@@ -429,7 +434,11 @@ func renderCalendarBody(m Model, w, h int) []string {
 		color := theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))
 		stripe := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bgSurface).Render("▌")
 		if i == m.calAgendaSel && m.focus != focusSidebar {
-			selLine := strings.Repeat(" ", 1) + timeStr + stripe + " " + mark + " " + truncatePlain(t.Title, w-14)
+			selBG := lipgloss.NewStyle().Background(bgRaised)
+			selMut := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgRaised)
+			selTxt := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bgRaised).Bold(true)
+			selStripe := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bgRaised).Render("▌")
+			selLine := selBG.Render(" ") + selMut.Render(timeStr) + selStripe + selMut.Render(" "+mark+" ") + selTxt.Render(truncatePlain(t.Title, w-14))
 			lines = append(lines, padToWidth(selLine, w, bgRaised))
 			continue
 		}

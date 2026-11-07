@@ -322,6 +322,7 @@ func todayBody(m Model, w, h int, d homeData) []string {
 			stripe = lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bg).Render("▌")
 		}
 		rowBg := lipgloss.NewStyle().Background(bg)
+		mutedTxt := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bg)
 
 		est := ""
 		if t.EstimateMinutes > 0 {
@@ -347,10 +348,10 @@ func todayBody(m Model, w, h int, d homeData) []string {
 		if done {
 			mark = "✔"
 		}
-		line := " " + lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bg).Render(timeStr) +
-			" " + stripe + " " + rowBg.Render(mark+" ") + titleStyle.Render(label)
-		rest := strings.Repeat(" ", 1) + muted.Render(est) + dangerStyleFor(t, m, bg).Render(prio)
-		line += strings.Repeat(" ", max(0, w-lipglossWidth(line)-lipglossWidth(rest)-1)) + rest + " "
+		line := rowBg.Render(" ") + lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bg).Render(timeStr) +
+			rowBg.Render(" ") + stripe + rowBg.Render(mark+" ") + titleStyle.Render(label)
+		rest := rowBg.Render(" ") + mutedTxt.Render(est) + dangerStyleFor(t, m, bg).Render(prio)
+		line += rowBg.Render(strings.Repeat(" ", max(0, w-lipglossWidth(line)-lipglossWidth(rest)-1))) + rest + rowBg.Render(" ")
 		lines = append(lines, padToWidth(line, w, bg))
 	}
 	if !dividerPlaced && len(d.todayRows) > 0 {

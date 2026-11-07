@@ -404,6 +404,7 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 		border = lipgloss.NewStyle().Background(cardBg)
 	}
 	fill := func(st lipgloss.Style) lipgloss.Style { return st.Background(cardBg) }
+	bgFill := lipgloss.NewStyle().Background(cardBg)
 
 	stripe := hl(cardBg).Render("▌")
 
@@ -414,8 +415,8 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 	if done {
 		titleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Strikethrough(true).Background(cardBg)
 	}
-	line1 := stripe + " " + titleStyle.Render(padRightPlain(cut1, titleW))
-	line2 := stripe + " " + titleStyle.Render(padRightPlain(cut2, titleW))
+	line1 := stripe + bgFill.Render(" ") + titleStyle.Render(padRightPlain(cut1, titleW))
+	line2 := stripe + bgFill.Render(" ") + titleStyle.Render(padRightPlain(cut2, titleW))
 
 	// Meta: priority badge chip, due chip, tags, subtask progress.
 	chip := priorityChip(m, t.Priority, cardBg)
@@ -427,7 +428,7 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 			chip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Success)).Bold(true).Render(" ✔ ")
 		}
 	}
-	meta := stripe + " " + chip + " "
+	meta := stripe + bgFill.Render(" ") + chip + bgFill.Render(" ")
 
 	if t.Due != "" {
 		label, heat := gauges.DueLabel(t.Due, now)
@@ -445,7 +446,7 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 		if done {
 			dc = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(cardBg)
 		}
-		meta += dc.Render(label) + " "
+		meta += dc.Render(label) + bgFill.Render(" ")
 	}
 
 	if len(t.Tags) > 0 {
