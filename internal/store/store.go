@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"gopkg.in/yaml.v3"
@@ -39,7 +40,9 @@ type cacheEntry struct {
 const cacheVersion = 1
 
 // Open loads the data repo at root, rebuilding the index (with cache help).
-func Open(root, cachePath string) (*Store, error) {
+// Pass includeArchived to also index archive/<project>/ tasks; they are
+// marked Task.Archived and stay out of the default index otherwise.
+func Open(root, cachePath string, includeArchived ...bool) (*Store, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return nil, err
@@ -61,9 +64,12 @@ func Open(root, cachePath string) (*Store, error) {
 		projects:  map[string]*core.Project{},
 	}
 	cache := s.loadCache()
-	projectRoot := filepath.Join(abs, "projects")
-	if _, statErr := os.Stat(projectRoot); statErr == nil {
-		_ = filepath.WalkDir(projectRoot, func(path string, d fs.DirEntry, err error) error {
+	walk := func(base string, archived bool) {
+		baseAbs := filepath.Join(abs, base)
+		if _, statErr := os.Stat(baseAbs); statErr != nil {
+			return
+		}
+		_ = filepath.WalkDir(baseAbs, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				s.diagnostics = append(s.diagnostics, fmt.Sprintf("%s: %v", path, err))
 				return nil
@@ -78,6 +84,9 @@ func Open(root, cachePath string) (*Store, error) {
 			key := filepath.ToSlash(rel)
 			if t, ok := cache[key]; ok && t != nil {
 				s.register(t, key)
+				if archived {
+					t.Archived = true
+				}
 				return nil
 			}
 			data, err := os.ReadFile(path)
@@ -90,9 +99,14 @@ func Open(root, cachePath string) (*Store, error) {
 				s.diagnostics = append(s.diagnostics, fmt.Sprintf("parse %s: %v", rel, err))
 				return nil
 			}
+			t.Archived = archived
 			s.register(t, key)
 			return nil
 		})
+	}
+	walk("projects", false)
+	if len(includeArchived) > 0 && includeArchived[0] {
+		walk("archive", true)
 	}
 	return s, nil
 }
@@ -158,6 +172,72 @@ func (s *Store) saveCache() error {
 
 // Close persists the index cache. Best-effort: cache failures are not fatal.
 func (s *Store) Close() error { return s.saveCache() }
+
+// ArchiveDone moves done task files from projects/<p>/ to archive/<p>/,
+// keeping file contents byte-identical. Tasks whose Completed (or Updated as
+// fallback) is unparseable are skipped. olderThan <= 0 archives all done
+// tasks; otherwise only tasks finished more than olderThan ago. Archived
+// tasks leave the default index. Returns the number moved.
+func (s *Store) ArchiveDone(now time.Time, olderThan time.Duration, isDone func(project, status string) bool) (int, error) {
+	if isDone == nil {
+		isDone = func(_, status string) bool { return core.IsDoneStatusFallback(status) }
+	}
+	var moves []string
+	for _, t := range s.tasks {
+		rel, ok := s.paths[t.ID]
+		if !ok || !strings.HasPrefix(rel, "projects/") {
+			continue
+		}
+		if !isDone(t.Project, t.Status) {
+			continue
+		}
+		if olderThan > 0 {
+			stamp := t.Completed
+			if stamp == "" {
+				stamp = t.Updated
+			}
+			d, err := core.ParseDue(stamp, now.Location())
+			if err != nil {
+				continue // cannot tell how old it is; leave it
+			}
+			if now.Sub(d) < olderThan {
+				continue // not old enough
+			}
+		}
+		moves = append(moves, rel)
+	}
+	moved := 0
+	for _, oldRel := range moves {
+		oldPath := s.absPath(oldRel)
+		newRel := "archive/" + strings.TrimPrefix(oldRel, "projects/")
+		newPath := s.absPath(newRel)
+		if err := os.MkdirAll(filepath.Dir(newPath), 0o755); err != nil {
+			return moved, fmt.Errorf("archive: mkdir %s: %w", filepath.Dir(newRel), err)
+		}
+		if _, err := os.Stat(newPath); err == nil {
+			return moved, fmt.Errorf("archive: %s already exists — resolve it manually", newRel)
+		}
+		if err := os.Rename(oldPath, newPath); err != nil {
+			return moved, fmt.Errorf("archive: move %s: %w", oldRel, err)
+		}
+		for i, t := range s.tasks {
+			if s.paths[t.ID] != oldRel {
+				continue
+			}
+			t.Archived = true
+			s.paths[t.ID] = newRel
+			s.tasks = append(s.tasks[:i], s.tasks[i+1:]...)
+			break
+		}
+		moved++
+	}
+	if moved > 0 {
+		if err := s.saveCache(); err != nil {
+			return moved, err
+		}
+	}
+	return moved, nil
+}
 
 // Diagnostics lists files that could not be read/parsed during indexing.
 func (s *Store) Diagnostics() []string { return s.diagnostics }

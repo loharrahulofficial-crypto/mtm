@@ -63,8 +63,11 @@ func printNode(tab *tabwriter.Writer, head map[string][2]int, children map[strin
 		due = "-"
 	}
 	title := t.Title
+	if t.Archived {
+		title += " [archived]"
+	}
 	if c, ok := head[t.ID]; ok {
-		title = fmt.Sprintf("%s [%d/%d]", t.Title, c[0], c[1])
+		title = fmt.Sprintf("%s [%d/%d]", title, c[0], c[1])
 	}
 	fmt.Fprintf(tab, "%s%s\t%s\t%s\t%s\t%s\t%s\n", indent, t.ID, t.Priority, t.Status, due, title, t.Project)
 	for _, c := range children[t.ID] {
@@ -113,6 +116,7 @@ func newListCmd() *cobra.Command {
 		due      string
 		all      bool
 		asJSON   bool
+		archived bool
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -122,17 +126,23 @@ func newListCmd() *cobra.Command {
 			if !core.ValidDue(due) {
 				return fmt.Errorf("invalid --due %q (want today|week|overdue)", due)
 			}
-			cfg, s, err := openStore()
+			cfg, s, err := openStoreOpts(archived)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = s.Close() }()
 			printDiagnostics(s)
 
+			if archived {
+				all = true // archived tasks are done; keep them visible
+			}
 			f := taskFilter(s, project, tag, status, priority, all)
 			f.Due = due
 			f.Now = time.Now()
 			filtered := f.Apply(s.Tasks())
+			if archived {
+				filtered = archivedOnly(filtered)
+			}
 			if asJSON {
 				return printTasksJSON(os.Stdout, filtered)
 			}
@@ -151,7 +161,19 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&due, "due", "", "filter by due: today|week|overdue")
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "include done tasks")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
+	cmd.Flags().BoolVar(&archived, "archived", false, "list archived tasks (instead of active ones)")
 	return cmd
+}
+
+// archivedOnly keeps only tasks loaded from archive/.
+func archivedOnly(in []*core.Task) []*core.Task {
+	out := make([]*core.Task, 0, len(in))
+	for _, t := range in {
+		if t.Archived {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func newTodayCmd() *cobra.Command {

@@ -59,6 +59,8 @@ type Task struct {
 	Kind              string   `yaml:"kind"`
 	// Body is the Markdown notes below the frontmatter fence. Not YAML.
 	Body string `yaml:"-"`
+	// Archived is set by the store when the task was loaded from archive/.
+	Archived bool `yaml:"-"`
 }
 
 // NowLocal returns the current local time in frontmatter layout.

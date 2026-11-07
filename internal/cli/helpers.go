@@ -14,11 +14,16 @@ import (
 
 // openStore loads config and opens the data repo. Caller must close.
 func openStore() (config.Config, *store.Store, error) {
+	return openStoreOpts(false)
+}
+
+// openStoreOpts is openStore with the archive/ tree included in the index.
+func openStoreOpts(includeArchived bool) (config.Config, *store.Store, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return cfg, nil, err
 	}
-	s, err := store.Open(cfg.DataRepoPath(), config.CachePath())
+	s, err := store.Open(cfg.DataRepoPath(), config.CachePath(), includeArchived)
 	if err != nil {
 		return cfg, nil, err
 	}

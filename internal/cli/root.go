@@ -25,6 +25,7 @@ func Execute() error {
 	root.AddCommand(
 		newInitCmd(),
 		newAddCmd(),
+		newArchiveCmd(),
 		newListCmd(),
 		newTodayCmd(),
 		newWeekCmd(),

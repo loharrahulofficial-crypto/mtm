@@ -11,6 +11,7 @@ import (
 
 func newSearchCmd() *cobra.Command {
 	var asJSON bool
+	var archived bool
 	cmd := &cobra.Command{
 		Use:   "search <query...>",
 		Short: "Full-text search over title, notes and tags",
@@ -20,7 +21,7 @@ func newSearchCmd() *cobra.Command {
 			if strings.TrimSpace(query) == "" {
 				return fmt.Errorf("a query is required, e.g. mtm search \"dbms\"")
 			}
-			cfg, s, err := openStore()
+			cfg, s, err := openStoreOpts(archived)
 			if err != nil {
 				return err
 			}
@@ -52,5 +53,6 @@ func newSearchCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
+	cmd.Flags().BoolVar(&archived, "archived", false, "include archived tasks in results")
 	return cmd
 }
