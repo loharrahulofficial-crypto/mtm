@@ -70,7 +70,7 @@ func (m *Model) refreshTasks() {
 		}
 	}
 	m.clampCursor()
-	m.scroll = clampInt(m.scroll, 0, m.cursor)
+	m.ensureCursorVisible()
 }
 
 func (m *Model) clampCursor() {

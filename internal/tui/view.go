@@ -25,8 +25,10 @@ func (m Model) View() string {
 	}
 
 	main := m.renderMain(mainW, contentH)
-
 	middle := joinHorizontal(sidebarW, main, detailW, m, mainW, contentH)
+	// The panes must tile the frame exactly; anything that overflows (a long
+	// style, a wrap) would push the top row off the terminal, so normalize.
+	middle = normalizeBlock(middle, m.width, contentH)
 
 	footer := m.renderFooterBar(m.width)
 	screen := lipgloss.JoinVertical(lipgloss.Left, middle, footer)
@@ -39,7 +41,7 @@ func (m Model) View() string {
 	case modePicker:
 		return overlay(m.width, m.height, screen, m.renderPickerBox())
 	}
-	return screen
+	return normalizeBlock(screen, m.width, m.height)
 }
 
 func joinHorizontal(sidebarW int, main string, detailW int, m Model, mainW, contentH int) string {

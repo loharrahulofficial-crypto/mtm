@@ -213,12 +213,15 @@ func progressBarGlyph(pct, width int) string {
 }
 
 // paneWithBorder renders content in a pane with a left border and padding.
+// The reserved width w includes the border column: the content is laid out
+// at w-1 so the finished block is exactly w wide (bug: it used to overflow
+// by one column and shift the whole screen).
 func paneWithBorder(m Model, content string, w, h int) string {
 	pane := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, false, true).
 		BorderForeground(lipgloss.Color(m.palette.Muted)).
 		Padding(0, 1).
-		Width(w).
+		Width(w - 1).
 		Height(h)
 	return pane.Render(content)
 }

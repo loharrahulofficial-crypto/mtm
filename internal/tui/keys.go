@@ -248,7 +248,8 @@ func (m *Model) ensureCursorVisible() {
 }
 
 func (m Model) visibleListRows() int {
-	h := m.height - 2 // footer + top padding
+	// The list pane occupies the full content height (footer is separate).
+	h := m.height - 1
 	if h < 1 {
 		return 1
 	}

@@ -101,6 +101,29 @@ func renderSidebar(m Model, w, h int) string {
 	for count := strings.Count(b.String(), "\n"); count < h; count++ {
 		b.WriteString(strings.Repeat(" ", w) + "\n")
 	}
-	pane := lipgloss.NewStyle().Width(w).Height(h).Render(b.String())
-	return strings.TrimSuffix(pane, "\n")
+	pane := lipgloss.NewStyle().Width(w).Render(b.String())
+	return normalizeBlock(pane, w, h)
+}
+
+// normalizeBlock forces a rendered block to exactly w columns and h rows:
+// every line is padded (styles preserved) and overflow rows are dropped.
+// Every pane goes through this so JoinVertical/Horizontal never misalign the
+// frame (bug: a one-line overflow scrolled the top row off the terminal).
+func normalizeBlock(block string, w, h int) string {
+	lines := strings.Split(block, "\n")
+	// Keep the first h lines; pad or trim each to exactly w.
+	if len(lines) > h {
+		lines = lines[:h]
+	}
+	for i, l := range lines {
+		if diff := w - lipgloss.Width(l); diff > 0 {
+			lines[i] = l + strings.Repeat(" ", diff)
+		} else if diff < 0 {
+			lines[i] = truncatePlain(l, w)
+		}
+	}
+	for len(lines) < h {
+		lines = append(lines, strings.Repeat(" ", w))
+	}
+	return strings.Join(lines, "\n")
 }
