@@ -54,6 +54,7 @@ func Execute() error {
 		newProjectCmd(),
 		newSyncCmd(),
 		newSummaryCmd(),
+		newTuiCmd(),
 	)
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", appname.BinName, err)
