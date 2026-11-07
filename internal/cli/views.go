@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
@@ -89,7 +88,7 @@ func newViewCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("saved view %q: %w", name, err)
 			}
-			f.Now = time.Now()
+			f.Now = s.Now()
 			f.DoneCheck = func(p, st string) bool { return s.IsDoneStatus(p, st) }
 			filtered := f.Apply(s.Tasks())
 			if asJSON {

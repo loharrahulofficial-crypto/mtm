@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -24,7 +23,7 @@ func (m *Model) refreshTasks() {
 	// Sidebar-selected filter combined with the live search query.
 	m.filter = m.sidebarFilter()
 	m.filter.DoneCheck = isDone
-	m.filter.Now = time.Now()
+	m.filter.Now = m.clock.Now()
 
 	// Live search: key:value tokens + free text (core.ParseSearchQuery).
 	base := m.filter
@@ -168,7 +167,7 @@ type sidebarRow struct {
 func (m *Model) buildSidebar() []sidebarItem {
 	tasks := m.store.Tasks()
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
-	now := time.Now()
+	now := m.clock.Now()
 	base := core.Filter{Now: now, DoneCheck: isDone}
 	count := func(f core.Filter) int {
 		f.DoneCheck = isDone
@@ -345,7 +344,7 @@ func (m *Model) archiveSelectedAction() (tea.Cmd, string) {
 
 // archiveAllDoneAction archives every done task (with confirm upstream).
 func (m *Model) archiveAllDoneAction() (tea.Cmd, string) {
-	n, err := m.store.ArchiveDone(time.Now(), 0, func(p, st string) bool { return m.store.IsDoneStatus(p, st) })
+	n, err := m.store.ArchiveDone(m.clock.Now(), 0, func(p, st string) bool { return m.store.IsDoneStatus(p, st) })
 	if err != nil {
 		return nil, err.Error()
 	}

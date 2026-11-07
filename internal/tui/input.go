@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -137,7 +136,7 @@ func (m Model) submitQuickAdd(value, parent string) (tea.Model, tea.Cmd) {
 	}
 	t, err := actions.QuickAddTask(m.cfg, m.store, value, actions.QuickAddOverrides{
 		Parent: parent,
-		Now:    time.Now(),
+		Now:    m.clock.Now(),
 	})
 	if err != nil {
 		m.statusMsg = err.Error()

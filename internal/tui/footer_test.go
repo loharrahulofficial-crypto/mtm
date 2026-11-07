@@ -31,7 +31,7 @@ func TestFooterNeverTruncatesHelp(t *testing.T) {
 			if got := lipgloss.Height(foot); got != 1 {
 				t.Errorf("width %d msg %q: footer wrapped to %d lines", width, trim(st), got)
 			}
-			if w := lipgloss.Width(m.footerRight()); w > 0 && !strings.Contains(foot, "help") {
+			if w := lipgloss.Width(m.footerRight(width)); w > 0 && !strings.Contains(foot, "help") {
 				t.Errorf("width %d msg %q: help hint missing: %q", width, trim(st), last(foot, 30))
 			}
 			if strings.Contains(foot, "hel\n") || !containsHint(foot) {

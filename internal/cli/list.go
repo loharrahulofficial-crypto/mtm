@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/spf13/cobra"
@@ -92,7 +91,7 @@ func runDueWindow(window string, all bool, asJSON bool) error {
 	f := core.Filter{
 		Due:              window,
 		IncludeCompleted: all,
-		Now:              time.Now(),
+		Now:              s.Now(),
 		DoneCheck:        func(p, st string) bool { return s.IsDoneStatus(p, st) },
 	}
 	filtered := f.Apply(s.Tasks())
@@ -138,7 +137,7 @@ func newListCmd() *cobra.Command {
 			}
 			f := taskFilter(s, project, tag, status, priority, all)
 			f.Due = due
-			f.Now = time.Now()
+			f.Now = s.Now()
 			filtered := f.Apply(s.Tasks())
 			if archived {
 				filtered = archivedOnly(filtered)

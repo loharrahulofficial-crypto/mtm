@@ -211,7 +211,7 @@ func center(s string, w int) string {
 
 func renderBoard(m Model, w, h int) string {
 	s := m.styles
-	now := time.Now()
+	now := m.clock.Now()
 	_ = now
 	statuses := m.boardStatuses()
 	cols := boardColumns(m)

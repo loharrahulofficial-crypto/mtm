@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"strings"
-	"time"
 	"unicode"
 )
 
@@ -62,9 +61,6 @@ type Task struct {
 	// Archived is set by the store when the task was loaded from archive/.
 	Archived bool `yaml:"-"`
 }
-
-// NowLocal returns the current local time in frontmatter layout.
-func NowLocal() string { return time.Now().Format(TimestampFormat) }
 
 // NewID returns a random 6-hex-char id (matches the spec example).
 func NewID() string {

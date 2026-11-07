@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/clock"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"gopkg.in/yaml.v3"
 )
@@ -23,6 +24,9 @@ type Store struct {
 	paths       map[string]string // task id -> path relative to Root
 	projects    map[string]*core.Project
 	diagnostics []string
+	// Clock stamps created/updated (local-naive, D-004/D-011). Zero value
+	// means the real system clock.
+	Clock clock.Clock
 }
 
 type cacheFile struct {
@@ -38,6 +42,13 @@ type cacheEntry struct {
 }
 
 const cacheVersion = 1
+
+// Now returns the store's current local time: the injectable clock when
+// present, the system clock otherwise. One source so stored stamps and any
+// displayed clock agree (D-011).
+func (s *Store) Now() time.Time {
+	return s.Clock.Now() // zero-value Clock falls back to time.Now
+}
 
 // Open loads the data repo at root, rebuilding the index (with cache help).
 // Pass includeArchived to also index archive/<project>/ tasks; they are
@@ -322,11 +333,11 @@ func (s *Store) Create(t *core.Task) error {
 	if t.ID == "" {
 		t.ID = s.uniqueID()
 	}
-	now := core.NowLocal()
+	now := s.Now()
 	if t.Created == "" {
-		t.Created = now
+		t.Created = s.Clock.StampAt(now)
 	}
-	t.Updated = now
+	t.Updated = s.Clock.StampAt(now)
 	if t.Kind == "" {
 		t.Kind = core.KindTask
 	}
@@ -353,7 +364,7 @@ func (s *Store) Update(t *core.Task) error {
 	if !ok {
 		return fmt.Errorf("task %q is not in the index", t.ID)
 	}
-	t.Updated = core.NowLocal()
+	t.Updated = s.Clock.Stamp()
 	data, err := SerializeTask(t)
 	if err != nil {
 		return err

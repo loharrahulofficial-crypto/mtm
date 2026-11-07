@@ -115,7 +115,7 @@ func truncatePlain(s string, budget int) string {
 
 func renderList(m Model, w, h int) string {
 	s := m.styles
-	now := time.Now()
+	now := m.clock.Now()
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
 	head := subtaskCounts(m.store.Tasks(), isDone)
 

@@ -17,7 +17,7 @@ func (m Model) renderFooterBar(width int) string {
 		return s.footer.Width(width).Render(truncatePlain(line, width))
 	}
 
-	right := m.footerRight()
+	right := m.footerRight(width)
 	left := m.footerLeft()
 
 	// Measure the pieces exactly as they will be rendered (styled once,
@@ -67,16 +67,21 @@ func (m Model) footerLeft() string {
 	return strings.Join(tabs, "")
 }
 
-func (m Model) footerRight() string {
+// footerRight builds the right-hand segment. The wall clock renders from
+// the same Clock that stamps task frontmatter (D-011) so the two can never
+// drift apart — but it is the first segment dropped when width is tight;
+// sync state and the help hint always fit.
+func (m Model) footerRight(width int) string {
 	s := m.styles
 	help := " " + m.keymap.Seq(aHelp) + " help "
+	base := s.footer.Render(" local repo " + help)
 	switch m.syncSt {
 	case syncSyncing:
-		return s.footer.Render(m.spinner.View()+" syncing ") + s.footer.Render(help)
+		base = s.footer.Render(m.spinner.View()+" syncing ") + s.footer.Render(help)
 	case syncConflict:
-		return s.syncBad.Render(" ⚠ conflicts "+m.keymap.Seq(aConflicts)+" to fix ") + s.footer.Render(help)
+		base = s.syncBad.Render(" ⚠ conflicts "+m.keymap.Seq(aConflicts)+" to fix ") + s.footer.Render(help)
 	case syncOffline:
-		return s.footer.Render(" ○ offline ") + s.footer.Render(help)
+		base = s.footer.Render(" ○ offline ") + s.footer.Render(help)
 	case syncOK:
 		syncText := " ✓ synced"
 		if !m.lastSync.IsZero() {
@@ -85,13 +90,17 @@ func (m Model) footerRight() string {
 		if n := len(m.pendingCommits); n > 0 {
 			syncText = " ✓ · " + itoa(n) + " pending"
 		}
-		return s.syncOK.Render(syncText) + s.footer.Render(help)
+		base = s.syncOK.Render(syncText) + s.footer.Render(help)
 	default:
 		if m.hasRemote {
-			return s.footer.Render(" ○ … ") + s.footer.Render(help)
+			base = s.footer.Render(" ○ … ") + s.footer.Render(help)
 		}
-		return s.footer.Render(" local repo " + help)
 	}
+	clockSeg := s.footer.Render(" " + m.clock.Now().Format("15:04") + " ")
+	if lipgloss.Width(m.footerLeft())+lipgloss.Width(base)+lipgloss.Width(clockSeg)+2 > width {
+		return base // too tight — the clock yields, sync state and help stay
+	}
+	return clockSeg + base
 }
 
 // footerMiddle is the transient status / filter message and (in the redesign)

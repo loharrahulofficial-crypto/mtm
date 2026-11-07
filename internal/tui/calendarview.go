@@ -93,7 +93,7 @@ func agendaTasks(m Model) []*core.Task {
 // dotCountForDay reports how many tasks (not done) are due on day.
 func dotCountForDay(m Model, day time.Time) (n int, anyOverdue bool) {
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
-	now := time.Now()
+	now := m.clock.Now()
 	for _, t := range m.store.Tasks() {
 		if t.Due == "" {
 			continue
@@ -122,7 +122,7 @@ func dotCountForDay(m Model, day time.Time) (n int, anyOverdue bool) {
 // own heat only when neither is special.
 func calendarCellStyle(m Model, day time.Time) lipgloss.Style {
 	s := m.styles
-	today := clockToday()
+	today := m.clock.Today()
 	d := dayStartT(day)
 	isToday := d.Equal(today)
 	isSelected := d.Equal(dayStartT(m.calDay))
@@ -140,12 +140,6 @@ func calendarCellStyle(m Model, day time.Time) lipgloss.Style {
 	default:
 		return s.base
 	}
-}
-
-// clockToday is midnight today in the local zone.
-func clockToday() time.Time {
-	n := time.Now()
-	return time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, n.Location())
 }
 
 // dayStartT is midnight of t in its own zone.

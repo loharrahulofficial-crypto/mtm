@@ -61,7 +61,7 @@ func SpawnNextOccurrence(s *store.Store, t *core.Task) string {
 	if p, err := s.GetProject(t.Project); err == nil && len(p.Statuses) > 0 {
 		first = p.Statuses[0].Name
 	}
-	spawned, ok, err := core.SpawnRecurringOccurrence(t, first, time.Now())
+	spawned, ok, err := core.SpawnRecurringOccurrence(t, first, s.Clock.Now())
 	if err != nil {
 		return fmt.Sprintf("could not compute next occurrence: %v", err)
 	}
@@ -87,7 +87,7 @@ func CompleteTask(s *store.Store, t *core.Task) (string, error) {
 		return "", fmt.Errorf("project %q has no status marked done", t.Project)
 	}
 	t.Status = doneStatus
-	t.Completed = core.NowLocal()
+	t.Completed = s.Clock.Stamp()
 	spawnMsg := SpawnNextOccurrence(s, t)
 	if err := s.Update(t); err != nil {
 		return "", err
@@ -108,7 +108,7 @@ func SetStatus(s *store.Store, t *core.Task, canonical string) (string, error) {
 	spawnMsg := ""
 	t.Status = canonical
 	if p.IsDoneStatus(canonical) {
-		t.Completed = core.NowLocal()
+		t.Completed = s.Clock.Stamp()
 		if !wasDone {
 			spawnMsg = SpawnNextOccurrence(s, t)
 		}
@@ -165,7 +165,7 @@ func QuickAddTask(cfg config.Config, s *store.Store, raw string, ov QuickAddOver
 	}
 	now := ov.Now
 	if now.IsZero() {
-		now = time.Now()
+		now = s.Clock.Now()
 	}
 	parsed := parse.QuickAdd(raw, now)
 	title := parsed.Title

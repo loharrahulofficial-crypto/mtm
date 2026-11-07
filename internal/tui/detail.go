@@ -74,7 +74,7 @@ func (m Model) renderDetail(w, h int) string {
 
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
 	done := isDone(t.Project, t.Status)
-	now := time.Now()
+	now := m.clock.Now()
 
 	// Title.
 	title := truncatePlain(t.Title, inner)

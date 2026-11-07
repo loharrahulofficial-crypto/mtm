@@ -71,7 +71,7 @@ Committed and synced once, like any other change. Nothing is deleted.`,
 			defer func() { _ = s.Close() }()
 			printDiagnostics(s)
 
-			moved, err := s.ArchiveDone(time.Now(), d, func(p, st string) bool { return s.IsDoneStatus(p, st) })
+			moved, err := s.ArchiveDone(s.Now(), d, func(p, st string) bool { return s.IsDoneStatus(p, st) })
 			if err != nil {
 				return err
 			}

@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/clock"
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
@@ -100,6 +101,7 @@ type Model struct {
 	store *store.Store
 	repo  sync.Repo
 	root  string
+	clock clock.Clock
 
 	width  int
 	height int
@@ -190,7 +192,8 @@ type Model struct {
 
 // New builds the model. store and repo must be ready; theme is polled live.
 func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
-	now := time.Now()
+	clk := s.Clock
+	now := clk.Now()
 	day := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	pal, err := theme.Load()
 	if err != nil {
@@ -212,6 +215,7 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 		store:          s,
 		repo:           repo,
 		root:           s.Root,
+		clock:          clk,
 		mode:           modeNormal,
 		view:           viewList,
 		focus:          focusMain,

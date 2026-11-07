@@ -130,7 +130,7 @@ func (m Model) handleSyncDone(msg syncDoneMsg) (tea.Model, tea.Cmd) {
 	default:
 		m.syncSt = syncOK
 		m.syncNote = msg.note
-		m.lastSync = time.Now()
+		m.lastSync = m.clock.Now()
 	}
 	// Changes queued while the sync was in flight get their own debounce.
 	if len(m.pendingCommits) > 0 {

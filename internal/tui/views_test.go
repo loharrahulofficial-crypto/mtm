@@ -73,7 +73,7 @@ func TestCalendarTodayPillSurvivesSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.refreshTasks()
-	today := clockToday()
+	today := m.clock.Today()
 	// Direct style assertions.
 	todaySty := calendarCellStyle(m, today)
 	want := m.styles.dueToday
