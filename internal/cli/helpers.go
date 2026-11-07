@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
@@ -57,6 +59,31 @@ func commitAndSync(cfg config.Config, root string, msg string) {
 		note("committed locally but not pushed (%v) — run `mtm sync` when online", err)
 		return
 	}
+}
+
+// spawnNextOccurrence creates the follow-up for a recurring task that was
+// just completed. The message describes what was spawned, or "".
+func spawnNextOccurrence(s *store.Store, t *core.Task) string {
+	if strings.TrimSpace(t.Recurrence) == "" {
+		return ""
+	}
+	first := "todo"
+	if p, err := s.GetProject(t.Project); err == nil && len(p.Statuses) > 0 {
+		first = p.Statuses[0].Name
+	}
+	spawned, ok, err := core.SpawnRecurringOccurrence(t, first, time.Now())
+	if err != nil {
+		note("could not compute next occurrence: %v", err)
+		return ""
+	}
+	if !ok {
+		return ""
+	}
+	if err := s.Create(spawned); err != nil {
+		note("could not create next occurrence: %v", err)
+		return ""
+	}
+	return fmt.Sprintf("next occurrence %s  due %s\n", spawned.ID, spawned.Due)
 }
 
 // taskFilter builds a project-aware filter hiding done tasks unless all.

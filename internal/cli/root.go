@@ -26,13 +26,22 @@ func Execute() error {
 		newInitCmd(),
 		newAddCmd(),
 		newListCmd(),
+		newTodayCmd(),
+		newWeekCmd(),
+		newOverdueCmd(),
+		newViewCmd(),
+		newViewsCmd(),
 		newShowCmd(),
 		newEditCmd(),
 		newDoneCmd(),
 		newRmCmd(),
 		newStatusCmd(),
+		newNoteCmd(),
+		newSubCmd(),
+		newSearchCmd(),
 		newProjectCmd(),
 		newSyncCmd(),
+		newSummaryCmd(),
 	)
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", appname.BinName, err)

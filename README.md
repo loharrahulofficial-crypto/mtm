@@ -11,11 +11,12 @@ One Go binary, two interfaces over one shared core:
 Tasks are stored as one Markdown file per task, inside a git repo that can
 auto-sync between devices. No database.
 
-> **Status: Phase 1 (MVP).** Implemented: init, add, list, show, edit, done,
-> rm, status, project management (custom statuses), tags, priorities, git
-> auto-commit and sync with conflict detection, in-memory index + cache.
-> Not yet: natural-language dates, recurrence, search, TUI, exams, grades,
-> stats, export, iCal, systemd timer (Phases 2–5).
+> **Status: Phase 2 (smart features).** Everything in Phase 1, plus:
+> natural-language quick-add, `--due today|week|overdue`, `mtm today|week|overdue`,
+> recurring tasks (completing one spawns the next), subtasks with `%` complete,
+> `mtm note` / `mtm search`, saved views (`mtm views` / `mtm view <name>`),
+> `mtm summary` for shell startup.
+> Not yet: TUI, exams/grades/Pomodoro, export, iCal, systemd timer (Phases 3–5).
 
 ## Install
 
@@ -95,22 +96,79 @@ your call on trust boundaries).
 ## Usage
 
 ```sh
-mtm add "Submit DBMS assignment 2" --priority high --tag exam --due 2026-11-14T23:59
-mtm add "buy milk"                       # default project (inbox), priority medium
+# natural language: dates, priority, tags, project, recurrence, estimate
+mtm add "submit report friday 6pm !high #college @dbms ~2h"
+mtm add "call mum tomorrow"            # date-only due
+mtm add "review notes in 2 days"
+mtm add "standup every monday 9am"     # recurring (see below)
+mtm add buy milk                       # unquoted words are the title
+
+# flags override whatever the parser found
+mtm add "Submit report" --due 2026-11-14T23:59 --priority high --tag assignment
+
 mtm list                                 # hides done tasks
-mtm list --project college/dbms --tag exam --status todo --priority high
-mtm list --all --json                    # scripting
-mtm show 3db991                          # ids accept unique prefixes
+mtm list --project college/dbms --tag exam --due week
+mtm list --status todo --priority high --all --json
+mtm today | mtm week | mtm overdue      # due-date windows
+mtm view urgent                          # saved view from config.yaml
+mtm views                                # built-in + saved views
+
+mtm show 3db991                          # ids accept unique prefixes; shows subtasks
 mtm status 3db991 doing                  # must match the project's statuses
-mtm done 3db991                          # sets the project's done status
+mtm done 3db991                          # spawns next occurrence if recurring
 mtm edit 3db991                          # $EDITOR; validated on save
 mtm rm 3db991                            # asks for confirmation (--force to skip)
+mtm note 3db991 "asked prof about edge cases"   # appends a bullet line
+mtm sub 3db991 "draft outline"           # subtask under a task
+mtm search dbms                          # full-text: title, notes, tags
 
 mtm project add college/dbms --statuses backlog,todo,doing,blocked,done --done done
 mtm project list
 mtm project edit college/dbms            # edit project.yaml in $EDITOR
 mtm sync [--status] [--abort] [--json]
 ```
+
+### Recurrence
+
+`daily`, `weekly`, `weekly:mon` (…`:tue`…`:sun`), `every N days`, `every N weeks`.
+Completing a recurring task (via `done` or `status` → done) automatically
+creates the next occurrence with the computed due date. Recurrence is stored
+in the `recurrence:` frontmatter field.
+
+### Saved views
+
+Built-in views: `today`, `week`, `overdue`. Add your own to
+`~/.config/mtm/config.yaml`:
+
+```yaml
+saved_views:
+  - name: urgent
+    filter: priority:urgent
+  - name: dbms
+    filter: project:college/dbms due:week
+  - name: all-maths
+    filter: tag:maths all     # "all" includes done tasks
+```
+
+Filter keys: `tag:`, `project:`, `status:`, `priority:` (low|medium|high|urgent),
+`due:` (today|week|overdue). Bare token `all` includes done tasks. Run with
+`mtm view <name>`, list with `mtm views`.
+
+### Shell startup summary
+
+`mtm summary` prints a two-line block:
+
+```text
+3 today · 2 overdue · exam in 13d: dbms final exam
+inbox 2/5 (40%) · college/dbms 1/4 (25%)
+```
+
+It reads the cached index (`~/.cache/mtm/index.json`) and is fast: ~25ms with
+2000 tasks on warm cache (< 50ms target). Add to your shell rc:
+
+```sh
+# .bashrc or .zshrc
+mtm summary 2>/dev/null || true
 
 Every task file looks like:
 
@@ -144,9 +202,6 @@ and `completed:` set; archiving to `archive/` arrives with `mtm archive`
 | Index cache | `~/.cache/mtm/index.json` (never committed; safe to delete) |
 | Sync pause flag | `<data repo .git>/mtm-sync-state.json` |
 
-`mtm summary` for shell rc files lands in Phase 2 and will read the cached
-index to stay under 50ms.
-
 ## Development
 
 ```sh
@@ -155,9 +210,10 @@ make build              # bin/mtm
 ```
 
 Layering: `cmd/mtm` → `internal/cli` (Cobra) → `internal/core` (domain) →
-`internal/store` (files + index). `internal/sync` shells out to git;
-`internal/config` loads YAML over defaults; `internal/appname` holds the
-single source of the app/binary names.
+`internal/store` (files + index). `internal/parse` is the quick-add parser;
+`internal/sync` shells out to git; `internal/config` loads YAML over
+defaults; `internal/appname` holds the single source of the app/binary
+names.
 
 Commit messages of the data repo are deliberately free of tooling noise
 (no session tags): user data belongs to the user.

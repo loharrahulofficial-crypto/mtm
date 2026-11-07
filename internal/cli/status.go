@@ -36,9 +36,14 @@ func newStatusCmd() *cobra.Command {
 				}
 				return fmt.Errorf("unknown status %q in project %q (valid: %s)", args[1], t.Project, strings.Join(names, ", "))
 			}
+			wasDone := p.IsDoneStatus(t.Status)
 			t.Status = canonical
+			spawnMsg := ""
 			if p.IsDoneStatus(canonical) {
 				t.Completed = core.NowLocal()
+				if !wasDone {
+					spawnMsg = spawnNextOccurrence(s, t)
+				}
 			} else {
 				t.Completed = ""
 			}
@@ -47,6 +52,7 @@ func newStatusCmd() *cobra.Command {
 			}
 			commitAndSync(cfg, s.Root, "status: "+t.Title)
 			fmt.Printf("%s  %s -> %s\n", t.ID, t.Title, canonical)
+			fmt.Print(spawnMsg)
 			return nil
 		},
 	}

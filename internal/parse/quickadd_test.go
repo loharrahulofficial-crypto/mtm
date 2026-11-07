@@ -87,6 +87,12 @@ func TestQuickAdd(t *testing.T) {
 			Result{Title: "submit essay", Due: "2026-11-13T18:00", Priority: "high", Tags: []string{"exam"}, Project: "college/dbms", EstimateMinutes: 120}},
 		{"combined recurrence", "team standup monday 9am every week @work !med #team",
 			Result{Title: "team standup", Due: "2026-11-09T09:00", Recurrence: "weekly", Priority: "medium", Tags: []string{"team"}, Project: "work"}},
+		{"recurrence then bare time anchors to weekday", "gym every monday 7am",
+			Result{Title: "gym", Due: "2026-11-09T07:00", Recurrence: "weekly:mon"}},
+		{"recurrence then bare time rolls a week when past today", "gym every saturday 8am",
+			Result{Title: "gym", Due: "2026-11-14T08:00", Recurrence: "weekly:sat"}},
+		{"daily recurrence keeps nearest time", "water plants every day 7am",
+			Result{Title: "water plants", Due: "2026-11-08T07:00", Recurrence: "daily"}},
 		{"all markers", "in 3 days @proj !low ~10m do thing", Result{Title: "do thing", Due: "2026-11-10", Priority: "low", Project: "proj", EstimateMinutes: 10}},
 	}
 

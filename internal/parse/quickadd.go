@@ -60,12 +60,15 @@ var (
 	}
 )
 
+type bareTime struct{ hour, minute int }
+
 // QuickAdd parses input. now injects "today" (tests pass a fixed instant).
 // Title may be empty — the caller decides how to handle that.
 func QuickAdd(input string, now time.Time) Result {
 	tokens := strings.Fields(input)
 	r := Result{}
 	var title []string
+	bareTimeHour, bareTimeMinute, bareTimeSet := 0, 0, false
 	i := 0
 	for i < len(tokens) {
 		tok := tokens[i]
@@ -98,14 +101,32 @@ func QuickAdd(input string, now time.Time) Result {
 			i += consumed
 			continue
 		}
-		if due, consumed, ok := dueFromTokens(tokens, i, now); ok {
+		if due, consumed, ok, bare := dueFromTokens(tokens, i, now); ok {
 			r.Due = due
+			if bare != nil {
+				bareTimeHour, bareTimeMinute, bareTimeSet = bare.hour, bare.minute, true
+			}
 			i += consumed
 			continue
 		}
 		title = append(title, tok)
 		i++
 	}
+
+	// "gym every monday 7am": a bare time following a weekly-weekday
+	// recurrence belongs to that weekday, not to the nearest day.
+	if bareTimeSet && strings.HasPrefix(r.Recurrence, "weekly:") {
+		if wd, ok := weekdayNames[strings.TrimPrefix(r.Recurrence, "weekly:")]; ok {
+			delta := daysUntilWeekday(wd, now)
+			day := dayStart(now).AddDate(0, 0, delta)
+			dt := time.Date(day.Year(), day.Month(), day.Day(), bareTimeHour, bareTimeMinute, 0, 0, now.Location())
+			if !dt.After(now) {
+				dt = dt.AddDate(0, 0, 7)
+			}
+			r.Due = dt.Format(core.TimeFormat)
+		}
+	}
+
 	r.Title = strings.Join(title, " ")
 	return r
 }
@@ -356,7 +377,7 @@ func withOptionalTime(day time.Time, tokens []string, j int, consumed int) (stri
 //	2026-11-14 / 2026-11-14T15:04 single token
 //	6pm / 18:00 [/ at 6pm]        time alone → nearest occurrence (today, else tomorrow)
 //	noon / midnight
-func dueFromTokens(tokens []string, i int, now time.Time) (string, int, bool) {
+func dueFromTokens(tokens []string, i int, now time.Time) (string, int, bool, *bareTime) {
 	lower := strings.ToLower(tokensSafe(tokens, i))
 	today := dayStart(now)
 
@@ -364,11 +385,11 @@ func dueFromTokens(tokens []string, i int, now time.Time) (string, int, bool) {
 	if lower == "next" {
 		wd, ok := weekdayNames[strings.ToLower(tokensSafe(tokens, i+1))]
 		if !ok {
-			return "", 0, false
+			return "", 0, false, nil
 		}
 		day := today.AddDate(0, 0, daysUntilWeekday(wd, now)+7)
 		due, consumed := withOptionalTime(day, tokens, i+2, 2)
-		return due, consumed, true
+		return due, consumed, true, nil
 	}
 
 	// "in N <unit>"
@@ -376,7 +397,7 @@ func dueFromTokens(tokens []string, i int, now time.Time) (string, int, bool) {
 		n := tokensSafe(tokens, i+1)
 		unit := strings.ToLower(tokensSafe(tokens, i+2))
 		if !isDigits(n) {
-			return "", 0, false
+			return "", 0, false, nil
 		}
 		count, _ := strconv.Atoi(n)
 		var day time.Time
@@ -388,9 +409,9 @@ func dueFromTokens(tokens []string, i int, now time.Time) (string, int, bool) {
 		case "mo", "month", "months":
 			day = today.AddDate(0, count, 0)
 		default:
-			return "", 0, false
+			return "", 0, false, nil
 		}
-		return day.Format("2006-01-02"), 3, true
+		return day.Format("2006-01-02"), 3, true, nil
 	}
 
 	// today / tomorrow (past time today rolls to tomorrow)
@@ -406,14 +427,14 @@ func dueFromTokens(tokens []string, i int, now time.Time) (string, int, bool) {
 				if !dt.After(now) {
 					dt = dt.AddDate(0, 0, 1)
 				}
-				return dt.Format(core.TimeFormat), 1 + n, true
+				return dt.Format(core.TimeFormat), 1 + n, true, nil
 			}
 		}
 		due, consumed := withOptionalTime(day, tokens, i+1, 1)
-		return due, consumed, true
+		return due, consumed, true, nil
 	}
 	if lower == "tonight" {
-		return time.Date(today.Year(), today.Month(), today.Day(), 20, 0, 0, 0, now.Location()).Format(core.TimeFormat), 1, true
+		return time.Date(today.Year(), today.Month(), today.Day(), 20, 0, 0, 0, now.Location()).Format(core.TimeFormat), 1, true, nil
 	}
 
 	// bare weekday
@@ -425,16 +446,16 @@ func dueFromTokens(tokens []string, i int, now time.Time) (string, int, bool) {
 			if !dt.After(now) {
 				dt = dt.AddDate(0, 0, 7)
 			}
-			return dt.Format(core.TimeFormat), 1 + n, true
+			return dt.Format(core.TimeFormat), 1 + n, true, nil
 		}
-		return day.Format("2006-01-02"), 1, true
+		return day.Format("2006-01-02"), 1, true, nil
 	}
 
 	// "14 nov" / "14 november 2027" [time]
 	if dayN, ok := dayNumber(tokensSafe(tokens, i)); ok {
 		month := monthNames[strings.ToLower(tokensSafe(tokens, i+1))]
 		if month == 0 {
-			return "", 0, false
+			return "", 0, false, nil
 		}
 		year := now.Year()
 		consumed := 2
@@ -444,21 +465,21 @@ func dueFromTokens(tokens []string, i int, now time.Time) (string, int, bool) {
 		}
 		candidate := time.Date(year, month, dayN, 0, 0, 0, 0, now.Location())
 		if candidate.Day() != dayN || candidate.Month() != month {
-			return "", 0, false // invalid like "31 feb"
+			return "", 0, false, nil // invalid like "31 feb"
 		}
 		if consumed == 2 && candidate.Before(today) {
 			candidate = candidate.AddDate(1, 0, 0)
 		}
 		due, used := withOptionalTime(candidate, tokens, i+consumed, consumed)
-		return due, used, true
+		return due, used, true, nil
 	}
 
 	// single ISO token
 	if t, ok := isoDateTime(tokensSafe(tokens, i), now.Location()); ok {
 		if len(tokensSafe(tokens, i)) == len("2006-01-02") {
-			return t.Format("2006-01-02"), 1, true
+			return t.Format("2006-01-02"), 1, true, nil
 		}
-		return t.Format(core.TimeFormat), 1, true
+		return t.Format(core.TimeFormat), 1, true, nil
 	}
 
 	// "at <time>" or bare time ("6pm", "6 pm", "18:00")
@@ -469,27 +490,27 @@ func dueFromTokens(tokens []string, i int, now time.Time) (string, int, bool) {
 			if !dt.After(now2) {
 				dt = dt.AddDate(0, 0, 1)
 			}
-			return dt.Format(core.TimeFormat), 1 + n, true
+			return dt.Format(core.TimeFormat), 1 + n, true, &bareTime{hour, minute}
 		}
-		return "", 0, false
+		return "", 0, false, nil
 	}
 	if hour, minute, n, ok := timeAt(tokens, i); ok {
 		dt := time.Date(today.Year(), today.Month(), today.Day(), hour, minute, 0, 0, now.Location())
 		if !dt.After(now) {
 			dt = dt.AddDate(0, 0, 1)
 		}
-		return dt.Format(core.TimeFormat), n, true
+		return dt.Format(core.TimeFormat), n, true, &bareTime{hour, minute}
 	}
 
 	// noon / midnight
 	switch lower {
 	case "noon":
-		return nearestTime(today, 12, 0, now), 1, true
+		return nearestTime(today, 12, 0, now), 1, true, nil
 	case "midnight":
-		return nearestTime(today, 0, 0, now), 1, true
+		return nearestTime(today, 0, 0, now), 1, true, nil
 	}
 
-	return "", 0, false
+	return "", 0, false, nil
 }
 
 func nearestTime(today time.Time, hour, minute int, now time.Time) string {

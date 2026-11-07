@@ -33,11 +33,13 @@ func newDoneCmd() *cobra.Command {
 			}
 			t.Status = doneStatus
 			t.Completed = core.NowLocal()
+			spawnMsg := spawnNextOccurrence(s, t)
 			if err := s.Update(t); err != nil {
 				return err
 			}
 			commitAndSync(cfg, s.Root, "done: "+t.Title)
 			fmt.Printf("done %s  %s\n", t.ID, t.Title)
+			fmt.Print(spawnMsg)
 			return nil
 		},
 	}
