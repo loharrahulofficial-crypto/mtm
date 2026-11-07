@@ -2,8 +2,10 @@ package tui
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 // View renders the whole screen.
@@ -11,14 +13,15 @@ func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "loading…"
 	}
+	baseColor := lipgloss.Color(m.palette.Base)
 	if m.width < minUsableWidth || m.height < minUsableHeight {
-		return tooSmallView(m.width, m.height)
+		return tooSmallView(m.width, m.height, baseColor)
 	}
 	if m.mode == modeConflict {
 		return m.renderConflictScreen()
 	}
 	if m.mode == modeFocus {
-		return normalizeBlock(m.renderFocus(), m.width, m.height)
+		return normalizeBlock(m.renderFocus(), m.width, m.height, baseColor)
 	}
 
 	contentH := m.height - 1 // footer
@@ -50,22 +53,22 @@ func (m Model) View() string {
 	middle := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 	// The panes must tile the frame exactly; anything that overflows (a long
 	// style, a wrap) would push the top row off the terminal, so normalize.
-	middle = normalizeBlock(middle, m.width, contentH)
+	middle = normalizeBlock(middle, m.width, contentH, baseColor)
 
 	footer := m.renderFooterBar(m.width)
 	screen := lipgloss.JoinVertical(lipgloss.Left, middle, footer)
 
 	switch m.mode {
 	case modeHelp:
-		return overlay(m.width, m.height, screen, renderHelpBox(m.keymap, m.styles, m.width))
+		return overlay(m.width, m.height, screen, renderHelpBox(m.keymap, m.styles, m.width), baseColor)
 	case modeConfirm:
-		return overlay(m.width, m.height, screen, m.renderConfirmBox())
+		return overlay(m.width, m.height, screen, m.renderConfirmBox(), baseColor)
 	case modePicker:
-		return overlay(m.width, m.height, screen, m.renderPickerBox())
+		return overlay(m.width, m.height, screen, m.renderPickerBox(), baseColor)
 	case modePalette:
-		return overlay(m.width, m.height, screen, m.renderPaletteBox())
+		return overlay(m.width, m.height, screen, m.renderPaletteBox(), baseColor)
 	}
-	return normalizeBlock(screen, m.width, m.height)
+	return normalizeBlock(screen, m.width, m.height, baseColor)
 }
 
 func (m Model) renderMain(w, h int) string {
@@ -89,23 +92,74 @@ func (m Model) renderMain(w, h int) string {
 	}
 }
 
-// overlay centers box over base.
-func overlay(width, height int, base, box string) string {
-	b := lipgloss.NewStyle().Width(width).Height(height).Render(base)
-	placed := lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
-	// lipgloss lacks compositing; draw the placed box over the base by
-	// replacing base lines that the box touches.
-	baseLines := strings.Split(b, "\n")
-	boxLines := strings.Split(placed, "\n")
-	for i, line := range boxLines {
-		if i >= len(baseLines) {
-			break
-		}
-		if strings.TrimRight(line, " ") != "" {
-			baseLines[i] = line
+// overlay centers box over base. baseColor is the background the base block
+// was painted on; box rows keep their own background.
+func overlay(width, height int, base, box string, baseColor lipgloss.Color) string {
+	box = strings.TrimRight(box, "\n")
+	boxLines := strings.Split(box, "\n")
+	boxW := 0
+	for _, l := range boxLines {
+		if w := lipgloss.Width(l); w > boxW {
+			boxW = w
 		}
 	}
-	return strings.Join(baseLines, "\n")
+	x := (width - boxW) / 2
+	if x < 0 {
+		x = 0
+	}
+	y := (height - len(boxLines)) / 2
+	if y < 0 {
+		y = 0
+	}
+	baseLines := strings.Split(base, "\n")
+	for i, bl := range boxLines {
+		row := y + i
+		if row >= len(baseLines) {
+			break
+		}
+		baseLines[row] = spliceLine(baseLines[row], x, width, bl, baseColor)
+	}
+	return paint(strings.Join(baseLines, "\n"), width, height, baseColor)
+}
+
+// spliceLine splices boxLine into base at cell offset left, keeping base's
+// prefix and suffix cells. Both sides stay exactly width cells.
+func spliceLine(base string, left, width int, boxLine string, fill lipgloss.Color) string {
+	prefix := clipStyled(base, left)
+	if pad := left - lipgloss.Width(prefix); pad > 0 {
+		prefix += lipgloss.NewStyle().Background(fill).Render(strings.Repeat(" ", pad))
+	}
+	boxW := lipgloss.Width(boxLine)
+	suffixW := width - left - boxW
+	suffix := ""
+	if suffixW > 0 {
+		suffix = clipStyled(dropCells(base, left), suffixW)
+		if pad := suffixW - lipgloss.Width(suffix); pad > 0 {
+			suffix += lipgloss.NewStyle().Background(fill).Render(strings.Repeat(" ", pad))
+		}
+		suffix = bgOpen(fill) + suffix
+	}
+	return prefix + boxLine + suffix
+}
+
+// dropCells removes the first n display cells from a styled line, escape
+// sequences preserved.
+func dropCells(line string, n int) string {
+	consumed, i := 0, 0
+	for i < len(line) && consumed < n {
+		if line[i] == 0x1b && i+1 < len(line) && line[i+1] == '[' {
+			j := i + 2
+			for j < len(line) && !(line[j] >= 'a' && line[j] <= 'z') && !(line[j] >= 'A' && line[j] <= 'Z') {
+				j++
+			}
+			i = j + 1
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(line[i:])
+		consumed += runewidth.RuneWidth(r)
+		i += size
+	}
+	return line[i:]
 }
 
 func paneBorderLeft(m *Model) lipgloss.Style {

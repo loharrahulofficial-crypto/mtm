@@ -265,7 +265,7 @@ func verticalCenter(body []string, height, width int, base lipgloss.Style) strin
 	}
 	for _, l := range body {
 		if pad := width - lipgloss.Width(l); pad > 0 {
-			l += strings.Repeat(" ", pad)
+			l += base.Render(strings.Repeat(" ", pad))
 		} else if pad < 0 {
 			l = truncatePlain(l, width)
 		}

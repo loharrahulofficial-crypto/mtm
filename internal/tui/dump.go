@@ -5,6 +5,9 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/clock"
@@ -23,6 +26,8 @@ var DumpFixedTime = time.Date(2026, 11, 7, 14, 32, 0, 0, time.UTC)
 // fixed clock, fixed default theme, nerd icons unless cfg says otherwise.
 // Focus pins to the first row of tasks (deterministic); with zero tasks it
 // renders its empty state. The frame is exactly height lines × width cells.
+// The color profile is pinned to TrueColor so colored output is stable no
+// matter where the frame lands (piped dumps, CI, tests).
 //
 // view: home|list|board|calendar|focus
 func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, noColor bool, t time.Time) (string, error) {
@@ -32,6 +37,7 @@ func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, 
 		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|focus)", view)
 	}
 	s.Clock = clock.Fixed(t)
+	lipgloss.SetColorProfile(termenv.TrueColor)
 	m := New(cfg, s, repo)
 	switch view {
 	case "home":

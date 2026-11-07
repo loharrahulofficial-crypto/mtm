@@ -406,7 +406,7 @@ func padToWidth(line string, w int, bg lipgloss.Color) string {
 	if lipgloss.Width(line) > w {
 		return clipStyled(line, w)
 	}
-	return line + strings.Repeat(" ", w-lipgloss.Width(line))
+	return line + lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", w-lipgloss.Width(line)))
 }
 
 // dueBucket buckets a due string for group headers (sort: due first).

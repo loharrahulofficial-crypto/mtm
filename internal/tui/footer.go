@@ -16,7 +16,7 @@ func (m Model) renderFooterBar(width int) string {
 
 	if m.mode == modeInput {
 		line := s.footerKey.Render(m.inputLabel) + " " + m.input.View()
-		return s.footer.Width(width).Render(truncatePlain(line, width))
+		return paint(truncatePlain(line, width), width, 1, lipgloss.Color(m.palette.Base))
 	}
 
 	right := m.footerRight(width)
@@ -43,10 +43,10 @@ func (m Model) renderFooterBar(width int) string {
 	// Last resort: pad/trim to exactly width without touching the ends.
 	if w := lipgloss.Width(line); w < width {
 		padLeft := (width - w) / 2
-		line = left + strings.Repeat(" ", padLeft) + fill() +
-			strings.Repeat(" ", width-w-padLeft) + right
+		line = left + s.footer.Render(strings.Repeat(" ", padLeft)) + fill() +
+			s.footer.Render(strings.Repeat(" ", width-w-padLeft)) + right
 	}
-	return s.footer.Width(width).Render(line)
+	return paint(line, width, 1, lipgloss.Color(m.palette.Base))
 }
 
 type pillSeg struct {

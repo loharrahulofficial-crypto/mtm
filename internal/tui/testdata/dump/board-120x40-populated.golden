@@ -1,40 +1,40 @@
-                           ╭─ B O A R D ─────────────────────────────────────────╮                                      
-   mtm   study desk        │  TODO · 2                  DOING · 0                │   Read ch.4 — storage models        
-  mtm-default              │  ───────────────────────── ───────────────────────── │   ▌ inbox  ·  assignment            
-                           │  ╭───────────────────────╮                           │                                     
-  V I E W S ────────────   │  │▌ Read ch.4 — storage …│                           │    todo   [HIGH]                    
-   Home                   │  │▌ models              …│           empty           │                                     
-   All                 2  │  │▌ ● high  today       …│                           │   DUE       today                   
-   Today               1  │  ╰───────────────────────╯                           │   ESTIMATE  60m                     
-   Week                2  │                                                      │   CREATED   2026-11-07T14:32        
-   Overdue             1  │  ▌ Submit problem set                                │   UPDATED   2026-11-07T14:32        
-  C O U R S E S ────────   │  ▌                                                   │                                     
-  ▌ inbox ░░░░          2  │  ▌ ● mediumin 3d                                     │   N O T E S                         
-                           │                                                      │   No notes yet. Press m to write.   
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
+                           ╭─ B O A R D ────╮                                                                           
+   mtm   study desk        │  TODO · 2                  DOING · 0               │    Read ch.4 — storage models        
+  mtm-default              │  ───────────────────────── ─────────────────────────│    ▌ inbox  ·  assignment            
+                           │  ╭───────────────────────╮                          │                                      
+  V I E W S ────────────   │  │[38;2;146;162;121;48;2…│                          │                           todo   [HIGH]                    
+   Home                   │  │[38;2;146;162;121;48;2…│ [38;2;161;175;169;48;2;2…│                                                                                    
+   All                 2  │  │[38;2;146;162;121;48;2…│                          │                          DUE       today                   
+   Today               1  │  ╰───────────────────────╯                          │    ESTIMATE  60m                     
+   Week                2  │                                                     │    CREATED   2026-11-07T14:32        
+   Overdue 1              │  ▌ Submit problem set                               │    UPDATED   2026-11-07T14:32        
+  C O U R S E S ────────   │  ▌                                                  │                                      
+  ▌ inbox ░░░░ 2           │  ▌ ● mediumin 3d                                    │    N O T E S                         
+                           │                                                     │    No notes yet. Press m to write.   
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
+                           │                                                     │                                      
                            ╰──────────────────────────────────────────────────────╯                                     
   0 Home   1 List   2 Board   3 Calendar                                                  14:32  local repo  ? help 

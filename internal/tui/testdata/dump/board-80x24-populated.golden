@@ -1,24 +1,24 @@
-                     ╭─ B O A R D ────────────────────────────────────────────╮ 
+                     ╭─ B O A R D ───────╮                                      
    mtm   study desk  │  TODO · 2                    DOING · 0                 │
   mtm-default        │  ─────────────────────────── ───────────────────────────│
                      │  ╭─────────────────────────╮                            │
-  V I E W S ──────   │  │▌ Read ch.4 — storage   …│                            │
-   Home             │  │▌ models                …│            empty           │
-   All           2  │  │▌ ● high  today         …│                            │
+  V I E W S ──────   │  │[38;2;146;162;121;48;2;3…│                            │                        
+   Home             │  │[38;2;146;162;121;48;2;3…│ [38;2;161;175;169;48;2;28;…│                                                  
+   All           2  │  │[38;2;146;162;121;48;2;3…│                            │                        
    Today         1  │  ╰─────────────────────────╯                            │
    Week          2  │                                                         │
-   Overdue       1  │  ▌ Submit problem set                                   │
+   Overdue 1        │  ▌ Submit problem set                                   │
   C O U R S E S ──   │  ▌                                                      │
-  ▌ inbox ░░░░    2  │  ▌ ● mediumin 3d                                        │
+  ▌ inbox ░░░░ 2     │  ▌ ● mediumin 3d                                        │
                      │                                                         │
                      │                                                         │
                      │                                                         │
                      │                                                         │
                      │                                                         │
                      │                                                         │
-                     │                                                         │
-                     │                                                         │
-                     │                                                         │
-                     │                                                         │
+                     ││                                                         
+                     ││                                                         
+                     ││                                                         
+                     ││                                                         
                      ╰─────────────────────────────────────────────────────────╯
  0 Home  1 List  2 Board  3 Calendar                  14:32  local repo  ? help 

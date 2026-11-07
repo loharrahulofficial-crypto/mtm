@@ -304,7 +304,7 @@ func hstack(blocks [][]string, gap int, base lipgloss.Style) []string {
 			if i < len(b) {
 				parts = append(parts, b[i])
 			} else {
-				parts = append(parts, strings.Repeat(" ", lipgloss.Width(b[0])))
+				parts = append(parts, base.Render(strings.Repeat(" ", lipgloss.Width(b[0]))))
 			}
 			if j < len(blocks)-1 {
 				parts = append(parts, gutter[i])

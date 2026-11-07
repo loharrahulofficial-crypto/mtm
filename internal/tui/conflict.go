@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (m *Model) startConflictMode(files []string, note string) {
@@ -190,6 +191,10 @@ func conflictTitle(abs string) string {
 func (m Model) renderConflictScreen() string {
 	s := m.styles
 	w, h := m.width, m.height
+	baseColor := lipgloss.Color(m.palette.Base)
+	plain := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(baseColor)
+	overdueBase := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.HeatOverdue)).Background(baseColor).Bold(true)
+	statusDoneBase := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Success)).Background(baseColor)
 
 	var b strings.Builder
 	b.WriteString("\n")
@@ -201,16 +206,16 @@ func (m Model) renderConflictScreen() string {
 	} else {
 		for i, f := range m.conflicts {
 			mark := "✗"
-			markStyle := s.overdue
+			markStyle := overdueBase
 			if m.conflictDone[f] {
 				mark = "✓"
-				markStyle = s.statusDone
+				markStyle = statusDoneBase
 			}
 			cursor := "  "
 			if i == m.conflictSel {
 				cursor = "▸ "
 			}
-			pathLine := fmt.Sprintf("%s%s %s", cursor, markStyle.Render(mark), f)
+			pathLine := plain.Render(cursor) + markStyle.Render(mark) + plain.Render(" "+f)
 			if i == m.conflictSel {
 				b.WriteString(s.selected.Width(w).Render(pathLine) + "\n")
 			} else {
@@ -241,5 +246,5 @@ func (m Model) renderConflictScreen() string {
 	for strings.Count(b.String(), "\n") < h {
 		b.WriteString("\n")
 	}
-	return b.String()
+	return paint(b.String(), w, h, baseColor)
 }

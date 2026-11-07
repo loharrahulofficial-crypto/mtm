@@ -365,7 +365,7 @@ func (m Model) renderPaletteBox() string {
 	content := []string{}
 	// Input line.
 	prompt := muted.Render("› ") + txt.Render(m.paletteInput.Value()) + selTxt.Render("▏")
-	content = append(content, padBoxLine(prompt, inner, fill))
+	content = append(content, padBoxLine(prompt, inner, fill, raised))
 
 	items := m.paletteItems
 	if len(items) == 0 {
@@ -414,18 +414,19 @@ func (m Model) renderPaletteBox() string {
 		content = append(content, muted.Render(" ↑↓ move · ⏎ run · esc close"))
 	}
 
-	// Assemble with rounded border.
+	// Assemble with rounded border; the box floats on raised.
 	box := []string{edge.Render("╭" + strings.Repeat("─", w-2) + "╮")}
 	for _, l := range content {
-		box = append(box, edge.Render("│")+" "+padBoxLine(l, inner, fill)+" "+edge.Render("│"))
+		box = append(box, edge.Render("│")+" "+padBoxLine(l, inner, fill, raised)+" "+edge.Render("│"))
 	}
 	box = append(box, edge.Render("╰"+strings.Repeat("─", w-2)+"╯"))
-	return strings.Join(box, "\n")
+	block := strings.Join(box, "\n")
+	return paint(block, w, len(box), raised)
 }
 
-func padBoxLine(line string, w int, fill lipgloss.Style) string {
+func padBoxLine(line string, w int, fill lipgloss.Style, bg lipgloss.Color) string {
 	if lipgloss.Width(line) > w {
 		return truncatePlain(line, w)
 	}
-	return lipgloss.NewStyle().MaxWidth(w).Render(line + strings.Repeat(" ", w-lipgloss.Width(line)))
+	return lipgloss.NewStyle().MaxWidth(w).Render(line + lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", w-lipgloss.Width(line))))
 }

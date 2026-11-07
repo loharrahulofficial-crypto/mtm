@@ -61,7 +61,7 @@ func renderPanel(m Model, title string, w, h int, focused bool, body []string) s
 		if i < len(body) {
 			line = body[i]
 		}
-		grid = append(grid, padClip(line, innerW, surface))
+		grid = append(grid, clipStyled(line, innerW))
 	}
 
 	lines := make([]string, 0, h)
@@ -79,7 +79,7 @@ func renderPanel(m Model, title string, w, h int, focused bool, body []string) s
 		}
 		lines = append(lines, surface.Render(strings.Repeat(" ", w)))
 	}
-	return strings.Join(lines, "\n")
+	return paint(strings.Join(lines, "\n"), w, h, lipgloss.Color(m.palette.Surface))
 }
 
 // panelTitleRow renders the inner title line of an unfocused panel:
@@ -122,16 +122,6 @@ func panelEdge(m Model, w int, top bool, title string, border, surface lipgloss.
 	return border.Render(prefix) + cap + border.Render(" "+strings.Repeat(fill, suffixLen)+cornerR)
 }
 
-func padClip(line string, width int, fill lipgloss.Style) string {
-	if lipgloss.Width(line) > width {
-		line = clipStyled(line, width)
-	}
-	if pad := width - lipgloss.Width(line); pad > 0 {
-		line += strings.Repeat(" ", pad)
-	}
-	return fill.Render(line)
-}
-
 // clipStyled truncates a line that may contain ANSI escape sequences to
 // exactly width cells (lipgloss MaxWidth is escape-aware).
 func clipStyled(line string, width int) string {
@@ -163,25 +153,11 @@ func sectionLabel(m Model, label string, w int) string {
 }
 
 // normalizeBlock forces a rendered block to exactly w columns and h rows:
-// every line is padded (styles preserved) and overflow rows are dropped.
-// Every pane goes through this so JoinVertical/Horizontal never misalign the
-// frame (bug: a one-line overflow scrolled the top row off the terminal).
-func normalizeBlock(block string, w, h int) string {
-	lines := strings.Split(block, "\n")
-	if len(lines) > h {
-		lines = lines[:h]
-	}
-	for i, l := range lines {
-		if diff := w - lipgloss.Width(l); diff > 0 {
-			lines[i] = l + strings.Repeat(" ", diff)
-		} else if diff < 0 {
-			lines[i] = clipStyled(l, w)
-		}
-	}
-	for len(lines) < h {
-		lines = append(lines, strings.Repeat(" ", w))
-	}
-	return strings.Join(lines, "\n")
+// every line is clipped/padded to width and every pixel gets bg. Every pane
+// goes through this so JoinVertical/Horizontal never misalign the frame
+// (bug: a one-line overflow scrolled the top row off the terminal).
+func normalizeBlock(block string, w, h int, bg lipgloss.Color) string {
+	return paint(block, w, h, bg)
 }
 
 // minUsableWidth/minUsableHeight bound the smallest terminal mtm will lay out
@@ -193,7 +169,7 @@ const (
 )
 
 // tooSmallView renders the single-purpose "terminal too small" screen.
-func tooSmallView(w, h int) string {
+func tooSmallView(w, h int, bg lipgloss.Color) string {
 	if w < 1 {
 		w = 1
 	}
@@ -242,5 +218,5 @@ func tooSmallView(w, h int) string {
 	for len(lines) < h {
 		lines = append(lines, blank)
 	}
-	return normalizeBlock(strings.Join(lines, "\n"), w, h)
+	return normalizeBlock(strings.Join(lines, "\n"), w, h, bg)
 }

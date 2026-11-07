@@ -65,9 +65,9 @@ func TestCalendarTodayPillSurvivesSelection(t *testing.T) {
 	m, s := newTestModel(t, nil)
 	upd, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = upd.(Model)
-	// Yesterday holds an overdue task: with the old precedence, the hot
-	// overdue cell visually read as the cursor while today's own pill was
-	// swallowed by the selection style.
+	// An overdue task exists but must not steal the today pill or flip an
+	// out-of-month cell to hot. (The probe-day check below covers the
+	// overdue branch deterministically.)
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 	if err := s.Create(&core.Task{Title: "expired", Project: "inbox", Status: "todo", Kind: core.KindTask, Due: yesterday}); err != nil {
 		t.Fatal(err)
@@ -80,16 +80,48 @@ func TestCalendarTodayPillSurvivesSelection(t *testing.T) {
 	if !sameRender(todaySty, want) {
 		t.Fatalf("today (also selected) lost the today-pill style")
 	}
-	if sty := calendarCellStyle(m, today.AddDate(0, 0, -1)); !sameRender(sty, m.styles.overdue) {
-		t.Fatalf("yesterday overdue cell not hot")
-	}
-	if sty := calendarCellStyle(m, today.AddDate(0, 0, 1)); !sameRender(sty, m.styles.base) {
-		t.Fatalf("tomorrow should be plain, got different style")
+
+	// A weekday in the displayed month, different from today: exercises the
+	// plain-cell and the overdue-cell branches deterministically.
+	probeDay := func() time.Time {
+		base := time.Date(m.calMonth.Year(), m.calMonth.Month(), 1, 0, 0, 0, 0, m.calMonth.Location())
+		for i := 0; i < 28; i++ {
+			d := base.AddDate(0, 0, i)
+			if d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
+				continue
+			}
+			if !dayStartT(d).Equal(dayStartT(m.calDay)) {
+				return d
+			}
+		}
+		return time.Time{}
+	}()
+	if !probeDay.IsZero() {
+		if sty := calendarCellStyle(m, probeDay); !sameRender(sty, m.styles.base) {
+			t.Fatalf("probe day %s should be plain, got different style", probeDay.Format("2006-01-02"))
+		}
+		// Overdue task on the probe day makes its cell hot.
+		overdueDay := probeDay.Format("2006-01-02")
+		if err := s.Create(&core.Task{Title: "expired probe", Project: "inbox", Status: "todo", Kind: core.KindTask, Due: overdueDay}); err != nil {
+			t.Fatal(err)
+		}
+		m.refreshTasks()
+		if sty := calendarCellStyle(m, probeDay); !sameRender(sty, m.styles.overdue) {
+			t.Fatalf("probe day %s with an overdue task should be hot", overdueDay)
+		}
 	}
 }
 
 func sameRender(a, b lipgloss.Style) bool {
-	return a.Render("x") == b.Render("x")
+	// Compare resolved attributes, not rendered bytes: under a color profile
+	// that drops attributes (e.g. Ascii when piped), distinct styles
+	// render identically, so byte comparison can't see the difference.
+	return a.GetForeground() == b.GetForeground() &&
+		a.GetBackground() == b.GetBackground() &&
+		a.GetBold() == b.GetBold() &&
+		a.GetItalic() == b.GetItalic() &&
+		a.GetUnderline() == b.GetUnderline() &&
+		a.GetStrikethrough() == b.GetStrikethrough()
 }
 
 func firstLines(s string, n int) string {

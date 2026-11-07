@@ -65,6 +65,10 @@ type styles struct {
 
 	pillActive   lipgloss.Style // active statusline view pill (accent fill)
 	pillInactive lipgloss.Style
+
+	mText   lipgloss.Style // floating modal text on raised
+	mMuted  lipgloss.Style
+	mAccent lipgloss.Style
 }
 
 func newStyles(p theme.Palette) styles {
@@ -129,6 +133,10 @@ func newStyles(p theme.Palette) styles {
 
 	s.pillActive = lipgloss.NewStyle().Foreground(base).Background(accent).Bold(true)
 	s.pillInactive = lipgloss.NewStyle().Foreground(mutedRaw).Background(base)
+
+	s.mText = lipgloss.NewStyle().Foreground(fg).Background(raised)
+	s.mMuted = lipgloss.NewStyle().Foreground(muted).Background(raised)
+	s.mAccent = lipgloss.NewStyle().Foreground(accent).Background(raised).Bold(true)
 	return s
 }
 
