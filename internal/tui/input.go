@@ -8,6 +8,7 @@ import (
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/parse"
 )
 
 func (m Model) updateInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -129,19 +130,20 @@ func (m Model) submitInput() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) submitQuickAdd(value, parent string) (tea.Model, tea.Cmd) {
-	return m.submitQuickAddKind(value, parent, "")
+	return m.submitQuickAddKind(value, parent, "", "")
 }
 
-func (m Model) submitQuickAddKind(value, parent, kind string) (tea.Model, tea.Cmd) {
+func (m Model) submitQuickAddKind(value, parent, kind, project string) (tea.Model, tea.Cmd) {
 	m.mode = modeNormal
 	m.input.Blur()
 	if value == "" {
 		return m, nil
 	}
 	t, err := actions.QuickAddTask(m.cfg, m.store, value, actions.QuickAddOverrides{
-		Parent: parent,
-		Kind:   kind,
-		Now:    m.clock.Now(),
+		Parent:  parent,
+		Kind:    kind,
+		Project: project,
+		Now:     m.clock.Now(),
 	})
 	if err != nil {
 		m.statusMsg = err.Error()
@@ -153,6 +155,60 @@ func (m Model) submitQuickAddKind(value, parent, kind string) (tea.Model, tea.Cm
 		m.statusMsg = fmt.Sprintf("added subtask %s under %s", t.ID, parent)
 	}
 	return m, m.afterChange("add: " + t.Title)
+}
+
+// submitExam creates an exam targeted at a course:
+//
+//	:exam <course> <name> <date>
+//
+// The course must be an existing project (exact or case-insensitive match);
+// exams are course events, so an unknown course is an error listing the
+// courses, never the default project. Everything after the course is parsed
+// by the quick-add grammar, so the date may be ISO (2026-11-19) or a phrase
+// ("friday", "in 3 days"); the rest is the exam name.
+func (m Model) submitExam(arg string) (tea.Model, tea.Cmd) {
+	fields := strings.Fields(arg)
+	if len(fields) < 3 {
+		m.statusMsg = "usage: :exam <course> <name> <date>  e.g. :exam college/dbms DBMS midterm 2026-11-13"
+		return m, nil
+	}
+	course, err := m.lookupCourse(fields[0])
+	if err != nil {
+		m.statusMsg = err.Error()
+		return m, nil
+	}
+	rest := strings.Join(fields[1:], " ")
+	parsed := parse.QuickAdd(rest, m.clock.Now())
+	if parsed.Due == "" {
+		m.statusMsg = "exam needs a date — :exam <course> <name> <date>  e.g. friday or 2026-11-19"
+		return m, nil
+	}
+	if strings.TrimSpace(parsed.Title) == "" {
+		m.statusMsg = "exam needs a name — :exam <course> <name> <date>"
+		return m, nil
+	}
+	return m.submitQuickAddKind(rest, "", "exam", course)
+}
+
+// lookupCourse resolves a course name to an existing project. Exact match
+// wins; a case-insensitive match is accepted. Otherwise the error lists the
+// known courses.
+func (m Model) lookupCourse(name string) (string, error) {
+	if m.store.ProjectExists(name) {
+		return name, nil
+	}
+	projects, _ := m.store.ListProjects()
+	names := make([]string, 0, len(projects))
+	for _, p := range projects {
+		if strings.EqualFold(p.Name, name) {
+			return p.Name, nil
+		}
+		names = append(names, p.Name)
+	}
+	if len(names) == 0 {
+		return "", fmt.Errorf("no course %q — no courses yet (mtm project add <name>)", name)
+	}
+	return "", fmt.Errorf("no course %q — courses: %s", name, strings.Join(names, ", "))
 }
 
 func parseTagList(value string) []string {
@@ -188,11 +244,7 @@ func (m Model) execCommand(value string) (tea.Model, tea.Cmd) {
 		}
 		return m.submitQuickAdd(arg, "")
 	case "exam":
-		if arg == "" {
-			m.statusMsg = "usage: :exam <title> — creates an exam"
-			return m, nil
-		}
-		return m.submitQuickAddKind(arg, "", "exam")
+		return m.submitExam(arg)
 	case "subtask":
 		if arg == "" {
 			m.statusMsg = "usage: :subtask <text>"

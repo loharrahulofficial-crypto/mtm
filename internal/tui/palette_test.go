@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 )
 
 func TestFuzzyScore(t *testing.T) {
@@ -76,6 +79,10 @@ func TestPaletteArgvDetection(t *testing.T) {
 	if !paletteCommandArgv(m) {
 		t.Fatal("'done' not detected as argv command")
 	}
+	m.paletteInput.SetValue("exam college/dbms DBMS midterm 2026-11-19")
+	if !paletteCommandArgv(m) {
+		t.Fatal("'exam …' not detected as argv command")
+	}
 	m.paletteInput.SetValue("Done ABC123")
 	if !paletteCommandArgv(m) {
 		t.Fatal("'Done ABC123' not detected as argv command")
@@ -87,5 +94,89 @@ func TestPaletteArgvDetection(t *testing.T) {
 	m.paletteInput.SetValue("done!")
 	if paletteCommandArgv(m) {
 		t.Fatal("'done!' wrongly detected as argv command")
+	}
+}
+
+func TestExamCourseSuggestions(t *testing.T) {
+	m, s := newTestModel(t, nil)
+	if err := s.SaveProject(core.DefaultProject("college/dbms")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveProject(core.DefaultProject("college/os")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Bare "exam" lists all courses.
+	sugg := examCourseSuggestions(m, "exam")
+	if len(sugg) != 3 { // inbox + two courses
+		t.Fatalf("bare 'exam' suggestions = %d, want 3", len(sugg))
+	}
+	for _, it := range sugg {
+		if !strings.HasPrefix(it.id, "examcourse:") {
+			t.Fatalf("suggestion id %q missing examcourse: prefix", it.id)
+		}
+	}
+	// Partial course token filters to a match.
+	sugg = examCourseSuggestions(m, "exam dbms")
+	if len(sugg) != 1 || sugg[0].id != "examcourse:college/dbms" {
+		t.Fatalf("'exam dbms' suggestions = %+v, want [college/dbms]", sugg)
+	}
+	// A fuzzy subsequence match works too ("cs" ⊂ "college/os").
+	sugg = examCourseSuggestions(m, "exam col/os")
+	if len(sugg) != 1 || sugg[0].id != "examcourse:college/os" {
+		t.Fatalf("'exam col/os' suggestions = %+v, want [college/os]", sugg)
+	}
+	// Past the course token: no suggestions, plain fuzzy/argv takes over.
+	if sugg := examCourseSuggestions(m, "exam college/dbms DBMS midterm friday"); sugg != nil {
+		t.Fatalf("full command query returned suggestions: %+v", sugg)
+	}
+	// paletteItemsFor routes exam queries to suggestions.
+	items := paletteItemsFor(m, "exam db")
+	if len(items) == 0 || !strings.HasPrefix(items[0].id, "examcourse:") {
+		t.Fatalf("paletteItemsFor('exam db') = %+v, want course suggestions", items)
+	}
+	// A non-exam query gets normal items.
+	items = paletteItemsFor(m, "home")
+	foundHome := false
+	for _, it := range items {
+		if it.id == "view:home" {
+			foundHome = true
+		}
+	}
+	if !foundHome {
+		t.Fatal("paletteItemsFor('home') should offer the Go to Home command")
+	}
+}
+
+func TestExamCoursePalettePickFillsInput(t *testing.T) {
+	m, s := newTestModel(t, nil)
+	if err := s.SaveProject(core.DefaultProject("college/dbms")); err != nil {
+		t.Fatal(err)
+	}
+	upd := m.openPalette()
+	_ = upd
+	m.paletteInput.SetValue("exam db")
+	m.paletteQuery = "exam db"
+	m.paletteItems = paletteItemsFor(m, m.paletteQuery)
+	m.paletteSel = 0
+	out, _ := m.updatePaletteKey(keyMsg("enter"))
+	m2 := out.(Model)
+	if m2.mode != modePalette {
+		t.Fatal("picking a course should keep the palette open")
+	}
+	if got := m2.paletteInput.Value(); got != "exam college/dbms " {
+		t.Fatalf("input after course pick = %q, want %q", got, "exam college/dbms ")
+	}
+	// Typing the rest of the command and pressing enter runs it.
+	m2.paletteInput.SetValue("exam college/dbms DBMS midterm 2026-11-19")
+	m2.paletteQuery = m2.paletteInput.Value()
+	m2.paletteItems = paletteItemsFor(m2, m2.paletteQuery)
+	out, _ = m2.updatePaletteKey(keyMsg("enter"))
+	m3 := out.(Model)
+	if m3.mode == modePalette {
+		t.Fatal("enter on a full exam command should close the palette")
+	}
+	if len(m3.store.Tasks()) != 1 {
+		t.Fatal("exam was not created via the palette")
 	}
 }

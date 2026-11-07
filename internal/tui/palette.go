@@ -146,6 +146,71 @@ func fuzzyScore(query, hay string) (int, bool) {
 	return score, true
 }
 
+// paletteItemsFor assembles the visible item set for a query. When the
+// query is still resolving the course token of an `exam` command ("exam" or
+// "exam <partial>"), it returns per-course suggestions instead — picking one
+// fills in `exam <course> ` and keeps the palette open. Otherwise it falls
+// back to the regular fuzzy match.
+func paletteItemsFor(m Model, q string) []paletteItem {
+	if sugg := examCourseSuggestions(m, q); sugg != nil {
+		return sugg
+	}
+	return paletteMatch(m.buildPaletteItems(), q, m.paletteRecent)
+}
+
+// examCourseSuggestions reports the courses matching the partial course
+// token of an `exam` query, ranked by fuzzy score. Returns nil when the
+// query is not an in-progress exam command (or already past the course
+// token), so callers can tell "no suggestions" apart from "no matches".
+func examCourseSuggestions(m Model, q string) []paletteItem {
+	fields := strings.Fields(strings.ToLower(strings.TrimSpace(q)))
+	if len(fields) == 0 || fields[0] != "exam" {
+		return nil
+	}
+	if len(fields) > 2 {
+		return nil // past the course token — plain fuzzy/argv from here on
+	}
+	partial := ""
+	if len(fields) == 2 {
+		partial = fields[1]
+	}
+	projects, _ := m.store.ListProjects()
+	type hit struct {
+		name  string
+		score int
+	}
+	hits := []hit{}
+	for _, p := range projects {
+		if partial == "" {
+			hits = append(hits, hit{p.Name, 0})
+			continue
+		}
+		if score, ok := fuzzyScore(partial, strings.ToLower(p.Name)); ok {
+			hits = append(hits, hit{p.Name, score})
+		}
+	}
+	for i := 1; i < len(hits); i++ {
+		for j := i; j > 0 && hits[j].score > hits[j-1].score; j-- {
+			hits[j], hits[j-1] = hits[j-1], hits[j]
+		}
+	}
+	const maxSuggestions = 8
+	items := make([]paletteItem, 0, len(hits))
+	for i, h := range hits {
+		if i >= maxSuggestions {
+			break
+		}
+		items = append(items, paletteItem{
+			id:      "examcourse:" + h.name,
+			label:   "Exam in " + h.name,
+			hint:    "course",
+			hintDim: true,
+			group:   "Courses",
+		})
+	}
+	return items
+}
+
 // openPalette initializes the palette state on first ctrl+p.
 func (m *Model) openPalette() tea.Cmd {
 	if m.paletteInput.Prompt == "" {
@@ -155,7 +220,7 @@ func (m *Model) openPalette() tea.Cmd {
 	m.mode = modePalette
 	m.paletteQuery = ""
 	m.paletteSel = 0
-	m.paletteItems = paletteMatch(m.buildPaletteItems(), "", m.paletteRecent)
+	m.paletteItems = paletteItemsFor(*m, "")
 	m.paletteInput.SetValue("")
 	return m.paletteInput.Focus()
 }
@@ -168,6 +233,14 @@ func (m Model) updatePaletteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.paletteInput.Blur()
 		return m, nil
 	case "enter":
+		if item, ok := selectedExamCourse(m); ok {
+			course := strings.TrimPrefix(item.id, "examcourse:")
+			m.paletteInput.SetValue("exam " + course + " ")
+			m.paletteQuery = m.paletteInput.Value()
+			m.paletteItems = paletteItemsFor(m, m.paletteQuery)
+			m.paletteSel = 0
+			return m, nil
+		}
 		if paletteCommandArgv(m) {
 			cmd := strings.TrimSpace(m.paletteInput.Value())
 			m.mode = modeNormal
@@ -191,7 +264,7 @@ func (m Model) updatePaletteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	q := m.paletteInput.Value()
 	if q != m.paletteQuery {
 		m.paletteQuery = q
-		m.paletteItems = paletteMatch(m.buildPaletteItems(), q, m.paletteRecent)
+		m.paletteItems = paletteItemsFor(m, q)
 		if m.paletteSel >= len(m.paletteItems) {
 			m.paletteSel = len(m.paletteItems) - 1
 		}
@@ -200,6 +273,19 @@ func (m Model) updatePaletteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, cmd
+}
+
+// selectedExamCourse reports the highlighted item when it is a course
+// suggestion for an in-progress `exam` command.
+func selectedExamCourse(m Model) (paletteItem, bool) {
+	if m.paletteSel < 0 || m.paletteSel >= len(m.paletteItems) {
+		return paletteItem{}, false
+	}
+	item := m.paletteItems[m.paletteSel]
+	if strings.HasPrefix(item.id, "examcourse:") {
+		return item, true
+	}
+	return paletteItem{}, false
 }
 
 func (m Model) executePaletteSelection() (tea.Model, tea.Cmd) {
@@ -236,7 +322,7 @@ var knownCommands = map[string]bool{
 	"delete": true, "rm": true, "sync": true, "help": true,
 	"list": true, "view1": true, "board": true, "kanban": true, "view2": true,
 	"calendar": true, "cal": true, "view3": true, "quit": true, "q": true,
-	"home": true, "view0": true, "focus": true,
+	"home": true, "view0": true, "focus": true, "exam": true,
 }
 
 func filterOut(ids []string, drop string) []string {

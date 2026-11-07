@@ -80,11 +80,15 @@ func TestCalendarDetailFollowsSelectionEmptyDay(t *testing.T) {
 	}
 }
 
-// ":exam <title>" creates an exam (kind=exam) — the Home empty state points
-// users at it.
+// ":exam <course> <name> <date>" creates an exam (kind=exam) targeted at the
+// course project — the Home empty state points users at it. Exams are
+// course events: an unknown course is an error, never the default project.
 func TestExecCommandExamCreatesExamKind(t *testing.T) {
-	m, _ := newTestModel(t, nil)
-	out, _ := m.execCommand("exam DBMS midterm 2026-11-20")
+	m, s := newTestModel(t, nil)
+	if err := s.SaveProject(core.DefaultProject("college/dbms")); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := m.execCommand("exam college/dbms DBMS midterm 2026-11-20")
 	m2, ok := out.(Model)
 	if !ok {
 		t.Fatalf("execCommand returned %T", out)
@@ -93,10 +97,76 @@ func TestExecCommandExamCreatesExamKind(t *testing.T) {
 	for _, tk := range m2.store.Tasks() {
 		if tk.Kind == "exam" && strings.Contains(tk.Title, "DBMS midterm") {
 			found = true
+			if tk.Project != "college/dbms" {
+				t.Fatalf("exam landed in project %q, want college/dbms", tk.Project)
+			}
+			if tk.Due != "2026-11-20" {
+				t.Fatalf("exam due %q, want 2026-11-20", tk.Due)
+			}
 		}
 	}
 	if !found {
 		t.Fatal(":exam did not create an exam-kind task")
+	}
+}
+
+func TestExecCommandExamCourseRequired(t *testing.T) {
+	m, s := newTestModel(t, nil)
+	if err := s.SaveProject(core.DefaultProject("college/dbms")); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := m.execCommand("exam inbox DBMS midterm 2026-11-20") // ok: inbox exists
+	if m2 := out.(Model); len(m2.store.Tasks()) != 1 {
+		t.Fatalf("exam targeting inbox should have been created, got %d tasks", len(m2.store.Tasks()))
+	}
+	out, _ = m.execCommand("exam nosuchcourse DBMS midterm 2026-11-20")
+	m2 := out.(Model)
+	if len(m2.store.Tasks()) != 1 {
+		t.Fatal("unknown course must not create a task")
+	}
+	if !strings.Contains(m2.statusMsg, "no course") {
+		t.Fatalf("statusMsg = %q, want a no-course error", m2.statusMsg)
+	}
+	// Date is required — ":exam <course> <name>" without one is an error.
+	m3 := m2
+	out, _ = m3.execCommand("exam college/dbms DBMS midterm")
+	m4 := out.(Model)
+	if len(m4.store.Tasks()) != 1 {
+		t.Fatal(":exam without a date must not create a task")
+	}
+	if !strings.Contains(m4.statusMsg, "date") {
+		t.Fatalf("statusMsg = %q, want a missing-date error", m4.statusMsg)
+	}
+	// Course match is case-insensitive.
+	out, _ = m.execCommand("exam College/DBMS DBMS midterm 2026-11-20")
+	if m5 := out.(Model); len(m5.store.Tasks()) != 2 {
+		t.Fatalf("case-insensitive course should create the exam, got %d tasks", len(m5.store.Tasks()))
+	}
+	// Natural-language date parses through the quick-add grammar.
+	out, _ = m.execCommand("exam college/dbms OS quiz 2030-05-05")
+	if m6 := out.(Model); len(m6.store.Tasks()) != 3 {
+		t.Fatal("ISO date should create the exam")
+	}
+}
+
+// The Home section label must read "THIS WEEK" — letterspaced with thin
+// spaces between letters and a three-space word gap — with no extra, missing
+// or merged letters, however the panel renders it.
+func TestThisWeekLabelRendersExactly(t *testing.T) {
+	thin := "\u2009"
+	want := "T" + thin + "H" + thin + "I" + thin + "S" + "   " + "W" + thin + "E" + thin + "E" + thin + "K"
+	if got := letterspace("THIS WEEK"); got != want {
+		t.Fatalf("letterspace(THIS WEEK) = %q, want %q", got, want)
+	}
+	m, _ := newTestModel(t, nil)
+	body := stripANSI(strings.Join(renderHomeBody(m, 120, 39), "\n"))
+	if !strings.Contains(body, want) {
+		t.Fatalf("home body missing the THIS WEEK label %q", want)
+	}
+	for _, bad := range []string{"W E E K S", "WEEKS", "THISWEEK", "W E K"} {
+		if strings.Contains(body, bad) {
+			t.Fatalf("home body contains %q — the THIS WEEK label has extra letters", bad)
+		}
 	}
 }
 
