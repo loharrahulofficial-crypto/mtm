@@ -195,13 +195,26 @@ func doneStamp(status, stamp string) string {
 	return ""
 }
 
+func boardColumnsFixture(t *testing.T) *store.Store {
+	ts := DumpFixedTime
+	stamp := ts.Format(core.TimestampFormat)
+	today := ts.Format("2006-01-02")
+	return fixtureStore(t, []fixtureTask{
+		{id: "m00001", title: "Write lecture notes on B-trees", project: "inbox", status: "todo", priority: "high", kind: "assignment", due: today + "T10:00", created: stamp, updated: stamp},
+		{id: "m00002", title: "Prepare problem set 4", project: "inbox", status: "doing", priority: "medium", kind: "assignment", due: today + "T15:00", created: stamp, updated: stamp},
+		{id: "m00003", title: "Submit lab report — page replacement", project: "inbox", status: "doing", priority: "urgent", kind: "assignment", due: ts.AddDate(0, 0, 2).Format("2006-01-02"), created: stamp, updated: stamp},
+		{id: "m00004", title: "Read ch.2 of the OS book", project: "inbox", status: "todo", priority: "low", kind: "task", created: stamp, updated: stamp},
+	})
+}
+
 var fixtures = map[string]func(t *testing.T) *store.Store{
-	"empty":      emptyFixture,
-	"populated":  twoTasksFixture,
-	"manyTasks":  manyTasksFixture,
-	"longTitles": longTitlesFixture,
-	"subtasks":   subtasksFixture,
-	"courses":    coursesFixture,
+	"empty":        emptyFixture,
+	"populated":    twoTasksFixture,
+	"manyTasks":    manyTasksFixture,
+	"longTitles":   longTitlesFixture,
+	"subtasks":     subtasksFixture,
+	"courses":      coursesFixture,
+	"boardColumns": boardColumnsFixture,
 }
 
 func dumpConfig() config.Config {
@@ -259,7 +272,7 @@ func TestDumpGolden(t *testing.T) {
 				})
 			}
 			// Richer states at the canonical size.
-			for _, state := range []string{"manyTasks", "longTitles", "subtasks", "courses"} {
+			for _, state := range []string{"manyTasks", "longTitles", "subtasks", "courses", "boardColumns"} {
 				t.Run(view+"_"+size+"_"+state, func(t *testing.T) {
 					if size != "120x40" {
 						t.Skip("rich states only at 120x40")
