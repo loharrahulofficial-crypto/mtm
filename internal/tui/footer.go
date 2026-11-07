@@ -7,20 +7,46 @@ import (
 )
 
 // renderFooterBar renders the bottom line: view tabs + status or the input bar.
+// Layout rule: the middle message is truncated to fit first; the trailing
+// right side (help hint, clock) is never truncated.
 func (m Model) renderFooterBar(width int) string {
 	s := m.styles
 
 	if m.mode == modeInput {
-		inputView := m.input.View()
-		line := s.footerKey.Render(m.inputLabel) + " " + inputView
-		pad := width - lipgloss.Width(line)
-		if pad > 0 {
-			line += strings.Repeat(" ", pad)
-		}
-		return s.footer.Render(line)
+		line := s.footerKey.Render(m.inputLabel) + " " + m.input.View()
+		return s.footer.Width(width).Render(truncatePlain(line, width))
 	}
 
-	// Tabs (left).
+	right := m.footerRight()
+	left := m.footerLeft()
+
+	// Measure the pieces exactly as they will be rendered (styled once,
+	// measured after styling, never wrapped again).
+	leftW, rightW := lipgloss.Width(left), lipgloss.Width(right)
+	budget := width - leftW - rightW - 2 // middle padding cells
+	if budget < 0 {
+		budget = 0
+	}
+	middle := m.footerMiddle()
+	if lipgloss.Width(middle) > budget {
+		middle = truncatePlain(middle, budget)
+	}
+	middleStyle := s.footer
+	needles := strings.ToLower(middle)
+	if strings.Contains(needles, "paused") || strings.Contains(needles, "failed") || strings.Contains(needles, "conflict") {
+		middleStyle = s.syncBad
+	}
+	line := left + middleStyle.Render(middle) + right
+	// Last resort: pad/trim to exactly width without touching the ends.
+	if w := lipgloss.Width(line); w < width {
+		padLeft := (width - w) / 2
+		line = left + strings.Repeat(" ", padLeft) + middleStyle.Render(middle) +
+			strings.Repeat(" ", width-w-padLeft) + right
+	}
+	return s.footer.Width(width).Render(line)
+}
+
+func (m Model) footerLeft() string {
 	tabs := []string{}
 	tabDefs := []struct {
 		key, label string
@@ -31,24 +57,26 @@ func (m Model) renderFooterBar(width int) string {
 		{"3", "Calendar", viewCalendar},
 	}
 	for _, td := range tabDefs {
-		label := td.key + " " + td.label
+		label := " " + td.key + " " + td.label + " "
 		if m.view == td.view {
-			tabs = append(tabs, s.footerKey.Render(label))
+			tabs = append(tabs, m.styles.footerKey.Render(label))
 		} else {
-			tabs = append(tabs, s.footer.Render(label))
+			tabs = append(tabs, m.styles.footer.Render(label))
 		}
 	}
-	left := strings.Join(tabs, "")
+	return strings.Join(tabs, "")
+}
 
-	// Right: sync indicator + help hint.
-	var right string
+func (m Model) footerRight() string {
+	s := m.styles
+	help := " " + m.keymap.Seq(aHelp) + " help "
 	switch m.syncSt {
 	case syncSyncing:
-		right = s.footer.Render(m.spinner.View() + " syncing")
+		return s.footer.Render(m.spinner.View()+" syncing ") + s.footer.Render(help)
 	case syncConflict:
-		right = s.syncBad.Render(" ⚠ conflicts ") + s.footer.Render(m.keymap.Seq(aConflicts)+" to fix ")
+		return s.syncBad.Render(" ⚠ conflicts "+m.keymap.Seq(aConflicts)+" to fix ") + s.footer.Render(help)
 	case syncOffline:
-		right = s.footer.Render(" ○ offline ")
+		return s.footer.Render(" ○ offline ") + s.footer.Render(help)
 	case syncOK:
 		syncText := " ✓ synced"
 		if !m.lastSync.IsZero() {
@@ -57,42 +85,27 @@ func (m Model) renderFooterBar(width int) string {
 		if n := len(m.pendingCommits); n > 0 {
 			syncText = " ✓ · " + itoa(n) + " pending"
 		}
-		right = s.syncOK.Render(syncText) + s.footer.Render(" "+m.keymap.Seq(aHelp)+" help ")
+		return s.syncOK.Render(syncText) + s.footer.Render(help)
 	default:
 		if m.hasRemote {
-			right = s.footer.Render(" ○ … ")
+			return s.footer.Render(" ○ … ") + s.footer.Render(help)
+		}
+		return s.footer.Render(" local repo " + help)
+	}
+}
+
+// footerMiddle is the transient status / filter message and (in the redesign)
+// the active timer. Never shown at the cost of the right side.
+func (m Model) footerMiddle() string {
+	msg := m.statusMsg
+	if m.searchQuery != "" {
+		if msg == "" {
+			msg = "filter: " + m.searchQuery
 		} else {
-			right = s.footer.Render(" local repo ")
+			msg = msg + " · filter: " + m.searchQuery
 		}
 	}
-
-	leftW := lipgloss.Width(left)
-	rightW := lipgloss.Width(right)
-
-	// Middle: status message or filter indicator.
-	middle := m.statusMsg
-	if m.searchQuery != "" && middle == "" {
-		middle = "filter: " + m.searchQuery
-	}
-	middle = truncatePlain(middle, width-leftW-rightW-2)
-	middleStyle := s.footer
-	if strings.Contains(strings.ToLower(middle), "paused") || strings.Contains(strings.ToLower(middle), "failed") {
-		middleStyle = s.syncBad
-	}
-	midW := lipgloss.Width(middle)
-	padLeft := (width - leftW - rightW - midW) / 2
-	if padLeft < 0 {
-		padLeft = 0
-	}
-	padRight := width - leftW - rightW - midW - padLeft
-	if padRight < 0 {
-		padRight = 0
-	}
-	return s.footer.Render(left +
-		strings.Repeat(" ", padLeft) +
-		middleStyle.Render(middle) +
-		strings.Repeat(" ", padRight) +
-		right)
+	return msg
 }
 
 func itoa(n int) string {
