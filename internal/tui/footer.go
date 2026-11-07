@@ -6,11 +6,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderFooterBar renders the statusline: view pills on the left, transient
-// message + sync state in the middle, help and clock on the right.
-// Layout rule: the middle message is truncated first; the right side
-// (help > sync > clock) is never truncated — the clock drops first when
-// width is tight, then the sync text; ? help never drops.
+// renderFooterBar renders the statusline: view pills on the left, the
+// transient message + labeled sync state in the middle, and the clock
+// followed by ? help on the right. Layout rule: the middle yields space
+// first (truncated); the right side (clock + help) is never truncated.
 func (m Model) renderFooterBar(width int) string {
 	s := m.styles
 
@@ -106,54 +105,59 @@ func (m Model) footerLeft(width int) string {
 	return strings.Join(out, "")
 }
 
-// footerRight builds the right-hand segment: sync state + help + clock.
-// The wall clock renders from the same Clock that stamps task frontmatter
-// (D-011) so the two can never drift apart — but it is the first segment
-// dropped when width is tight; sync state and the help hint always fit.
+// footerRight builds the pinned right-hand segment: the wall clock followed
+// by the help hint. Exactly one clock, always present, right-aligned — the
+// left pills and the middle message yield space first.
 func (m Model) footerRight(width int) string {
 	s := m.styles
 	help := " " + m.keymap.Seq(aHelp) + " help "
-	base := s.footer.Render(" local repo " + help)
-	switch m.syncSt {
-	case syncSyncing:
-		base = s.footer.Render(" "+m.spinner.View()+" syncing ") + s.footer.Render(help)
-	case syncConflict:
-		base = s.syncBad.Render(" ⚠ conflicts "+m.keymap.Seq(aConflicts)+" to fix ") + s.footer.Render(help)
-	case syncOffline:
-		base = s.footer.Render(" ○ offline ") + s.footer.Render(help)
-	case syncOK:
-		syncText := " ✓ synced"
-		if !m.lastSync.IsZero() {
-			syncText = " ✓ " + m.lastSync.Format("15:04")
-		}
-		if n := len(m.pendingCommits); n > 0 {
-			syncText = " ✓ · " + itoa(n) + " pending"
-		}
-		base = s.syncOK.Render(syncText) + s.footer.Render(help)
-	default:
-		if m.hasRemote {
-			base = s.footer.Render(" ○ … ") + s.footer.Render(help)
-		}
-	}
 	clockSeg := s.footer.Render(" " + m.clock.Now().Format("15:04") + " ")
-	if lipgloss.Width(m.footerLeft(width))+lipgloss.Width(base)+lipgloss.Width(clockSeg)+2 > width {
-		return base // too tight — the clock yields, sync state and help stay
-	}
-	return clockSeg + base
+	return clockSeg + s.footer.Render(help)
 }
 
-// footerMiddle is the transient status / filter message. Never shown at the
-// cost of the right side.
+// syncStateLabel renders the labeled sync state that lives in the middle of
+// the statusline: "synced 10:32" / "syncing…" / "offline" / "⚠ conflicts".
+func (m Model) syncStateLabel() string {
+	switch m.syncSt {
+	case syncSyncing:
+		return m.spinner.View() + " syncing…"
+	case syncConflict:
+		return "⚠ conflicts · " + m.keymap.Seq(aConflicts) + " to fix"
+	case syncOffline:
+		return "offline"
+	case syncOK:
+		if !m.lastSync.IsZero() {
+			return "synced " + m.lastSync.Format("15:04")
+		}
+		if n := len(m.pendingCommits); n > 0 {
+			return "synced · " + itoa(n) + " pending"
+		}
+		return "synced"
+	default:
+		if m.hasRemote {
+			return "syncing…"
+		}
+		return "local repo"
+	}
+}
+
+// footerMiddle is the transient status / filter message followed by the
+// labeled sync state. The left pills and this middle always yield space to
+// the right side.
 func (m Model) footerMiddle() string {
 	msg := m.statusMsg
 	if m.searchQuery != "" {
+		filter := "filter: " + m.searchQuery
 		if msg == "" {
-			msg = "filter: " + m.searchQuery
+			msg = filter
 		} else {
-			msg = msg + " · filter: " + m.searchQuery
+			msg = msg + " · " + filter
 		}
 	}
-	return msg
+	if msg == "" {
+		return m.syncStateLabel()
+	}
+	return msg + " · " + m.syncStateLabel()
 }
 
 func itoa(n int) string {
