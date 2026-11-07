@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -159,23 +158,14 @@ func newProjectEditCmd() *cobra.Command {
 				return fmt.Errorf("project %q does not exist", name)
 			}
 			path := filepath.Join(s.Root, "projects", filepath.FromSlash(name), "project.yaml")
-			before, _ := os.ReadFile(path)
-			if err := openEditor(cfg, path); err != nil {
-				return fmt.Errorf("editor %q: %w", cfg.EditorCmd(), err)
-			}
-			after, err := os.ReadFile(path)
+			// Validate by re-loading from disk; leave the file untouched on failure.
+			changed, err := editorEdited(cfg, path, "project.yaml", func() error { return s.ReloadProject(name) })
 			if err != nil {
 				return err
 			}
-			if bytes.Equal(before, after) {
+			if !changed {
 				fmt.Println("no changes")
 				return nil
-			}
-			// Validate by re-loading from disk; leave the file untouched on failure.
-			if err := s.ReloadProject(name); err != nil {
-				note("invalid project.yaml: %v", err)
-				note("the file was left as you saved it; fix it and re-run `mtm project edit %s`", name)
-				return err
 			}
 			commitAndSync(cfg, s.Root, "project edit: "+name)
 			fmt.Printf("updated project %q\n", name)

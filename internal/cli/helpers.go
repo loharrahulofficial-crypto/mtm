@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 )
 
@@ -58,4 +60,35 @@ func taskFilter(s *store.Store, project, tag, status, priority string, all bool)
 		IncludeCompleted: all,
 		DoneCheck:        func(p, st string) bool { return s.IsDoneStatus(p, st) },
 	}
+}
+
+// editorEdited opens path in $EDITOR, and when the content changed, validates
+// it via reload (printing the standard warnings on failure). Returns whether
+// the file changed. The file is left as the editor saved it either way.
+func editorEdited(cfg config.Config, path, label string, reload func() error) (bool, error) {
+	before, _ := os.ReadFile(path)
+	if err := openEditor(cfg, path); err != nil {
+		return false, fmt.Errorf("editor %q: %w", cfg.EditorCmd(), err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	if bytes.Equal(before, after) {
+		return false, nil
+	}
+	if err := reload(); err != nil {
+		note("invalid %s: %v", label, err)
+		note("the file was left as you saved it; fix it and re-run the edit command")
+		return true, err
+	}
+	return true, nil
+}
+
+// bar renders an eighth-block progress bar of cells+count text, e.g.
+// "██████░░░░░░ 50% (3/6)". The fill/track split comes from gauges (the
+// Study Desk language); colors are left to the caller's terminal.
+func bar(p core.Progress, cells int) string {
+	fill, track := gauges.Bar(p.Fraction, cells)
+	return fmt.Sprintf("%s%s %3.0f%% (%d/%d)", fill, track, p.Fraction*100, p.Done, p.Total)
 }

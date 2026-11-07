@@ -52,6 +52,7 @@ func Execute() error {
 		newSubCmd(),
 		newSearchCmd(),
 		newProjectCmd(),
+		newCourseCmd(),
 		newSyncCmd(),
 		newSummaryCmd(),
 		newTuiCmd(),

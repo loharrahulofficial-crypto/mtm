@@ -17,6 +17,9 @@ type Project struct {
 	Description string          `yaml:"description,omitempty"`
 	Color       string          `yaml:"color,omitempty"`
 	Statuses    []ProjectStatus `yaml:"statuses"`
+	// Course marks the project as an academic course (see core.Course).
+	// Nil for plain projects.
+	Course *Course `yaml:"course,omitempty"`
 }
 
 // DefaultProject returns the standard todo/doing/done workflow.
@@ -74,6 +77,11 @@ func (p *Project) IsDoneStatus(status string) bool {
 
 // Validate checks the project is usable.
 func (p *Project) Validate() error {
+	if p.Course != nil {
+		if err := p.Course.Validate(); err != nil {
+			return err
+		}
+	}
 	if len(p.Statuses) == 0 {
 		return errNoStatuses
 	}
