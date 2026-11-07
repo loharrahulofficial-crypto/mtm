@@ -81,7 +81,9 @@ func (m Model) renderMain(w, h int) string {
 	}
 	switch m.view {
 	case viewHome:
-		return panel("", renderHomeBody(m, w-2, h-2))
+		// Home gets no outer border; its inner panels carry the single
+		// focus ring (renderHomeBody gives it to TODAY when focused).
+		return renderPanelBorderless(m, w, h, renderHomeBody(m, w, h))
 	case viewBoard:
 		return panel("board", renderBoardBody(m, w-2, h-2))
 	case viewCalendar:

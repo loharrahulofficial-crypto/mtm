@@ -1,40 +1,40 @@
-                           ╭──────────────────────────────────────────────────────╮                                     
-   mtm   study desk        │ mtm   Sat 7 Nov · mtm-default         ○ local  14:32 │                                     
-  mtm-default              │ Good afternoon, Rahul.  0 due today · 0 overdue│          Nothing selected.                
-                           ││                                                          Pick a task and it shows up here 
-  V I E W S ────────────   │╭─ T O D A Y ────────────────────────────────────────╮│                                     
-   Home                   │││                                                    │                                     
-   All                13  ││ ✦ nothing due today — a clear day│                  │                                     
-   Today                  ││   press a to add something for later│               │                                     
-   Week                1  │││                                                    │                                     
-   Overdue                │╰────────────────────────────────────────────────────╯│                                     
-  C O U R S E S ────────   ││                                                                                           
-  ▌ dbms ██▏░ 6            │  T H I S W E E K ─────────────────────────────────── │                                     
-  ▌ maths ░░░░             │                                                      │                                     
-  ▌ os ░░░░                │  ▁▁▁▁▁▁▁                                             │                                     
-  ▌ inbox ░░░░             │  0.0 h study hours                                   │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           ││                                                                                           
-                           │  C O U R S E S ───────────────────────────────────── │                                     
-                           │  ▌ college/dbms   ████▎░░░  54%                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           ││                                                                                           
-                           │  E X A M S ───────────────────────────────────────── │                                     
-                           │  ✦ DBMS midterm — relational algebra +… — 6d         │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           ││                                                                                           
-                           │  H E A T M A P ───────────────────────────────────── │                                     
-                           │  Mon █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                 │                                     
-                           │      █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                 │                                     
-                           │  Wed █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                 │                                     
-                           │      █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                 │                                     
-                           │  Fri █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                 │                                     
-                           │       less █ █ █ █ █ more                            │                                     
-                           │                                                      │                                     
-                           ╰──────────────────────────────────────────────────────╯                                     
+                            mtm   Sat 7 Nov · mtm-default           ○ local  14:32                                      
+   mtm   study desk         Good afternoon, Rahul.  0 due today · 0 overdue                                             
+  mtm-default                                                                          Nothing selected.                
+                           ╭─ T O D A Y ──────────────────────────────────────────╮    Pick a task and it shows up here 
+  V I E W S ────────────   │                                                      │                                     
+   Home                   │ ✦ nothing due today — a clear day                    │                                     
+   All                13  │   press a to add something for later                 │                                     
+   Today                  │                                                      │                                     
+   Week                1  │                                                      │                                     
+   Overdue                ╰──────────────────────────────────────────────────────╯                                     
+  C O U R S E S ────────                                                                                                
+  ▌ dbms ██▏░ 6              T H I S W E E K ─────────────────────────────────────                                      
+  ▌ maths ░░░░                                                                                                          
+  ▌ os ░░░░                  ▁▁▁▁▁▁▁                                                                                    
+  ▌ inbox ░░░░               0.0 h study hours                                                                          
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                             C O U R S E S ───────────────────────────────────────                                      
+                             ▌ college/dbms   ████▎░░░  54%                                                             
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                             E X A M S ───────────────────────────────────────────                                      
+                             DBMS midterm — relational algebra + SQL                                                    
+                              ╭───╮                                                                                     
+                              ╭──── days                                                                                
+                              ╰───╯                                                                                     
+                                                                                                                        
+                                                                                                                        
+                             H E A T M A P ───────────────────────────────────────                                      
+                             Mon █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                        
+                                 █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                        
+                             Wed █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                        
+                                 █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                        
+                             Fri █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █                                                        
+                                  less █ █ █ █ █ more                                                                   
+                                                                                                                        
   0 Home   1 List   2 Board   3 Calendar                                                  14:32  local repo  ? help 

@@ -37,6 +37,22 @@ func letterspace(s string) string {
 	return strings.Join(out, " ")
 }
 
+// renderPanelBorderless renders body as a solid surface slab with no border
+// and no title row — used by Home, which keeps flat panel rhythm with its
+// inner panels carrying the single focus ring.
+func renderPanelBorderless(m Model, w, h int, body []string) string {
+	surface := lipgloss.Color(m.palette.Surface)
+	lines := make([]string, 0, h)
+	for i := 0; i < h; i++ {
+		line := ""
+		if i < len(body) {
+			line = body[i]
+		}
+		lines = append(lines, clipStyled(line, w))
+	}
+	return paint(strings.Join(lines, "\n"), w, h, surface)
+}
+
 // renderPanel draws one pane. body must already be split into lines; each
 // line is clipped/padded to the content width. focused draws the accent
 // rounded border; title (optional, uppercase caps) sits in the top edge.
@@ -53,14 +69,20 @@ func renderPanel(m Model, title string, w, h int, focused bool, body []string) s
 		innerH = 1
 	}
 
-	// Content grid clipped to innerH rows.
+	// Content grid clipped to innerH rows; each row is padded to the inner
+	// width on surface so the pane's own borders always land on the edge.
+	surfaceFill := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface))
 	grid := make([]string, 0, innerH)
 	for i := 0; i < innerH; i++ {
 		line := ""
 		if i < len(body) {
 			line = body[i]
 		}
-		grid = append(grid, clipStyled(line, innerW))
+		line = clipStyled(line, innerW)
+		if pad := innerW - lipgloss.Width(line); pad > 0 {
+			line += surfaceFill.Render(strings.Repeat(" ", pad))
+		}
+		grid = append(grid, line)
 	}
 
 	lines := make([]string, 0, h)
