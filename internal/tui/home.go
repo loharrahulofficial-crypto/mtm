@@ -120,9 +120,18 @@ func buildHomeData(m Model) homeData {
 			dueDay := parseDayStart(t.Due, now.Location())
 			if !dueDay.IsZero() {
 				diff := int(dueDay.Sub(todayStart).Hours() / 24)
+				timedOverdueToday := false
+				if diff == 0 && len(t.Due) > len("2006-01-02") {
+					if when, err := core.ParseDue(t.Due, now.Location()); err == nil {
+						timedOverdueToday = when.Before(now)
+					}
+				}
 				switch {
 				case !done && diff == 0:
 					d.dueToday++
+					if timedOverdueToday {
+						d.overdue++
+					}
 				case !done && diff < 0:
 					d.overdue++
 				}
