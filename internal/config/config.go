@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/paths"
 	"gopkg.in/yaml.v3"
 )
 
@@ -88,47 +89,21 @@ func Default() Config {
 	}
 }
 
-// Dir returns the config directory, honoring XDG_CONFIG_HOME.
-func Dir() string {
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "mtm")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".config", "mtm")
-	}
-	return filepath.Join(home, ".config", "mtm")
-}
+// Dir returns the config directory. All mtm directories resolve through
+// internal/paths (sandbox guard, MTM_CONFIG_DIR/XDG overrides).
+func Dir() string { return paths.ConfigDir() }
 
 // Path returns the config file path.
-func Path() string { return filepath.Join(Dir(), "config.yaml") }
+func Path() string { return paths.ConfigPath() }
 
-// DataHome returns the default data directory, honoring XDG_DATA_HOME.
-func DataHome() string {
-	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
-		return filepath.Join(xdg, "mtm")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".local", "share", "mtm")
-	}
-	return filepath.Join(home, ".local", "share", "mtm")
-}
+// DataHome returns the default data directory.
+func DataHome() string { return paths.Data() }
 
-// CacheDir returns the cache directory, honoring XDG_CACHE_HOME.
-func CacheDir() string {
-	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
-		return filepath.Join(xdg, "mtm")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".cache", "mtm")
-	}
-	return filepath.Join(home, ".cache", "mtm")
-}
+// CacheDir returns the cache directory.
+func CacheDir() string { return paths.CacheDir() }
 
 // CachePath returns the index cache file path (D-006: outside the data repo).
-func CachePath() string { return filepath.Join(CacheDir(), "index.json") }
+func CachePath() string { return paths.CachePath() }
 
 // ExpandPath expands a leading "~" or "~/" to the user's home directory.
 func ExpandPath(p string) string {
@@ -181,6 +156,7 @@ func Load() (Config, error) {
 		return cfg, fmt.Errorf("config %s: ui.semester_weeks must be >= 0, got %d", Path(), cfg.UI.SemesterWeeks)
 	}
 	cfg.DataRepo = ExpandPath(cfg.DataRepo)
+	paths.Guard(cfg.DataRepo)
 	return cfg, nil
 }
 

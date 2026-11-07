@@ -84,6 +84,7 @@ func setupConflictedRepo(t *testing.T) (a string) {
 
 func conflictedModel(t *testing.T, a string) Model {
 	t.Helper()
+	fixedEnv(t)
 	cfg := config.Default()
 	cfg.DataRepo = a
 	cfg.Sync.Auto = false

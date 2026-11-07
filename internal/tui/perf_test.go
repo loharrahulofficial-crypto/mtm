@@ -42,6 +42,7 @@ statuses:
 }
 
 func BenchmarkModelStart2000(b *testing.B) {
+	fixedEnv(b)
 	root := buildBigRepo(b, 2000)
 	cache := filepath.Join(b.TempDir(), "index.json")
 	b.ResetTimer()
@@ -62,6 +63,7 @@ func BenchmarkModelStart2000(b *testing.B) {
 }
 
 func BenchmarkView2000(b *testing.B) {
+	fixedEnv(b)
 	root := buildBigRepo(b, 2000)
 	cache := filepath.Join(b.TempDir(), "index.json")
 	s, err := store.Open(root, cache)

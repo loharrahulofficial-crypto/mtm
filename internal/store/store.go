@@ -14,6 +14,7 @@ import (
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/clock"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/paths"
 	"gopkg.in/yaml.v3"
 )
 
@@ -54,6 +55,10 @@ func (s *Store) Now() time.Time {
 // Pass includeArchived to also index archive/<project>/ tasks; they are
 // marked Task.Archived and stay out of the default index otherwise.
 func Open(root, cachePath string, includeArchived ...bool) (*Store, error) {
+	paths.Guard(root)
+	if cachePath != "" {
+		paths.Guard(cachePath)
+	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return nil, err

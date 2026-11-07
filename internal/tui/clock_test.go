@@ -48,6 +48,7 @@ func TestStoredStampsMatchFixedClock(t *testing.T) {
 // files — a screenshot of the statusline and the on-disk frontmatter can
 // never drift apart.
 func TestDisplayedClockMatchesStoredStamps(t *testing.T) {
+	fixedEnv(t)
 	fixed := time.Date(2026, 11, 7, 14, 32, 45, 0, time.Local)
 	s := newFixedStore(t, fixed)
 
@@ -64,6 +65,7 @@ func TestDisplayedClockMatchesStoredStamps(t *testing.T) {
 // clock set to 2026-11-07, cell 2026-11-07 renders as today even if the
 // system date differs.
 func TestCalendarTodayMatchesFixedClock(t *testing.T) {
+	fixedEnv(t)
 	fixed := time.Date(2026, 11, 7, 14, 32, 45, 0, time.Local)
 	s := newFixedStore(t, fixed)
 

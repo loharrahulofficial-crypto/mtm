@@ -31,13 +31,14 @@ type fixtureTask struct {
 	body                                            string
 }
 
-func fixedEnv(t *testing.T) {
-	t.Helper()
-	t.Setenv("USER", "Rahul")
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+func fixedEnv(tb testing.TB) {
+	tb.Helper()
+	tb.Setenv("USER", "Rahul")
+	tb.Setenv("HOME", tb.TempDir())
+	tb.Setenv("XDG_CONFIG_HOME", tb.TempDir())
+	tb.Setenv("XDG_DATA_HOME", tb.TempDir())
+	tb.Setenv("XDG_CACHE_HOME", tb.TempDir())
+	tb.Setenv("XDG_STATE_HOME", tb.TempDir())
 }
 
 func fixtureStore(t *testing.T, tasks []fixtureTask, projects ...struct{ name, color string }) *store.Store {

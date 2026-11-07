@@ -7,10 +7,24 @@ import (
 	"testing"
 )
 
+// fixedXDG redirects every mtm root to temp dirs; required since Load
+// resolves all directories through internal/paths with the sandbox guard.
+func fixedXDG(t *testing.T) {
+	t.Helper()
+	base := t.TempDir()
+	for _, pair := range [][2]string{
+		{"XDG_CONFIG_HOME", filepath.Join(base, "config")},
+		{"XDG_DATA_HOME", filepath.Join(base, "data")},
+		{"XDG_CACHE_HOME", filepath.Join(base, "cache")},
+		{"XDG_STATE_HOME", filepath.Join(base, "state")},
+	} {
+		t.Setenv(pair[0], pair[1])
+	}
+	t.Setenv("HOME", base)
+}
+
 func TestDefaults(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	fixedXDG(t)
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
@@ -24,8 +38,8 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestFileOverridesDefaults(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
+	fixedXDG(t)
+	xdg := os.Getenv("XDG_CONFIG_HOME")
 	dir := filepath.Join(xdg, "mtm")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -48,8 +62,8 @@ func TestFileOverridesDefaults(t *testing.T) {
 }
 
 func TestSortConfigValidation(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
+	fixedXDG(t)
+	xdg := os.Getenv("XDG_CONFIG_HOME")
 	write := func(content string) {
 		t.Helper()
 		dir := filepath.Join(xdg, "mtm")
@@ -78,8 +92,8 @@ func TestSortConfigValidation(t *testing.T) {
 }
 
 func TestCorruptConfigFails(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
+	fixedXDG(t)
+	xdg := os.Getenv("XDG_CONFIG_HOME")
 	dir := filepath.Join(xdg, "mtm")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -109,6 +123,7 @@ func TestExpandPath(t *testing.T) {
 }
 
 func TestEditorCmdFallback(t *testing.T) {
+	fixedXDG(t)
 	t.Setenv("EDITOR", "")
 	t.Setenv("VISUAL", "")
 	cfg := Default()
@@ -122,10 +137,7 @@ func TestEditorCmdFallback(t *testing.T) {
 }
 
 func TestUIConfigDefaults(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	fixedXDG(t)
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
@@ -136,8 +148,8 @@ func TestUIConfigDefaults(t *testing.T) {
 }
 
 func TestUIConfigParsingAndValidation(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
+	fixedXDG(t)
+	xdg := os.Getenv("XDG_CONFIG_HOME")
 	write := func(content string) {
 		t.Helper()
 		dir := filepath.Join(xdg, "mtm")

@@ -35,6 +35,7 @@ func sandbox(t *testing.T) string {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	return os.Getenv("XDG_DATA_HOME")
 }
 

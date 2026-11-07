@@ -16,6 +16,7 @@ import (
 
 func newTestModel(t *testing.T, withTasks []*core.Task) (Model, *store.Store) {
 	t.Helper()
+	fixedEnv(t)
 	root := t.TempDir()
 	cache := t.TempDir() + "/index.json"
 	s, err := store.Open(root, cache)

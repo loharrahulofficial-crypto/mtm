@@ -82,6 +82,7 @@ func TestTuiDumpRendersFrame(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(tmp, "cache"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(tmp, "state"))
 	// Initialize a minimal data repo.
 	root := filepath.Join(tmp, "data", "mtm")
 	if err := os.MkdirAll(filepath.Join(root, "projects"), 0o755); err != nil {
