@@ -452,3 +452,41 @@ func TestNotesSaveViaEditor(t *testing.T) {
 		t.Fatalf("body = %q", ft.Body)
 	}
 }
+
+func TestBoardMouseDragMovesCard(t *testing.T) {
+	m, s := newTestModel(t, []*core.Task{
+		{Title: "drag me", Status: "todo", Priority: "high", Kind: core.KindTask},
+	})
+	m = press(t, m, "2")
+	// Press on the card at (x=60, y=4) — main pane starts after the sidebar.
+	sidebarW := sideWidth(m.width, m.sidebarHidden)
+	x := sidebarW + 5
+	updated, _ := m.Update(tea.MouseMsg{X: x, Y: 4, Type: tea.MouseLeft})
+	m = updated.(Model)
+	if !m.boardDragging {
+		t.Fatal("drag did not start on card press")
+	}
+	// Drag into the second column (stride = colW + 1 separator).
+	mainW := m.width - sidebarW
+	colW := (mainW - 2) / 3
+	releaseX := sidebarW + colW + 1 + 5 // inside column 1
+	updated, _ = m.Update(tea.MouseMsg{X: releaseX, Y: 4, Type: tea.MouseRelease})
+	m = updated.(Model)
+	ft := findTaskInStore(s, "drag me")
+	if ft == nil || ft.Status != "doing" {
+		t.Fatalf("card status after drag = %+v", ft)
+	}
+}
+
+func TestMouseWheelMovesSelection(t *testing.T) {
+	m, _ := newTestModel(t, []*core.Task{
+		{Title: "one", Status: "todo", Priority: "low", Kind: core.KindTask},
+		{Title: "two", Status: "todo", Priority: "low", Kind: core.KindTask},
+		{Title: "three", Status: "todo", Priority: "low", Kind: core.KindTask},
+	})
+	updated, _ := m.Update(tea.MouseMsg{X: 40, Y: 5, Type: tea.MouseWheelDown})
+	m = updated.(Model)
+	if m.cursor != 2 {
+		t.Fatalf("cursor after wheel down = %d, want 2 (clamped to last row)", m.cursor)
+	}
+}
