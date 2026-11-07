@@ -1,15 +1,15 @@
                            ╭──────────────────────────────────────────────────────╮                                     
-   mtm   study desk        │   STS    PRIO  TITLE                        DUE      │   an extremely long title that      
-  mtm-default              │▌ ○ todo   HIGH an extremely long title that k… today │   keeps                             
-                           │▌ ○ todo   MED  short title                           │   ▌ inbox  ·  assignment            
-  V I E W S ────────────   │                                                      │                                     
-   Home                   │                                                      │    todo   [HIGH]                    
-   All                 2  │                                                      │                                     
-   Today               1  │                                                      │   DUE       today                   
-   Week                1  │                                                      │   CREATED   2026-11-07T14:32        
-   Overdue 1              │                                                      │   UPDATED   2026-11-07T14:32        
-  C O U R S E S ────────   │                                                      │                                     
-  ▌ inbox ░░░░ 2           │                                                      │   N O T E S                         
+  mtm · study desk         │   STS    PRIO  TITLE                        DUE      │   an extremely long title that      
+                           │▌ ○ todo   HIGH an extremely long title that k… today │   keeps                             
+  V I E W S ────────────   │▌ ○ todo   MED  short title                           │   ▌ inbox  ·  assignment            
+   Home                   │                                                      │                                     
+   All                 2  │                                                      │    todo   [HIGH]                    
+   Today               1  │                                                      │                                     
+   Week                1  │                                                      │   DUE       today                   
+   Overdue             1  │                                                      │   CREATED   2026-11-07T14:32        
+  C O U R S E S ────────   │                                                      │   UPDATED   2026-11-07T14:32        
+  ▌ inbox ░░░░          2  │                                                      │                                     
+                           │                                                      │   N O T E S                         
                            │                                                      │   No notes yet. Press m to write.   
                            │                                                      │                                     
                            │                                                      │                                     

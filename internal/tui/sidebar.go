@@ -3,10 +3,8 @@ package tui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
@@ -39,7 +37,7 @@ func sidebarRows(items []sidebarItem) []sidebarRow {
 }
 
 // brandLines is the number of pinned lines above the scrollable sections.
-const brandLines = 3
+const brandLines = 2
 
 func renderSidebar(m Model, w, h int) string {
 	innerW := w - 2*1 // no border, padX = 1 each side (panel convention)
@@ -84,7 +82,7 @@ func renderSidebar(m Model, w, h int) string {
 			continue
 		}
 		it := items[r.sel]
-		selected := r.sel == m.sidebarSel && m.focus == focusSidebar
+		selected := r.sel == m.sidebarSel
 		body = append(body, sidebarItemLine(m, it, innerW, selected))
 		line++
 	}
@@ -93,43 +91,25 @@ func renderSidebar(m Model, w, h int) string {
 	return renderPanel(m, "", w, h, m.focus == focusSidebar, body)
 }
 
-// brandBlock renders the pinned "mtm" wordmark + week-of-semester line.
+// brandBlock renders the pinned single-line wordmark: "mtm · study desk".
 func brandBlock(m Model, w int) []string {
 	s := m.styles
-	word := s.pillActive.Render(" mtm ")
-	tagline := "study desk"
-	line1 := " " + word + "  " + s.muted.Render(tagline)
-
-	weekLine := ""
-	if cfg := m.cfg; cfg.UI.SemesterStart != "" {
-		if start, err := time.ParseInLocation("2006-01-02", cfg.UI.SemesterStart, time.Local); err == nil {
-			now := m.clock.Now()
-			week := int(now.Sub(start).Hours()/(24*7)) + 1
-			weeks := cfg.UI.SemesterWeeks
-			if weeks <= 0 {
-				weeks = 16
-			}
-			if week < 1 {
-				week = 1
-			}
-			if week > weeks {
-				week = weeks
-			}
-			weekLine = fmt.Sprintf("week %d of %d · %s", week, weeks, m.palette.Name)
-		}
-	}
-	if weekLine == "" {
-		weekLine = m.palette.Name
-	}
-	line2 := " " + s.muted.Render(truncatePlain(weekLine, w-1))
-	return []string{line1, line2, ""}
+	line := " " + s.header.Render("mtm") + s.muted.Render(" · study desk")
+	return []string{line, ""}
 }
 
-// sidebarItemLine renders one selectable row at innerW cells.
+// sidebarItemLine renders one selectable row at innerW cells. The selected
+// row always carries a full-width highlight — raised when the sidebar is
+// focused, a dimmer blend when it is not.
 func sidebarItemLine(m Model, it sidebarItem, w int, selected bool) string {
 	fill := m.styles.surface
 	if selected {
-		fill = m.styles.raised
+		if m.focus == focusSidebar {
+			fill = m.styles.raised
+		} else {
+			dimRaised := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(lipgloss.Color(theme.Blend(m.palette.Surface, m.palette.SurfaceRaised, 0.55)))
+			fill = dimRaised
+		}
 	}
 
 	iconFor := func(name string) string { return m.icon(name) }
@@ -181,14 +161,11 @@ func sidebarItemLine(m Model, it sidebarItem, w int, selected bool) string {
 			right = fmt.Sprint(it.Count)
 		}
 	}
-	pad := w - runewidth.StringWidth(left) - runewidth.StringWidth(right) - 1
+	pad := w - lipgloss.Width(left) - lipgloss.Width(right) - 1
 	if pad < 1 {
 		pad = 1
 	}
 	line := " " + left + strings.Repeat(" ", pad) + right + " "
-	if selected {
-		return fill.Width(w).Render(line)
-	}
 	return fill.Width(w).Render(line)
 }
 
