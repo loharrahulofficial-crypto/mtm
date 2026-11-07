@@ -100,7 +100,7 @@ func newViewCmd() *cobra.Command {
 				return nil
 			}
 			fmt.Printf("view %q\n", name)
-			printTasks(os.Stdout, s.Tasks(), filtered, f.DoneCheck)
+			printTasks(os.Stdout, s.Tasks(), filtered, f.DoneCheck, cfg.Sort)
 			return nil
 		},
 	}

@@ -20,7 +20,7 @@ func newSearchCmd() *cobra.Command {
 			if strings.TrimSpace(query) == "" {
 				return fmt.Errorf("a query is required, e.g. mtm search \"dbms\"")
 			}
-			_, s, err := openStore()
+			cfg, s, err := openStore()
 			if err != nil {
 				return err
 			}
@@ -47,7 +47,7 @@ func newSearchCmd() *cobra.Command {
 				return nil
 			}
 			fmt.Printf("%d match(es)\n", len(matches))
-			printTasks(os.Stdout, s.Tasks(), matches, func(p, st string) bool { return s.IsDoneStatus(p, st) })
+			printTasks(os.Stdout, s.Tasks(), matches, func(p, st string) bool { return s.IsDoneStatus(p, st) }, cfg.Sort)
 			return nil
 		},
 	}

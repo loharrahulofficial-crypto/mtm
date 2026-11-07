@@ -13,9 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// printTasks renders filtered with subtask tree indentation.
+// printTasks renders filtered with subtask tree indentation, sorted per cfg.
 // all is the full store slice (for subtask progress counts).
-func printTasks(w io.Writer, all []*core.Task, filtered []*core.Task, isDone func(string, string) bool) {
+func printTasks(w io.Writer, all []*core.Task, filtered []*core.Task, isDone func(string, string) bool, sortKeys []string) {
+	core.SortTasks(filtered, sortKeys, isDone)
 	head := map[string][2]int{}
 	for _, t := range all {
 		if t.Parent == "" {
@@ -79,7 +80,7 @@ func printTasksJSON(w io.Writer, filtered []*core.Task) error {
 
 // runDueWindow is shared by today/week/overdue.
 func runDueWindow(window string, all bool, asJSON bool) error {
-	_, s, err := openStore()
+	cfg, s, err := openStore()
 	if err != nil {
 		return err
 	}
@@ -99,7 +100,7 @@ func runDueWindow(window string, all bool, asJSON bool) error {
 		fmt.Printf("nothing %s\n", window)
 		return nil
 	}
-	printTasks(os.Stdout, s.Tasks(), filtered, f.DoneCheck)
+	printTasks(os.Stdout, s.Tasks(), filtered, f.DoneCheck, cfg.Sort)
 	return nil
 }
 
@@ -121,7 +122,7 @@ func newListCmd() *cobra.Command {
 			if !core.ValidDue(due) {
 				return fmt.Errorf("invalid --due %q (want today|week|overdue)", due)
 			}
-			_, s, err := openStore()
+			cfg, s, err := openStore()
 			if err != nil {
 				return err
 			}
@@ -139,7 +140,7 @@ func newListCmd() *cobra.Command {
 				fmt.Println("no tasks")
 				return nil
 			}
-			printTasks(os.Stdout, s.Tasks(), filtered, f.DoneCheck)
+			printTasks(os.Stdout, s.Tasks(), filtered, f.DoneCheck, cfg.Sort)
 			return nil
 		},
 	}

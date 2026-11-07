@@ -47,6 +47,36 @@ func TestFileOverridesDefaults(t *testing.T) {
 	}
 }
 
+func TestSortConfigValidation(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	write := func(content string) {
+		t.Helper()
+		dir := filepath.Join(xdg, "mtm")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("sort: [due, title]\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Sort) != 2 || cfg.Sort[0] != "due" || cfg.Sort[1] != "title" {
+		t.Fatalf("sort = %v", cfg.Sort)
+	}
+	if err := os.Remove(filepath.Join(xdg, "mtm", "config.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	write("sort: [urgency]\n")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for unknown sort key")
+	}
+}
+
 func TestCorruptConfigFails(t *testing.T) {
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)

@@ -8,18 +8,24 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	DataRepo       string         `yaml:"data_repo"`
-	DefaultProject string         `yaml:"default_project"`
-	Editor         string         `yaml:"editor"`
-	DateFormat     string         `yaml:"date_format"`
-	WeekStart      string         `yaml:"week_start"`
-	Sync           SyncConfig     `yaml:"sync"`
-	Pomodoro       PomodoroConfig `yaml:"pomodoro"`
-	SavedViews     []SavedView    `yaml:"saved_views"`
+	DataRepo       string `yaml:"data_repo"`
+	DefaultProject string `yaml:"default_project"`
+	Editor         string `yaml:"editor"`
+	DateFormat     string `yaml:"date_format"`
+	WeekStart      string `yaml:"week_start"`
+	// Sort is the task-list sort order: done|due|priority|title, applied in
+	// order. Empty means the built-in default (not-done, due, priority, title).
+	Sort       []string       `yaml:"sort"`
+	Sync       SyncConfig     `yaml:"sync"`
+	Pomodoro   PomodoroConfig `yaml:"pomodoro"`
+	SavedViews []SavedView    `yaml:"saved_views"`
+	// Keys overrides TUI key bindings: action name -> key(s), space-separated.
+	Keys map[string]string `yaml:"keys"`
 }
 
 type SyncConfig struct {
@@ -47,6 +53,7 @@ func Default() Config {
 		Editor:         "", // resolved from $EDITOR/$VISUAL/vi at use site
 		DateFormat:     "2006-01-02",
 		WeekStart:      "monday",
+		Sort:           append([]string(nil), core.DefaultSortKeys...),
 		Sync: SyncConfig{
 			Auto:            true,
 			DebounceSeconds: 2,
@@ -133,6 +140,11 @@ func Load() (Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return cfg, fmt.Errorf("parse config %s: %w", Path(), err)
 	}
+	keys, err := core.ParseSortKeys(cfg.Sort)
+	if err != nil {
+		return cfg, fmt.Errorf("config %s: %w", Path(), err)
+	}
+	cfg.Sort = keys
 	cfg.DataRepo = ExpandPath(cfg.DataRepo)
 	return cfg, nil
 }
