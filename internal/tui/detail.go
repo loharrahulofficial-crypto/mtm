@@ -24,15 +24,18 @@ type detailData struct {
 
 func (m *Model) detailTask() *core.Task {
 	if m.view == viewBoard {
-		if t := m.selectedBoardTask(); t != nil {
-			return t
-		}
+		// The board owns the detail pane: an empty board shows nothing,
+		// never a stale list-cursor task.
+		return m.selectedBoardTask()
 	}
 	if m.view == viewCalendar {
+		// The calendar owns the detail pane: an empty day shows a day
+		// summary (handled by renderDetail), never a stale task.
 		agenda := agendaTasks(*m)
 		if m.calAgendaSel >= 0 && m.calAgendaSel < len(agenda) {
 			return agenda[m.calAgendaSel]
 		}
+		return nil
 	}
 	if m.view == viewHome {
 		return m.homeSelectedTask()
@@ -73,16 +76,23 @@ func (m Model) renderDetail(w, h int) string {
 
 	bgSurface := lipgloss.Color(m.palette.Surface)
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bgSurface)
+
+	if t == nil && m.view == viewCalendar {
+		// Following the calendar cursor: an empty day gets a day summary,
+		// never a stale task.
+		return renderCenteredBlock(m, w, h, []string{
+			lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(bgSurface).Bold(true).Render(dayStartT(m.calDay).Format("Monday, January 2")),
+			muted.Render("Nothing due"),
+		})
+	}
 	meta := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgSurface)
 	bright := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(bgSurface).Bold(true)
 
 	if t == nil {
-		empty := []string{
-			"",
-			s.muted.Render("  Nothing selected."),
-			s.muted.Render("  Pick a task and it shows up here."),
-		}
-		return renderPanel(m, "", w, h, m.focus == focusDetail, empty)
+		return renderCenteredBlock(m, w, h, []string{
+			muted.Render("Nothing selected"),
+			muted.Render("pick a task and it shows up here"),
+		})
 	}
 
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
@@ -223,6 +233,25 @@ func (m Model) renderDetail(w, h int) string {
 		body = append(body, " "+padToWidth(l, notesW, bgSurface))
 	}
 	return renderPanel(m, "", w, h, m.focus == focusDetail, body)
+}
+
+// renderCenteredBlock renders lines centered on a plain surface block with
+// no border — used for empty states in the detail pane.
+func renderCenteredBlock(m Model, w, h int, lines []string) string {
+	surf := lipgloss.Color(m.palette.Surface)
+	out := make([]string, 0, h)
+	top := (h - len(lines)) / 2
+	for i := 0; i < top; i++ {
+		out = append(out, "")
+	}
+	for _, l := range lines {
+		pad := (w - lipgloss.Width(l)) / 2
+		if pad < 0 {
+			pad = 0
+		}
+		out = append(out, strings.Repeat(" ", pad)+l)
+	}
+	return paint(strings.Join(out, "\n"), w, h, surf)
 }
 
 // homeSelectedTask is defined in homeview.go; the detail pane reuses it in

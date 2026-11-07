@@ -1,7 +1,7 @@
                             mtm   Sat 7 Nov · mtm-default           ○ local  14:32                                      
    mtm   study desk         Good afternoon, Rahul.  0 due today · 0 overdue                                             
-  mtm-default                                                                          Nothing selected.                
-                           ╭─ T O D A Y ──────────────────────────────────────────╮    Pick a task and it shows up here 
+  mtm-default                                                                                                           
+                           ╭─ T O D A Y ──────────────────────────────────────────╮                                     
   V I E W S ────────────   │                                                      │                                     
    Home                   │ ✦ nothing due today — a clear day                    │                                     
    All                    │   press a to add something for later                 │                                     
@@ -16,8 +16,8 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
-                             C O U R S E S ───────────────────────────────────────                                      
-                                                                                                                        
+                             C O U R S E S ───────────────────────────────────────            Nothing selected          
+                                                                                      pick a task and it shows up here  
                              ✦ no courses yet — add one with `mtm project add`                                          
                                                                                                                         
                                                                                                                         

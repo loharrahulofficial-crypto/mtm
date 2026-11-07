@@ -1,7 +1,7 @@
                            ╭──────────────────────────────────────────────────────╮                                     
    mtm   study desk        │   STS    PRIO  TITLE                        DUE      │                                     
-  mtm-default              │ ✦ nothing here — nice.                               │    Nothing selected.                
-                           │                                                      │    Pick a task and it shows up here 
+  mtm-default              │ ✦ nothing here — nice.                               │                                     
+                           │                                                      │                                     
   V I E W S ────────────   │                                                      │                                     
    Home                   │                                                      │                                     
    All                    │                                                      │                                     
@@ -16,8 +16,8 @@
                            │                                                      │                                     
                            │                                                      │                                     
                            │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
+                           │                                                      │           Nothing selected          
+                           │                                                      │   pick a task and it shows up here  
                            │                                                      │                                     
                            │                                                      │                                     
                            │                                                      │                                     

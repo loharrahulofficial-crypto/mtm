@@ -91,9 +91,111 @@ func agendaTasks(m Model) []*core.Task {
 	return out
 }
 
-// calendarCellStyle picks the style for one day cell. Today keeps its own
-// filled-pill style even when the calendar cursor is on it; the selected day
-// gets a raised fill with accent-bold numerals (the pill still wins).
+// calendarCell renders one day cell as cellH lines of exactly cw cells.
+// Block on surface with the day number top-left; out-of-month/weekend days
+// are dimmed; today wears an accent pill on an accent-tinted cell; the
+// selected day sits on raised with an accent underline. Task dots and the
+// day's dot overflow land on the bottom-left; wide-enough/tall-enough cells
+// also show up to two truncated task titles.
+func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []string {
+	todayCell := dayStartT(day).Equal(today)
+	isSelected := dayStartT(day).Equal(dayStartT(m.calDay))
+
+	bg := lipgloss.Color(m.palette.Surface)
+	if todayCell {
+		// Faint accent tint (12% of accent over surface).
+		tint := theme.Blend(m.palette.Surface, m.palette.Accent, 0.12)
+		bg = lipgloss.Color(tint)
+	}
+	if isSelected {
+		bg = lipgloss.Color(m.palette.SurfaceRaised)
+	}
+	fill := lipgloss.NewStyle().Background(bg)
+	gitRun := func(row string) string {
+		if pad := cw - lipgloss.Width(row); pad > 0 {
+			row += fill.Render(strings.Repeat(" ", pad))
+		}
+		// A row wider than cw is clipped by the panel.
+		return row
+	}
+
+	// Row 0: day number (pill for today, bold accent when cursor is on it).
+	numStr := fmt.Sprintf("%d", day.Day())
+	st := calendarCellStyle(m, day)
+	switch {
+	case todayCell:
+		numStr = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Accent)).Bold(true).Render(" " + numStr + " ")
+	case isSelected:
+		numStr = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render(" " + numStr)
+	default:
+		numStr = lipgloss.NewStyle().Foreground(st.GetForeground()).Background(bg).Bold(st.GetBold()).Render(" " + numStr)
+	}
+
+	out := []string{gitRun(numStr)}
+	for i := 1; i < cellH; i++ {
+		out = append(out, gitRun(""))
+	}
+
+	// Task titles (only when the cell can breathe).
+	if cellH >= 5 && cw >= 14 {
+		tasks := tasksDueOn(m, day)
+		maxTitles := 2
+		if cellH-2 < maxTitles {
+			maxTitles = cellH - 2
+		}
+		for i := 0; i < len(tasks) && i < maxTitles; i++ {
+			t := tasks[i]
+			done := m.store.IsDoneStatus(t.Project, t.Status)
+			ts := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg)
+			if done {
+				ts = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Strikethrough(true)
+			}
+			out[1+i] = gitRun(" " + ts.Render(truncatePlain(t.Title, cw-2)))
+		}
+	}
+
+	// Dots row (bottom-left), with +N overflow and an exam marker.
+	colors, total, _, exam := dotsForDay(m, day)
+	dotsRow := " "
+	for _, c := range colors {
+		dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Background(bg).Render("●")
+	}
+	if total > len(colors) {
+		dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Render(fmt.Sprintf("+%d", total-len(colors)))
+	}
+	if exam {
+		dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render("✦")
+	}
+	dotsLine := cw > 0 && dotsRow != " "
+
+	// Bottom row: selected → accent underline rule; else dots.
+	last := cellH - 1
+	if isSelected {
+		out[last] = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Render(strings.Repeat("─", cw))
+		if dotsLine && last-1 >= 1 {
+			out[last-1] = gitRun(dotsRow)
+		}
+		return out
+	}
+	if dotsLine {
+		out[last] = gitRun(dotsRow)
+	}
+	return out
+}
+
+// tasksDueOn returns tasks due on day, sorted like the agenda.
+func tasksDueOn(m Model, day time.Time) []*core.Task {
+	saved := m.calDay
+	m.calDay = day
+	out := agendaTasks(m)
+	m.calDay = saved
+	return out
+}
+
+// calendarCellStyle picks the base style for one day's number. Today keeps
+// its own filled-pill style even when the cursor is on it; the selected day
+// gets the accent treatment (the pill still wins). Used for the dimmed/hot
+// precedence: out-of-month → weekend → overdue → plain.
 func calendarCellStyle(m Model, day time.Time) lipgloss.Style {
 	s := m.styles
 	today := m.clock.Today()
@@ -168,6 +270,55 @@ func center(s string, w int) string {
 	return strings.Repeat(" ", left) + s + strings.Repeat(" ", w-left-sd)
 }
 
+// calendarGrid computes the grid start day and the number of weeks to show.
+func calendarGrid(m Model) (gridStart time.Time, weeks int) {
+	first := m.calMonth
+	wd := int(first.Weekday())
+	offset := wd - 1 // monday-first
+	if strings.ToLower(m.cfg.WeekStart) == "sunday" {
+		offset = wd
+	}
+	if offset < 0 {
+		offset += 7
+	}
+	gridStart = first.AddDate(0, 0, -offset)
+
+	weeks = 6
+	// Skip the 6th row when nothing of this month lands in it.
+	sixth := gridStart.AddDate(0, 0, 35)
+	if sixth.Month() != m.calMonth.Month() && sixth.AddDate(0, 0, 6).Month() != m.calMonth.Month() {
+		weeks = 5
+	}
+	return gridStart, weeks
+}
+
+// calendarLayout computes the cell width and grid height for the current
+// content box: cw is the single cell width shared by weekday headers and
+// day cells; cells are separated by 1-cell base gutters.
+func calendarLayout(m Model, w, h int) (cw, cellH, weeks int, gridStart time.Time) {
+	const gap = 1
+	cw = (w - 6*gap) / 7
+	if cw < 4 {
+		cw = 4
+	}
+	gridStart, weeks = calendarGrid(m)
+
+	agendaRows := 2 // header + at least one line (empty state)
+	if n := len(agendaTasks(m)); n > 0 {
+		agendaRows = 1 + n
+	}
+	if maxAgenda := h / 2; agendaRows > maxAgenda {
+		agendaRows = maxAgenda
+	}
+	// Reserve: title(1) + weekday(1) + blank before agenda(1) + agenda rows.
+	gridAvail := h - 3 - agendaRows
+	cellH = gridAvail / weeks
+	if cellH < 3 {
+		cellH = 3
+	}
+	return cw, cellH, weeks, gridStart
+}
+
 func weekdayHeaders(weekStart string) []string {
 	short := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
 	ws := strings.ToLower(strings.TrimSpace(weekStart))
@@ -180,19 +331,16 @@ func weekdayHeaders(weekStart string) []string {
 // renderCalendarBody renders the calendar content (inner width × inner height).
 func renderCalendarBody(m Model, w, h int) []string {
 	s := m.styles
-	now := m.clock.Now()
-	_ = now
 	today := m.clock.Today()
 
 	bgSurface := lipgloss.Color(m.palette.Surface)
+	baseBGcolor := lipgloss.Color(m.palette.Base)
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgSurface)
 
 	if w < 28 {
 		return []string{s.muted.Render("terminal too narrow")}
 	}
-	colW := w / 7
-
-	lines := []string{}
+	const gap = 1
 
 	// Title: month year · right-aligned ‹ › hints.
 	title := strings.ToUpper(m.calMonth.Format("January 2006"))
@@ -201,64 +349,55 @@ func renderCalendarBody(m Model, w, h int) []string {
 	titleW := w - hintW - 2
 	cap_ := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(bgSurface).Bold(true).Render(title)
 	titleLine := " " + cap_ + strings.Repeat(" ", max(0, titleW-lipglossWidth(cap_))) + " " + muted.Render(hints)
-	lines = append(lines, padToWidth(titleLine, w, bgSurface))
+	lines := []string{padToWidth(titleLine, w, bgSurface)}
 
-	// Weekday caps.
+	cw, cellH, weeks, gridStart := calendarLayout(m, w, h)
+	_ = cellH
+	baseGutter := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base)).Render(strings.Repeat(" ", gap))
+
+	// Weekday caps, centered over their columns (same cw + gaps).
 	weekday := weekdayHeaders(m.cfg.WeekStart)
 	weekNames := []string{}
 	for _, d := range weekday {
 		weekNames = append(weekNames, strings.ToUpper(d))
 	}
-	if colW < 5 {
+	if cw < 5 {
 		weekNames = []string{"M", "T", "W", "T", "F", "S", "S"}
 		if strings.ToLower(m.cfg.WeekStart) == "sunday" {
 			weekNames = []string{"S", "M", "T", "W", "T", "F", "S"}
 		}
 	}
-	wkLine := ""
+	headCells := make([]string, 0, 7)
 	for _, name := range weekNames {
-		wkLine += muted.Width(colW).Render(center(name, colW))
+		headCells = append(headCells, muted.Width(cw).Render(center(name, cw)))
 	}
-	lines = append(lines, wkLine)
+	lines = append(lines, joinGridRow(baseBGcolor, baseGutter, headCells, w))
 
-	// Grid: find first cell.
-	first := m.calMonth
-	wd := int(first.Weekday())
-	offset := wd - 1 // monday-first
-	if strings.ToLower(m.cfg.WeekStart) == "sunday" {
-		offset = wd
-	}
-	if offset < 0 {
-		offset += 7
-	}
-	gridStart := first.AddDate(0, 0, -offset)
-
-	weeks := 6
-	// Skip the 6th row when nothing of this month lands in it.
-	sixth := gridStart.AddDate(0, 0, 35)
-	if sixth.Month() != m.calMonth.Month() && sixth.AddDate(0, 0, 6).Month() != m.calMonth.Month() {
-		weeks = 5
-	}
-
-	gridTop := len(lines)
+	// Grid: cellH rows per week, gaps showing base.
 	for week := 0; week < weeks; week++ {
 		weekStart := gridStart.AddDate(0, 0, week*7)
-		cells := make([]string, 0, 7)
+		cells := make([][]string, 0, 7)
 		for d := 0; d < 7; d++ {
 			day := weekStart.AddDate(0, 0, d)
-			cells = append(cells, calendarCell(m, day, colW, today))
+			cells = append(cells, calendarCell(m, day, cw, cellH, today))
 		}
-		lines = append(lines, strings.Join(cells, ""))
+		for row := 0; row < cellH; row++ {
+			rowCells := make([]string, 0, 7)
+			for d := 0; d < 7; d++ {
+				rowCells = append(rowCells, cells[d][row])
+			}
+			lines = append(lines, joinGridRow(baseBGcolor, baseGutter, rowCells, w))
+		}
 	}
 
 	// Agenda.
-	lines = append(lines, "")
+	lines = append(lines, padToWidth("", w, bgSurface))
 	agendaHead := dayStartT(m.calDay).Format("January 2, 2006")
 	if dayStartT(m.calDay).Equal(today) {
 		agendaHead = "TODAY · " + agendaHead
 	}
 	agCap := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bgSurface).Bold(true).Render(strings.ToUpper(agendaHead))
-	lines = append(lines, " "+agCap)
+	lines = append(lines, padToWidth(" "+agCap, w, bgSurface))
 
 	agenda := agendaTasks(m)
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
@@ -302,104 +441,52 @@ func renderCalendarBody(m Model, w, h int) []string {
 		lines = append(lines, padToWidth(line, w, bgSurface))
 	}
 	if len(agenda) == 0 {
-		lines = append(lines, s.muted.Render(" "+m.icon("check")+" nothing due — a clear day"))
+		lines = append(lines, padToWidth(" "+s.muted.Render(m.icon("check")+" nothing due — a clear day"), w, bgSurface))
 	}
 
-	_ = gridTop
 	return lines
 }
 
-// calendarCell renders one fixed-width day cell.
-func calendarCell(m Model, day time.Time, colW int, today time.Time) string {
-	todayCell := dayStartT(day).Equal(today)
-	isSelected := dayStartT(day).Equal(dayStartT(m.calDay))
-	isThisMonth := day.Month() == m.calMonth.Month()
-	isWeekend := day.Weekday() == time.Saturday || day.Weekday() == time.Sunday
-
-	bg := lipgloss.Color(m.palette.Surface)
-	if isSelected {
-		bg = lipgloss.Color(m.palette.SurfaceRaised)
+// joinGridRow joins grid cells with the base gutter and pads with base to w.
+func joinGridRow(baseBG lipgloss.Color, gutter string, cells []string, w int) string {
+	line := strings.Join(cells, gutter)
+	if pad := w - lipgloss.Width(line); pad > 0 {
+		line += lipgloss.NewStyle().Background(baseBG).Render(strings.Repeat(" ", pad))
 	}
-
-	numStr := fmt.Sprintf("%2d", day.Day())
-	numStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg)
-	switch {
-	case todayCell:
-		numStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Accent)).Bold(true)
-	case isSelected:
-		numStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true)
-	case !isThisMonth || isWeekend:
-		numStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg)
-	default:
-	}
-
-	_, total, anyOverdue, exam := dotsForDay(m, day)
-	num := numStyle.Render(numStr)
-	if anyOverdue && !todayCell && !isSelected {
-		num = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.HeatOverdue)).Background(bg).Bold(true).Render(numStr)
-	}
-
-	suffix := ""
-	colors, _, _, _ := dotsForDay(m, day)
-	for _, c := range colors {
-		suffix += lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Background(bg).Render("●")
-	}
-	if total > 3 {
-		suffix += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Render(fmt.Sprintf("+%d", total-3))
-	}
-	if exam {
-		suffix += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render("✦")
-	}
-
-	content := " " + num + " " + suffix
-	return lipgloss.NewStyle().Background(bg).Width(colW).Render(content)
+	return line
 }
 
 // clickCalendar selects the clicked day cell or an agenda line.
 func (m *Model) clickCalendar(x, y int) {
-	// Content starts at body line 2 (title + weekday). Grid lines follow.
 	if m.width < 28 {
 		return
 	}
-	colW := (m.width - 2) / 7
+	innerW := m.width - 2
+	contentH := m.height - 2
+	cw, cellH, weeks, gridStart := calendarLayout(*m, innerW, contentH)
+	_ = gridStart
+	const padTop = 1
 	gridTop := 2
 
-	weekday := weekdayHeaders(m.cfg.WeekStart)
-	_ = weekday
-	first := m.calMonth
-	wd := int(first.Weekday())
-	offset := wd - 1
-	if strings.ToLower(m.cfg.WeekStart) == "sunday" {
-		offset = wd
-	}
-	if offset < 0 {
-		offset += 7
-	}
-	gridStart := first.AddDate(0, 0, -offset)
-	weeks := 6
-	sixth := gridStart.AddDate(0, 0, 35)
-	if sixth.Month() != m.calMonth.Month() && sixth.AddDate(0, 0, 6).Month() != m.calMonth.Month() {
-		weeks = 5
-	}
-
-	// Account for the panel pad row: mouse y is absolute; body starts at y=1.
-	const padTop = 1
 	gy := y - padTop - gridTop
-	if gy >= 0 && gy < weeks {
-		col := (x - 1) / colW // body inset 1
-		if col > 6 {
-			col = 6
+	week := gy / cellH
+	if gy >= 0 && week < weeks {
+		col := x - 1 // body inset 1
+		cell := col / (cw + 1)
+		within := col % (cw + 1)
+		if cell > 6 {
+			cell = 6
 		}
-		if col < 0 {
-			col = 0
+		if cell < 0 || within == cw {
+			return // clicked a base gutter
 		}
-		m.calDay = gridStart.AddDate(0, 0, gy*7+col)
+		m.calDay = gridStart.AddDate(0, 0, week*7+cell)
 		m.calMonth = time.Date(m.calDay.Year(), m.calDay.Month(), 1, 0, 0, 0, 0, m.calDay.Location())
 		m.calAgendaSel = 0
 		return
 	}
 	// Agenda selection.
-	agendaTop := padTop + gridTop + weeks + 2 // blank + agenda header
+	agendaTop := padTop + gridTop + weeks*cellH + 2 // blank + agenda header
 	idx := y - agendaTop
 	if idx >= 0 && idx < len(agendaTasks(*m)) {
 		m.calAgendaSel = idx

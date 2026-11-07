@@ -55,6 +55,31 @@ func TestCalendarCursorStartsToday(t *testing.T) {
 	}
 }
 
+// An empty day in the calendar must show a day summary in the detail pane,
+// not a stale task from the previously selected day.
+func TestCalendarDetailFollowsSelectionEmptyDay(t *testing.T) {
+	m, _ := newTestModel(t, []*core.Task{
+		{Title: "task today", Project: "inbox", Status: "todo", Kind: core.KindTask, Due: time.Now().Format("2006-01-02")},
+	})
+	m.view = viewCalendar
+	m.calDay = m.clock.Today()
+	detail := m.renderDetail(36, 30)
+	plain := stripANSI(detail)
+	if !strings.Contains(plain, "task today") {
+		t.Fatalf("detail should show today's task, got:\n%s", plain)
+	}
+	// Move to a day with nothing due; the detail must not show the task.
+	m.calDay = m.clock.Today().AddDate(0, 0, 9)
+	detail = m.renderDetail(36, 30)
+	plain = stripANSI(detail)
+	if strings.Contains(plain, "task today") {
+		t.Fatalf("stale task leaked into the empty day's detail:\n%s", plain)
+	}
+	if !strings.Contains(plain, "Nothing due") {
+		t.Fatalf("empty day should show the Nothing-due summary, got:\n%s", plain)
+	}
+}
+
 func calendarMonthTitle(m Model) string {
 	return m.calMonth.Format("January 2006")
 }
