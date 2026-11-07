@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"gopkg.in/yaml.v3"
@@ -26,6 +27,7 @@ type Config struct {
 	SavedViews []SavedView    `yaml:"saved_views"`
 	// Keys overrides TUI key bindings: action name -> key(s), space-separated.
 	Keys map[string]string `yaml:"keys,omitempty"`
+	UI   UIConfig          `yaml:"ui"`
 }
 
 type SyncConfig struct {
@@ -44,6 +46,18 @@ type PomodoroConfig struct {
 type SavedView struct {
 	Name   string `yaml:"name"`
 	Filter string `yaml:"filter"`
+}
+
+// UIConfig carries the "ui:" presentation block (Study Desk design language).
+type UIConfig struct {
+	// Animations caps every animation at 400ms and honors reduce-motion
+	// preferences. Default true.
+	Animations bool `yaml:"animations"`
+	// Icons selects the glyph set: nerd (Nerd Font, default) | unicode | none.
+	Icons string `yaml:"icons"`
+	// SemesterStart anchors the brand header's "Week N of M". Empty hides it.
+	SemesterStart string `yaml:"semester_start,omitempty"` // 2006-01-02
+	SemesterWeeks int    `yaml:"semester_weeks,omitempty"` // default 16
 }
 
 func Default() Config {
@@ -66,6 +80,11 @@ func Default() Config {
 			LongEvery:         4,
 		},
 		SavedViews: []SavedView{},
+		UI: UIConfig{
+			Animations:    true,
+			Icons:         "nerd",
+			SemesterWeeks: 16,
+		},
 	}
 }
 
@@ -145,6 +164,22 @@ func Load() (Config, error) {
 		return cfg, fmt.Errorf("config %s: %w", Path(), err)
 	}
 	cfg.Sort = keys
+	switch icons := strings.ToLower(strings.TrimSpace(cfg.UI.Icons)); icons {
+	case "nerd", "unicode", "none":
+		cfg.UI.Icons = icons
+	case "":
+		cfg.UI.Icons = "nerd"
+	default:
+		return cfg, fmt.Errorf("config %s: ui.icons must be nerd|unicode|none, got %q", Path(), cfg.UI.Icons)
+	}
+	if cfg.UI.SemesterStart != "" {
+		if _, err := time.Parse("2006-01-02", cfg.UI.SemesterStart); err != nil {
+			return cfg, fmt.Errorf("config %s: ui.semester_start must be 2006-01-02, got %q", Path(), cfg.UI.SemesterStart)
+		}
+	}
+	if cfg.UI.SemesterWeeks < 0 {
+		return cfg, fmt.Errorf("config %s: ui.semester_weeks must be >= 0, got %d", Path(), cfg.UI.SemesterWeeks)
+	}
 	cfg.DataRepo = ExpandPath(cfg.DataRepo)
 	return cfg, nil
 }

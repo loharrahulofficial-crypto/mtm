@@ -149,6 +149,10 @@ type Model struct {
 	inputKind  inputKind
 	inputLabel string
 
+	// presentation
+	icons      map[string]string
+	animations bool
+
 	// picker overlay
 	picker      pickerKind
 	pickerItems []string
@@ -234,6 +238,8 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 		hasRemote:      repo.HasRemote(cfg.Sync.Remote),
 		spinner:        sp,
 		lastSync:       time.Time{},
+		icons:          buildIcons(cfg.UI.Icons),
+		animations:     cfg.UI.Animations,
 	}
 	if unknown := m.keymap.ApplyOverrides(cfg.Keys); len(unknown) > 0 {
 		m.statusMsg = fmt.Sprintf("ignoring unknown keys: entries: %s", strings.Join(unknown, ", "))

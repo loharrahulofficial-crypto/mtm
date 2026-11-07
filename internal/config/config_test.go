@@ -120,3 +120,56 @@ func TestEditorCmdFallback(t *testing.T) {
 		t.Errorf("EditorCmd() = %q, want micro", got)
 	}
 }
+
+func TestUIConfigDefaults(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.UI.Animations || cfg.UI.Icons != "nerd" || cfg.UI.SemesterWeeks != 16 {
+		t.Fatalf("ui defaults wrong: %+v", cfg.UI)
+	}
+}
+
+func TestUIConfigParsingAndValidation(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	write := func(content string) {
+		t.Helper()
+		dir := filepath.Join(xdg, "mtm")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("ui:\n  animations: false\n  icons: unicode\n  semester_start: \"2026-09-01\"\n  semester_weeks: 18\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.Animations || cfg.UI.Icons != "unicode" || cfg.UI.SemesterStart != "2026-09-01" || cfg.UI.SemesterWeeks != 18 {
+		t.Fatalf("ui parse wrong: %+v", cfg.UI)
+	}
+	write("ui:\n  icons: bogus\n")
+	if _, err := Load(); err == nil {
+		t.Fatal("invalid icons accepted")
+	}
+	write("ui:\n  icons: NERD\n")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.Icons != "nerd" {
+		t.Fatalf("icons not normalized: %q", cfg.UI.Icons)
+	}
+	write("ui:\n  semester_start: \"07/11/2026\"\n")
+	if _, err := Load(); err == nil {
+		t.Fatal("invalid semester_start accepted")
+	}
+}
