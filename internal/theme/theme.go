@@ -16,7 +16,9 @@ import (
 
 // Palette is the semantic color set the TUI styles from. All values are
 // hex strings ("#rrggbb") or terminal color numbers when a terminal config
-// provided them; lipgloss accepts either.
+// provided them; lipgloss accepts either. Raw Omarchy values live in the
+// first block; the semantic roles below are computed by Derive() at load
+// time and are the only roles the TUI should use.
 type Palette struct {
 	Name       string
 	Mode       string // "dark" | "light"
@@ -36,12 +38,34 @@ type Palette struct {
 	Magenta    string
 	Cyan       string
 	Orange     string
+	Brown      string
+
+	// Semantic roles (derived).
+	Base          string
+	Surface       string
+	SurfaceRaised string
+	SurfaceStrong string
+	Border        string
+	Text          string
+	BrightText    string
+	MutedSoft     string
+	AccentSoft    string
+	Success       string
+	Warning       string
+	Danger        string
+
+	HeatWarm    string
+	HeatHot     string
+	HeatOverdue string
+
+	CoursePalette []string
+	Heatmap       []string
 }
 
 // Defaults is the built-in palette used when the Omarchy theme files are
 // missing or unreadable.
 func Defaults() Palette {
-	return Palette{
+	p := Palette{
 		Name:       "mtm-default",
 		Mode:       "dark",
 		Background: "#14282d",
@@ -60,7 +84,10 @@ func Defaults() Palette {
 		Magenta:    "#b5a0ba",
 		Cyan:       "#86b8b5",
 		Orange:     "#d7a06c",
+		Brown:      "#b79b7f",
 	}
+	p.Derive()
+	return p
 }
 
 // StateDir returns ~/.local/state/omarchy, honoring OMARCHY_STATE_HOME.
@@ -102,6 +129,7 @@ func LoadFrom(stateDir string) (Palette, error) {
 		if sel != "" {
 			p.Selection = sel
 		}
+		p.Derive()
 		return p, fmt.Errorf("colors.toml missing or unreadable — used terminal config fallback")
 	}
 	return p, fmt.Errorf("theme files missing under %s — used built-in defaults", themeDir(stateDir))
@@ -158,6 +186,7 @@ func parseColorsTOML(data []byte, name string) (Palette, bool) {
 	set("magenta", &p.Magenta)
 	set("cyan", &p.Cyan)
 	set("orange", &p.Orange)
+	set("brown", &p.Brown)
 	// A theme without at least background+foreground is not usable.
 	if _, ok := m["background"]; !ok {
 		return p, false
@@ -165,6 +194,7 @@ func parseColorsTOML(data []byte, name string) (Palette, bool) {
 	if _, ok := m["foreground"]; !ok {
 		return p, false
 	}
+	p.Derive()
 	return p, true
 }
 
