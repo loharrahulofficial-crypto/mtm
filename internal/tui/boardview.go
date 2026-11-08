@@ -235,6 +235,16 @@ func boardLayout(m Model, w int) (winStart, visCols, colW int) {
 	return winStart, visCols, colW
 }
 
+// contentHForClick mirrors renderBoardBody's usable card area height:
+// inner panel height minus the two header rows.
+func contentHForClick(m Model) int {
+	bodyH := m.height - 4 // panel pad+border (2) + header rows (2)
+	if bodyH < boardCardH {
+		bodyH = boardCardH
+	}
+	return bodyH
+}
+
 // boardInset is the 1-cell base-colored inset at the left and right edge of
 // the board body; boardGap is the 1-cell base-colored gap between columns.
 const (
@@ -317,62 +327,92 @@ func renderBoardBody(m Model, w, h int) []string {
 	lines = append(lines, baseInsetRow(baseBG, gutter, dirg, headerCells, w, rightHint))
 	lines = append(lines, baseInsetRow(baseBG, gutter, baseBG.Render(" "), underlineCells, w, ""))
 
-	// Cards.
+	// Cards. A card is 5 lines; its tags+sub-bar pack wraps to a 6th
+	// line when it doesn't fit (never clipped, never overlapping). Slot
+	// heights adapt per row across all visible columns, so card bottoms
+	// stay aligned. If the panel is too short for another slot, the
+	// overflow is summarized in a "+N more" line.
 	bodyH := h - 2
 	if bodyH < boardCardH {
 		bodyH = boardCardH
 	}
-	maxCards := bodyH / boardCardH
-	if maxCards < 1 {
-		maxCards = 1
-	}
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
 	head := subtaskCounts(m.store.Tasks(), isDone)
-	for r := 0; r < maxCards; r++ {
+	y := 0
+	slotsRendered := 0
+	for r := 0; ; r++ {
 		cardLines := make([][]string, 0, visCols)
 		for i := winStart; i < view; i++ {
 			if r < len(cols[i]) {
 				sel := i == m.boardCol && r == m.boardRow && m.focus != focusSidebar
 				cardLines = append(cardLines, renderCard(m, cols[i][r], colW, sel, now, head))
 			} else if r == 0 {
-				cardLines = append(cardLines, cardPlaceholder(m, colW))
+				cardLines = append(cardLines, cardPlaceholder(m, colW, boardCardH))
 			} else {
-				cardLines = append(cardLines, blankCard(m, colW))
+				cardLines = append(cardLines, blankCard(m, colW, boardCardH))
 			}
 		}
-		for lineIdx := 0; lineIdx < boardCardH; lineIdx++ {
+		slotH := boardCardH
+		for _, cl := range cardLines {
+			if len(cl) > slotH {
+				slotH = len(cl)
+			}
+		}
+		if y+slotH > bodyH {
+			break
+		}
+		for lineIdx := 0; lineIdx < slotH; lineIdx++ {
 			cells := make([]string, 0, len(cardLines))
 			for _, cl := range cardLines {
-				cells = append(cells, cl[lineIdx])
+				if lineIdx < len(cl) {
+					cells = append(cells, cl[lineIdx])
+				} else {
+					// Shorter card in a wrapped slot: pad with the card background.
+					cells = append(cells, lipgloss.NewStyle().Background(lipgloss.Color(m.palette.SurfaceRaised)).Render(strings.Repeat(" ", colW)))
+				}
 			}
 			lines = append(lines, baseInsetRow(baseBG, gutter, baseBG.Render(" "), cells, w, ""))
+		}
+		y += slotH
+		slotsRendered++
+		// Stop when every visible column is fully shown.
+		maxSlots := 0
+		for i := winStart; i < view; i++ {
+			if len(cols[i]) > maxSlots {
+				maxSlots = len(cols[i])
+			}
+		}
+		if r+1 >= maxSlots {
+			break
 		}
 	}
 	// Overflow indicator.
 	for i := winStart; i < view; i++ {
-		if i < len(cols) && len(cols[i]) > maxCards {
-			more := fmt.Sprintf("+%d more in %s", len(cols[i])-maxCards, strings.ToLower(statuses[i].Name))
-			lines = append(lines, padToWidth(baseBG.Render(" ")+s.muted.Render(truncatePlain(more, w-2)), w, lipgloss.Color(m.palette.Surface)))
+		if i < len(cols) && len(cols[i]) > slotsRendered {
+			more := fmt.Sprintf("+%d more in %s", len(cols[i])-slotsRendered, strings.ToLower(statuses[i].Name))
+			if y < bodyH {
+				lines = append(lines, padToWidth(baseBG.Render(" ")+s.muted.Render(truncatePlain(more, w-2)), w, lipgloss.Color(m.palette.Surface)))
+			}
 			break
 		}
 	}
 	return lines
 }
 
-func blankCard(m Model, w int) []string {
+func blankCard(m Model, w, n int) []string {
 	fill := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface))
-	out := make([]string, boardCardH)
+	out := make([]string, n)
 	for i := range out {
 		out[i] = fill.Render(strings.Repeat(" ", w))
 	}
 	return out
 }
 
-func cardPlaceholder(m Model, w int) []string {
+func cardPlaceholder(m Model, w, n int) []string {
 	surf := lipgloss.Color(m.palette.Surface)
 	fill := lipgloss.NewStyle().Background(surf)
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(surf)
-	out := make([]string, boardCardH)
+	out := make([]string, n)
 	for i := range out {
 		out[i] = fill.Render(strings.Repeat(" ", w))
 	}
@@ -382,8 +422,130 @@ func cardPlaceholder(m Model, w int) []string {
 	if left < 0 {
 		left = 0
 	}
-	out[boardCardH/2] = fill.Render(strings.Repeat(" ", left)) + muted.Render(txt) + fill.Render(strings.Repeat(" ", w-left-tw))
+	out[n/2] = fill.Render(strings.Repeat(" ", left)) + muted.Render(txt) + fill.Render(strings.Repeat(" ", w-left-tw))
 	return out
+}
+
+// chipWidths are the padded widths of the priority chips (" URG " …).
+func chipLabelWidth(p string) int {
+	switch strings.ToLower(strings.TrimSpace(p)) {
+	case "urgent":
+		return 5
+	case "high":
+		return 6
+	default:
+		return 5
+	}
+}
+
+// cardDueLabel is the due slot text for a card (done-aware).
+func cardDueLabel(m Model, t *core.Task, now time.Time, done bool) string {
+	if done {
+		if t.Completed != "" || t.Updated != "" || t.Due != "" {
+			return doneLabelFor(t, now)
+		}
+		return ""
+	}
+	if t.Due == "" {
+		return ""
+	}
+	label, _ := gauges.DueLabel(t.Due, now)
+	return label
+}
+
+// cardMetaPack builds the tags+sub-bar pack unit shared by rendering and
+// the mouse hit test: exactly 1 cell between "#tag" and the mini-bar,
+// never more and never less. Returns the rendered pack, its cell width
+// and the raw parts for the second line.
+func cardMetaPack(m Model, t *core.Task, now time.Time, head map[string][2]int, cardBg lipgloss.Color) (string, int, string) {
+	dimColor := lipgloss.Color(m.palette.Muted)
+	fill := func(st lipgloss.Style) lipgloss.Style { return st.Background(cardBg) }
+	sp := func(n int) string { return fill(lipgloss.NewStyle()).Render(strings.Repeat(" ", n)) }
+	hl := func(c string) lipgloss.Style {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Background(cardBg)
+	}
+
+	tagChip := ""
+	if len(t.Tags) > 0 {
+		tagChip = "#" + t.Tags[0]
+	}
+	subFill, subRest := "", ""
+	if head[t.ID][1] > 0 {
+		frac := float64(head[t.ID][0]) / float64(head[t.ID][1])
+		fillBar, _ := gauges.Bar(frac, 4)
+		subFill = fillBar
+		subRest = fmt.Sprintf(" %d/%d", head[t.ID][0], head[t.ID][1])
+	}
+	pack, parts := "", ""
+	packW := 0
+	if tagChip != "" {
+		pack += fill(lipgloss.NewStyle().Foreground(dimColor)).Render(tagChip)
+		parts += fill(lipgloss.NewStyle().Foreground(dimColor)).Render(tagChip)
+		packW += lipgloss.Width(tagChip)
+		if subFill != "" {
+			pack += sp(1)
+			parts += sp(1)
+			packW++
+		}
+	}
+	if subFill != "" {
+		pack += hl(theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))).Render(subFill) + fill(lipgloss.NewStyle().Foreground(dimColor)).Render(subRest)
+		parts += hl(theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))).Render(subFill) + fill(lipgloss.NewStyle().Foreground(dimColor)).Render(subRest)
+		packW += lipgloss.Width(subFill) + lipgloss.Width(subRest)
+	}
+	return pack, packW, parts
+}
+
+// cardMetaFits reports whether the pack unit fits after stripe+chip+due
+// on one line at card width w.
+func cardMetaFits(m Model, t *core.Task, w int, now time.Time, head map[string][2]int) bool {
+	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
+	done := isDone(t.Project, t.Status)
+	_, packW, _ := cardMetaPack(m, t, now, head, lipgloss.Color(m.palette.SurfaceRaised))
+	if packW == 0 {
+		return true
+	}
+	prefixW := 2 + chipLabelWidth(t.Priority) + 1
+	if label := cardDueLabel(m, t, now, done); label != "" {
+		prefixW += lipgloss.Width(label) + 1
+	}
+	return prefixW+packW <= w
+}
+
+// boardSlotHeights measures each visible card slot: 5 lines normally,
+// 6 when the tags+sub-bar pack wraps. Shared by the renderer and the
+// mouse hit test so they always agree on row positions.
+func boardSlotHeights(m Model, cols [][]*core.Task, w, bodyH int) [][2]int {
+	winStart, visCols, colW := boardLayout(m, w)
+	view := winStart + visCols
+	head := subtaskCounts(m.store.Tasks(), func(p, st string) bool { return m.store.IsDoneStatus(p, st) })
+	now := m.clock.Now()
+	maxSlots := 0
+	for i := winStart; i < view; i++ {
+		if len(cols[i]) > maxSlots {
+			maxSlots = len(cols[i])
+		}
+	}
+	slots := [][2]int{}
+	y := 0
+	for r := 0; ; r++ {
+		h := boardCardH
+		for i := winStart; i < view; i++ {
+			if r < len(cols[i]) && !cardMetaFits(m, cols[i][r], colW, now, head) {
+				h = boardCardH + 1
+				break
+			}
+		}
+		if y+h > bodyH {
+			break
+		}
+		slots = append(slots, [2]int{y, h})
+		y += h
+		if r+1 >= maxSlots {
+			break
+		}
+	}
+	return slots
 }
 
 func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head map[string][2]int) []string {
@@ -437,7 +599,9 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 			chip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Success)).Bold(true).Render(" ✔ ")
 		}
 	}
-	meta := stripe + bgFill.Render(" ") + chip + bgFill.Render(" ")
+	spCard := func(n int) string { return bgFill.Render(strings.Repeat(" ", n)) }
+	meta := stripe + spCard(1) + chip + spCard(1)
+	metaPrefixW := 2 + lipgloss.Width(chip) + 1
 
 	if t.Due != "" || (done && (t.Completed != "" || t.Updated != "")) {
 		dc := lipgloss.NewStyle().Background(cardBg)
@@ -459,24 +623,28 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 				dc = dc.Foreground(lipgloss.Color(m.palette.MutedSoft))
 			}
 		}
-		meta += dc.Render(label) + bgFill.Render(" ")
+		dueW := lipgloss.Width(label)
+		meta += dc.Render(label) + spCard(1)
+		metaPrefixW += dueW + 1
 	}
 
-	if len(t.Tags) > 0 {
-		tags := t.Tags
-		if len(tags) > 1 {
-			tags = tags[:1]
-		}
-		meta += fill(lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted))).Render("#" + tags[0])
+	// Tags and the subtask mini-bar form ONE pack unit ("#exam ▇▇ 4/6")
+	// separated by exactly 1 cell; it wraps as a unit to a second line
+	// when it doesn't fit.
+	pack, packW, packParts := cardMetaPack(m, t, now, head, cardBg)
+
+	metaLines := []string{}
+	if pack != "" && metaPrefixW+packW <= w {
+		meta += pack
+		metaLines = append(metaLines, padRightCard(meta, w, cardBg))
+	} else if pack != "" {
+		metaLines = append(metaLines, padRightCard(meta, w, cardBg))
+		metaLines = append(metaLines, padRightCard(stripe+spCard(1)+packParts, w, cardBg))
+	} else {
+		metaLines = append(metaLines, padRightCard(meta, w, cardBg))
 	}
 
-	if head[t.ID][1] > 0 {
-		frac := float64(head[t.ID][0]) / float64(head[t.ID][1])
-		fillBar, _ := gauges.Bar(frac, 4)
-		meta += hl(cardBg).Render(fillBar) + fill(lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted))).Render(fmt.Sprintf(" %d/%d", head[t.ID][0], head[t.ID][1]))
-	}
-
-	lines := []string{line1, line2, padRightCard(meta, w, cardBg)}
+	lines := append([]string{line1, line2}, metaLines...)
 
 	if selected {
 		top := border.Render("╭" + strings.Repeat("─", w-2) + "╮")
@@ -486,15 +654,17 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 			framed = append(framed, border.Render("│")+padRightCard(l, w-2, cardBg)+border.Render("│"))
 		}
 		framed = append(framed, bot)
-		return strings.Split(paint(strings.Join(framed, "\n"), w, boardCardH, cardBg), "\n")
+		return strings.Split(paint(strings.Join(framed, "\n"), w, len(framed), cardBg), "\n")
 	}
-	blank := strings.Repeat(" ", w)
-	out := []string{fill(lipgloss.NewStyle()).Render(blank)}
+	// The 5-line card is [blank, title1, title2, meta, blank]; a wrapped
+	// meta grows the card to 6 lines ([..., meta1, meta2, blank]).
+	blank := fill(lipgloss.NewStyle()).Render(strings.Repeat(" ", w))
+	out := []string{blank}
 	for _, l := range lines {
 		out = append(out, padRightCard(l, w, cardBg))
 	}
-	out = append(out, lipgloss.NewStyle().Background(cardBg).Render(blank))
-	return strings.Split(paint(strings.Join(out, "\n"), w, boardCardH, cardBg), "\n")
+	out = append(out, blank)
+	return strings.Split(paint(strings.Join(out, "\n"), w, len(out), cardBg), "\n")
 }
 
 // priorityChip renders a priority as an intentional badge chip (accent-filled
@@ -580,6 +750,8 @@ func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
 	}
 	local := x - 2 // panel pad (1) + body inset (1)
 	view := winStart + visCols
+	bodyH := contentHForClick(m)
+	slots := boardSlotHeights(m, cols, innerW, bodyH)
 	col := -1
 	for i := winStart; i < view; i++ {
 		off := boardInset + (i-winStart)*(colW+boardGap)
@@ -595,7 +767,17 @@ func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	row := (y - 3) / boardCardH // pad(1) + header(2)
+	row := -1
+	line := y - 3 // pad(1) + header(2)
+	for idx, sl := range slots {
+		if line >= sl[0] && line < sl[0]+sl[1] {
+			row = idx
+			break
+		}
+	}
+	if row < 0 {
+		return m, nil
+	}
 
 	if release {
 		if !m.boardDragging {
