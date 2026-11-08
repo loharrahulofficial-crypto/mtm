@@ -33,11 +33,50 @@ func (m Model) boardStatuses() []core.ProjectStatus {
 	return core.DefaultProject(m.boardProject()).Statuses
 }
 
-// boardColumns groups tasks of the board project by status, sorted per config.
-func boardColumns(m Model) [][]*core.Task {
+// boardColumn is the per-column view of the board: the tasks shown
+// (after the done-recency filter), the column total before that filter,
+// and how many were hidden by it (done columns only).
+type boardColumn struct {
+	name   string
+	shown  []*core.Task
+	total  int
+	hidden int
+	isDone bool
+}
+
+// doneStampTime is the completion timestamp used for done-column ordering
+// and the recency filter: Completed → Updated → Created → Due.
+func doneStampTime(t *core.Task) time.Time {
+	for _, s := range []string{t.Completed, t.Updated, t.Created} {
+		if ts, err := time.ParseInLocation(core.TimestampFormat, s, time.Local); err == nil {
+			return ts
+		}
+	}
+	if d, err := core.ParseDue(t.Due, time.Local); err == nil {
+		return d
+	}
+	return time.Time{}
+}
+
+// boardColumnsModel groups tasks of the board project by status. Done
+// columns obey board.done_days (default 14; 0 hides the filter): items
+// completed before the cutoff are hidden unless the user toggled D.
+// Done columns sort newest first; the rest follow cfg.Sort.
+func boardColumnsModel(m Model) []boardColumn {
 	statuses := m.boardStatuses()
-	cols := make([][]*core.Task, len(statuses))
+	cols := make([]boardColumn, len(statuses))
+	for i, st := range statuses {
+		cols[i].name = st.Name
+		cols[i].isDone = m.store.IsDoneStatus(m.boardProject(), st.Name)
+	}
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
+
+	now := m.clock.Now()
+	cutoff := time.Time{}
+	if days := m.cfg.Board.DoneDays; days > 0 && !m.boardDoneAll {
+		y, mo, d := now.Date()
+		cutoff = time.Date(y, mo, d, 0, 0, 0, 0, now.Location()).AddDate(0, 0, -days)
+	}
 
 	needle := strings.ToLower(strings.TrimSpace(m.needle))
 	for _, t := range m.store.Tasks() {
@@ -53,19 +92,45 @@ func boardColumns(m Model) [][]*core.Task {
 		placed := false
 		for i, st := range statuses {
 			if strings.EqualFold(t.Status, st.Name) {
-				cols[i] = append(cols[i], t)
+				cols[i].total++
+				if cols[i].isDone && !cutoff.IsZero() && doneStampTime(t).Before(cutoff) {
+					cols[i].hidden++
+					placed = true
+					break
+				}
+				cols[i].shown = append(cols[i].shown, t)
 				placed = true
 				break
 			}
 		}
 		if !placed && len(cols) > 0 {
-			cols[0] = append(cols[0], t) // unknown status: first column
+			cols[0].shown = append(cols[0].shown, t) // unknown status: first column
+			cols[0].total++
 		}
 	}
 	for i := range cols {
-		core.SortTasks(cols[i], m.cfg.Sort, isDone)
+		if cols[i].isDone {
+			shown := cols[i].shown
+			for j := 1; j < len(shown); j++ {
+				for k := j; k > 0 && doneStampTime(shown[k]).After(doneStampTime(shown[k-1])); k-- {
+					shown[k], shown[k-1] = shown[k-1], shown[k]
+				}
+			}
+			continue
+		}
+		core.SortTasks(cols[i].shown, m.cfg.Sort, isDone)
 	}
 	return cols
+}
+
+// boardColumns groups tasks of the board project by status, sorted per config.
+func boardColumns(m Model) [][]*core.Task {
+	cols := boardColumnsModel(m)
+	out := make([][]*core.Task, len(cols))
+	for i := range cols {
+		out[i] = cols[i].shown
+	}
+	return out
 }
 
 // moveBoardSelection moves the selection one column left/right (h/l).
@@ -112,6 +177,16 @@ func (m Model) updateBoardKey(act string) (tea.Model, tea.Cmd) {
 		m.moveBoardSelection(-1)
 	case aRight:
 		m.moveBoardSelection(+1)
+	case aDue:
+		// D toggles the Done column's recency filter (the in-column footer
+		// advertises it). Setting the due date stays available everywhere
+		// else (list view, palette).
+		m.boardDoneAll = !m.boardDoneAll
+		if m.boardDoneAll {
+			m.statusMsg = "board: showing all completed tasks"
+		} else {
+			m.statusMsg = fmt.Sprintf("board: done limited to the last %d days", m.cfg.Board.DoneDays)
+		}
 	case aJumpLeft:
 		return m.boardMoveCard(-1)
 	case aJumpRight:
@@ -276,7 +351,11 @@ func renderBoardBody(m Model, w, h int) []string {
 	s := m.styles
 	now := m.clock.Now()
 	statuses := m.boardStatuses()
-	cols := boardColumns(m)
+	colsModel := boardColumnsModel(m)
+	cols := make([][]*core.Task, len(colsModel))
+	for i := range colsModel {
+		cols[i] = colsModel[i].shown
+	}
 
 	n := len(statuses)
 	if n == 0 {
@@ -298,12 +377,7 @@ func renderBoardBody(m Model, w, h int) []string {
 	underlineCells := make([]string, 0, visCols)
 	for i := winStart; i < view; i++ {
 		st := statuses[i]
-		count := 0
-		if i < len(cols) {
-			count = len(cols[i])
-		}
-		name := strings.ToUpper(st.Name)
-		label := fmt.Sprintf("%s · %d", name, count)
+		label := fmt.Sprintf("%s · %d of %d", strings.ToUpper(st.Name), len(cols[i]), colsModel[i].total)
 		hcell := s.dim
 		switch {
 		case m.boardDragging && i != m.boardCol:
@@ -331,8 +405,25 @@ func renderBoardBody(m Model, w, h int) []string {
 	// line when it doesn't fit (never clipped, never overlapping). Slot
 	// heights adapt per row across all visible columns, so card bottoms
 	// stay aligned. If the panel is too short for another slot, the
-	// overflow is summarized in a "+N more" line.
-	bodyH := h - 2
+	// overflow is summarized in a "+N more" cell inside the column.
+	// The footer rows ("+N more" and the done-recency "+N older") borrow
+	// up to two rows from the card area.
+	maxFitPreview := (h - 2) / boardCardH
+	reserve := 0
+	hiddenVisible := 0
+	for i := winStart; i < view; i++ {
+		if len(cols[i]) > maxFitPreview {
+			reserve++
+			break
+		}
+	}
+	for i := winStart; i < view; i++ {
+		hiddenVisible += colsModel[i].hidden
+	}
+	if hiddenVisible > 0 {
+		reserve++
+	}
+	bodyH := h - 2 - reserve
 	if bodyH < boardCardH {
 		bodyH = boardCardH
 	}
@@ -386,17 +477,83 @@ func renderBoardBody(m Model, w, h int) []string {
 			break
 		}
 	}
-	// Overflow indicator.
+	// Footer rows, rendered inside the columns. "+N more" when a column
+	// overflows the slot area; the done-recency footer when the done
+	// filter hid older completions.
+	overflow := false
 	for i := winStart; i < view; i++ {
-		if i < len(cols) && len(cols[i]) > slotsRendered {
-			more := fmt.Sprintf("+%d more in %s", len(cols[i])-slotsRendered, strings.ToLower(statuses[i].Name))
-			if y < bodyH {
-				lines = append(lines, padToWidth(baseBG.Render(" ")+s.muted.Render(truncatePlain(more, w-2)), w, lipgloss.Color(m.palette.Surface)))
-			}
+		if len(cols[i]) > slotsRendered {
+			overflow = true
 			break
 		}
 	}
+	if overflow {
+		cells := make([]string, 0, visCols)
+		for i := winStart; i < view; i++ {
+			if len(cols[i]) > slotsRendered {
+				cells = append(cells, boardFooterCell(m, colW, fmt.Sprintf("+%d more", len(cols[i])-slotsRendered), true))
+			} else {
+				cells = append(cells, blankFooterCell(m, colW))
+			}
+		}
+		lines = append(lines, baseInsetRow(baseBG, gutter, baseBG.Render(" "), cells, w, ""))
+	}
+	if hiddenVisible > 0 {
+		cells := make([]string, 0, visCols)
+		for i := winStart; i < view; i++ {
+			if colsModel[i].hidden > 0 {
+				cells = append(cells, boardDoneFooterCell(m, colW, colsModel[i].hidden))
+			} else {
+				cells = append(cells, blankFooterCell(m, colW))
+			}
+		}
+		lines = append(lines, baseInsetRow(baseBG, gutter, baseBG.Render(" "), cells, w, ""))
+	}
 	return lines
+}
+
+// blankFooterCell renders a surface-filled footer cell.
+func blankFooterCell(m Model, w int) string {
+	return lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface)).Render(strings.Repeat(" ", w))
+}
+
+// boardFooterCell renders a muted footer annotation centered in w cells.
+func boardFooterCell(m Model, w int, text string, center bool) string {
+	surf := lipgloss.Color(m.palette.Surface)
+	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(surf)
+	t := truncatePlain(text, w)
+	pad := w - lipgloss.Width(t)
+	left := 0
+	if center && pad > 0 {
+		left = pad / 2
+	}
+	return lipgloss.NewStyle().Background(surf).Render(strings.Repeat(" ", left)+muted.Render(t)) +
+		lipgloss.NewStyle().Background(surf).Render(strings.Repeat(" ", max(0, pad-left)))
+}
+
+// boardDoneFooterCell renders the done-recency footer inside the Done
+// column, degrading the hint text as the column narrows.
+func boardDoneFooterCell(m Model, w int, hidden int) string {
+	surf := lipgloss.Color(m.palette.Surface)
+	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(surf)
+	text := boardDoneFooterText(hidden, w)
+	return lipgloss.NewStyle().Background(surf).Render(" ") + muted.Render(text) +
+		lipgloss.NewStyle().Background(surf).Render(strings.Repeat(" ", max(0, w-1-lipgloss.Width(text))))
+}
+
+// boardDoneFooterText picks the longest footer variant that fits w cells.
+func boardDoneFooterText(hidden, w int) string {
+	for _, cand := range []string{
+		fmt.Sprintf("+%d older · press D to show all", hidden),
+		fmt.Sprintf("+%d older · D to show all", hidden),
+		fmt.Sprintf("+%d older · D shows all", hidden),
+		fmt.Sprintf("+%d older", hidden),
+	} {
+		if lipgloss.Width(cand) <= w-1 { // cell carries one leading space
+			return cand
+		}
+	}
+	return truncatePlain(fmt.Sprintf("+%d older", hidden), w-1)
 }
 
 func blankCard(m Model, w, n int) []string {

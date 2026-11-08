@@ -15,11 +15,12 @@ import (
 )
 
 type Config struct {
-	DataRepo       string `yaml:"data_repo"`
-	DefaultProject string `yaml:"default_project"`
-	Editor         string `yaml:"editor"`
-	DateFormat     string `yaml:"date_format"`
-	WeekStart      string `yaml:"week_start"`
+	DataRepo       string      `yaml:"data_repo"`
+	DefaultProject string      `yaml:"default_project"`
+	Editor         string      `yaml:"editor"`
+	DateFormat     string      `yaml:"date_format"`
+	WeekStart      string      `yaml:"week_start"`
+	Board          BoardConfig `yaml:"board"`
 	// Sort is the task-list sort order: done|due|priority|title, applied in
 	// order. Empty means the built-in default (not-done, due, priority, title).
 	Sort       []string       `yaml:"sort"`
@@ -49,6 +50,13 @@ type SavedView struct {
 	Filter string `yaml:"filter"`
 }
 
+// BoardConfig carries the "board:" block (board view behavior).
+type BoardConfig struct {
+	// DoneDays limits the board's Done column to items completed within
+	// the last N days. Default 14; 0 or negative shows everything.
+	DoneDays int `yaml:"done_days"`
+}
+
 // UIConfig carries the "ui:" presentation block (Study Desk design language).
 type UIConfig struct {
 	// Animations caps every animation at 400ms and honors reduce-motion
@@ -68,6 +76,7 @@ func Default() Config {
 		Editor:         "", // resolved from $EDITOR/$VISUAL/vi at use site
 		DateFormat:     "2006-01-02",
 		WeekStart:      "monday",
+		Board:          BoardConfig{DoneDays: 14},
 		Sort:           append([]string(nil), core.DefaultSortKeys...),
 		Sync: SyncConfig{
 			Auto:            true,

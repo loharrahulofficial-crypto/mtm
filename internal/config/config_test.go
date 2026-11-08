@@ -185,3 +185,28 @@ func TestUIConfigParsingAndValidation(t *testing.T) {
 		t.Fatal("invalid semester_start accepted")
 	}
 }
+
+func TestBoardDoneDaysDefaultAndOverride(t *testing.T) {
+	fixedXDG(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Board.DoneDays != 14 {
+		t.Fatalf("default board.done_days = %d, want 14", cfg.Board.DoneDays)
+	}
+	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("board:\n    done_days: 30\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Board.DoneDays != 30 {
+		t.Fatalf("board.done_days = %d, want 30", cfg.Board.DoneDays)
+	}
+}

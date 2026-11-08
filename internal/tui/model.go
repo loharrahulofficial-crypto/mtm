@@ -152,6 +152,7 @@ type Model struct {
 	boardDragFrom  int
 	boardDragCol   int
 	boardDragHover int
+	boardDoneAll   bool // D toggles: show older completed tasks in the Done column
 
 	// calendar
 	calMonth     time.Time
