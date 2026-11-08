@@ -104,8 +104,10 @@ func agendaTasks(m Model) []*core.Task {
 // Block on surface with the day number top-left; out-of-month/weekend days
 // are dimmed; today wears an accent pill on an accent-tinted cell; the
 // selected day sits on raised with an accent underline. Task dots and the
-// day's dot overflow land on the bottom-left; wide-enough/tall-enough cells
-// also show up to two truncated task titles.
+// day's dot overflow land on the bottom-left; tall-enough cells show up to
+// five truncated task titles, top-aligned, with "+N more" on the last line
+// when more tasks exist. A mostly-empty cell keeps a subtle bottom edge
+// line so the grid still reads as cells.
 func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []string {
 	todayCell := dayStartT(day).Equal(today)
 	isSelected := dayStartT(day).Equal(dayStartT(m.calDay))
@@ -129,7 +131,7 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 		}
 		return row
 	}
-	titlesShown := cellH >= 5 && cw >= 14
+	titlesShown := cellH >= 5 && cw >= 12
 
 	// Row 0: day number (pill for today, bold accent when cursor is on it).
 	// Dots sit on the SAME line, to the right of the number. When the cell
@@ -172,14 +174,30 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 		out = append(out, gitRun(""))
 	}
 
-	// Task titles (only when the cell can breathe).
+	// Task titles (only when the cell can breathe). Top-aligned; as many
+	// as fit, capped at five; "+N more" takes the last line when the tail
+	// does not fit. Cells with fewer titles than height keep a subtle
+	// bottom edge line.
+	rowsAvail := cellH - 1
+	tasks := tasksDueOn(m, day)
 	if titlesShown {
-		tasks := tasksDueOn(m, day)
-		maxTitles := 2
-		if cellH-2 < maxTitles {
-			maxTitles = cellH - 2
+		maxTitles := 5
+		if rowsAvail < maxTitles {
+			maxTitles = rowsAvail
 		}
-		for i := 0; i < len(tasks) && i < maxTitles; i++ {
+		show := len(tasks)
+		if show > maxTitles {
+			show = maxTitles
+		}
+		overflow := len(tasks) - show
+		if overflow > 0 {
+			show = maxTitles - 1
+			if show < 0 {
+				show = 0
+			}
+			overflow = len(tasks) - show
+		}
+		for i := 0; i < show; i++ {
 			t := tasks[i]
 			done := m.store.IsDoneStatus(t.Project, t.Status)
 			ts := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg)
@@ -190,12 +208,24 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 			}
 			out[1+i] = gitRun(fill.Render(" ") + ts.Render(title))
 		}
+		if overflow > 0 {
+			more := fmt.Sprintf(" +%d more", overflow)
+			out[cellH-1] = gitRun(fill.Render(" ") + lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Render(more))
+		}
+	}
+	// Mostly-empty cell: a quiet bottom edge so the grid still reads as
+	// cells. Full cells (titles or "+N more") keep their own last line;
+	// dots mode cells are always mostly-empty.
+	cellFull := titlesShown && out[cellH-1] != gitRun("")
+	if !isSelected && !cellFull && (!titlesShown || len(tasks) < rowsAvail) {
+		out[cellH-1] = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Border)).Background(bg).Render(strings.Repeat("─", cw))
 	}
 
 	_ = fill
-	// Bottom row: selected → accent underline rule. Dots live on row 0.
+	// Bottom row: selected → accent underline rule (but never clobber a
+	// populated last line, e.g. "+N more"). Dots live on row 0.
 	last := cellH - 1
-	if isSelected {
+	if isSelected && out[last] == gitRun("") {
 		out[last] = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Render(strings.Repeat("─", cw))
 	}
 	return out
@@ -345,23 +375,22 @@ func calendarColWidths(w int) []int {
 // calendarLayout computes the per-column widths and grid height for the
 // current content box: colWidths[i] is the width of column i (shared by
 // weekday headers and day cells); cells are separated by 1-cell base
-// gutters.
+// gutters. The agenda always keeps a 5-row minimum (title line + 4
+// entries), cells cap at 6 rows, and whatever the grid cannot use goes to
+// the agenda.
 func calendarLayout(m Model, w, h int) (colWidths []int, cellH, weeks int, gridStart time.Time) {
 	colWidths = calendarColWidths(w)
 	gridStart, weeks = calendarGrid(m)
 
-	agendaRows := 2 // header + at least one line (empty state)
-	if n := len(agendaTasks(m)); n > 0 {
-		agendaRows = 1 + n
+	const minAgenda = 5 // title line + 4 entries
+	const maxCellH = 6
+	maxGrid := h - 3 - minAgenda // title + weekday header + blank + agenda
+	cellH = maxGrid / weeks
+	if cellH > maxCellH {
+		cellH = maxCellH
 	}
-	if maxAgenda := h / 2; agendaRows > maxAgenda {
-		agendaRows = maxAgenda
-	}
-	// Reserve: title(1) + weekday(1) + blank before agenda(1) + agenda rows.
-	gridAvail := h - 3 - agendaRows
-	cellH = gridAvail / weeks
-	if cellH < 3 {
-		cellH = 3
+	if cellH < 2 {
+		cellH = 2
 	}
 	return colWidths, cellH, weeks, gridStart
 }
