@@ -88,6 +88,47 @@ func priorityPlain(p string) string {
 	return "???? "
 }
 
+// listColumns is the single column layout for the list view. It is computed
+// once per render (listColumnLayout) and shared by the header and every row:
+// STS, PRIO, TITLE (flexible), COURSE, DUE. COURSE and DUE sit at fixed cell
+// offsets so they line up exactly; subtask indentation lives INSIDE the
+// TITLE cell and never shifts STS or PRIO.
+type listColumns struct {
+	statusW, prioW, courseW int // courseW == 0 when the course column is dropped (<78 cells)
+	prefixW                 int // cells before the title cell (stripe/mark/status/prio)
+	titleX, titleW          int
+	courseX                 int // only meaningful when courseW > 0
+	dueX, dueW              int
+}
+
+// listColumnLayout computes the column layout for a content width w.
+//
+//	x=0 stripe · x=2 mark · x=4 STS · x=sts+5 PRIO · x=prefixW TITLE
+//	TITLE flexes · 2-cell gap · COURSE (optional) · 2-cell gap · DUE · 1 trailing cell.
+func listColumnLayout(w int) listColumns {
+	const statusW, prioW, dueW = 6, 4, 9
+	courseW := 0
+	if w >= 78 {
+		courseW = 10
+	}
+	prefixW := 4 + statusW + 1 + prioW + 1
+	dueX := w - 1 - dueW
+	courseX := -1
+	titleRight := dueX - 2
+	if courseW > 0 {
+		courseX = dueX - 2 - courseW
+		titleRight = courseX - 2
+	}
+	titleW := titleRight - prefixW
+	if titleW < 4 {
+		titleW = 4
+	}
+	return listColumns{
+		statusW: statusW, prioW: prioW, courseW: courseW, prefixW: prefixW,
+		titleX: prefixW, titleW: titleW, courseX: courseX, dueX: dueX, dueW: dueW,
+	}
+}
+
 func duePlain(due string, now time.Time) string {
 	if due == "" {
 		return ""
@@ -135,17 +176,10 @@ func renderListBody(m Model, w, h int) []string {
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
 	head := subtaskCounts(m.store.Tasks(), isDone)
 
-	// Column layout. Course column drops under 78 cells.
-	statusW, prioW := 6, 4
-	courseW := 0
-	if w >= 78 {
-		courseW = 10
-	}
-	stripe := " " // stripe col replaced by course stripe glyph
-	_ = stripe
+	col := listColumnLayout(w)
 
 	lines := make([]string, 0, h)
-	lines = append(lines, listHeaderLine(m, w, statusW, prioW, courseW))
+	lines = append(lines, listHeaderLine(m, w, col))
 
 	bodyH := h - 1
 	if bodyH < 1 {
@@ -164,7 +198,7 @@ func renderListBody(m Model, w, h int) []string {
 			line++
 		}
 		if line >= m.scroll && rendered < bodyH {
-			lines = append(lines, listRowLine(m, w, i, statusW, prioW, courseW, now, isDone, head))
+			lines = append(lines, listRowLine(m, w, i, col, now, isDone, head))
 			rendered++
 		}
 		line++
@@ -215,32 +249,29 @@ func groupHeaderLine(m Model, w int, label string, count int) string {
 	return s.groupHeader.Render(plain) + s.groupHeader.Render(strings.Repeat("─", ruleLen))
 }
 
-func listHeaderLine(m Model, w, statusW, prioW, courseW int) string {
-	s := m.styles
+func listHeaderLine(m Model, w int, col listColumns) string {
+	surface := m.palette.Surface
 	caps := func(t string, width int) string {
-		return s.sectionLabel.Render(padRightPlain(t, width))
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(surface)).Bold(true).Render(padRightPlain(t, width))
 	}
-	blank := func(n int) string { return strings.Repeat(" ", n) }
+	space := func(n int) string {
+		return lipgloss.NewStyle().Background(lipgloss.Color(surface)).Render(strings.Repeat(" ", n))
+	}
 
 	var b strings.Builder
-	b.WriteString(blank(3)) // stripe+mark inset
-	b.WriteString(caps("STS", statusW))
-	b.WriteString(" ")
-	b.WriteString(caps("PRIO", prioW))
-	b.WriteString("  ")
-	b.WriteString(caps("TITLE", 10))
-	seen := 3 + statusW + 1 + prioW + 2 + 10
-	if courseW > 0 {
-		pad := w - seen - courseW - 9 // leave due column 9
-		if pad < 1 {
-			pad = 1
-		}
-		b.WriteString(blank(pad))
-		b.WriteString(caps("COURSE", courseW))
-		seen += pad + courseW
+	b.WriteString(space(4))
+	b.WriteString(caps("STS", col.statusW))
+	b.WriteString(space(1))
+	b.WriteString(caps("PRIO", col.prioW))
+	b.WriteString(space(1))
+	b.WriteString(caps("TITLE", col.titleW))
+	b.WriteString(space(2))
+	if col.courseW > 0 {
+		b.WriteString(caps("COURSE", col.courseW))
+		b.WriteString(space(2))
 	}
-	b.WriteString(blank(w - seen - 9))
-	b.WriteString(caps("DUE", 9))
+	b.WriteString(caps("DUE", col.dueW))
+	b.WriteString(space(1))
 	return b.String()
 }
 
@@ -252,7 +283,7 @@ func padRightPlain(s string, w int) string {
 	return s + strings.Repeat(" ", n)
 }
 
-func listRowLine(m Model, w, i, statusW, prioW, courseW int, now time.Time, isDone func(p, st string) bool, head map[string][2]int) string {
+func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(p, st string) bool, head map[string][2]int) string {
 	s := m.styles
 	row := m.rows[i]
 	t := row.Task
@@ -288,17 +319,11 @@ func listRowLine(m Model, w, i, statusW, prioW, courseW int, now time.Time, isDo
 		markStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Blue)).Background(bg)
 	}
 
-	indent := strings.Repeat(" ", row.Depth*2)
-	tree := ""
-	if row.Depth > 0 {
-		tree = mutedTxt().Render("↳ ")
-	}
-
-	statusCol := statusCell(m.styles, t.Status, done, statusW)
+	statusCol := statusCell(m.styles, t.Status, done, col.statusW)
 	if selected {
-		statusCol = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg).Width(statusW).Render(truncatePlain(strings.ToLower(t.Status), statusW))
+		statusCol = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg).Width(col.statusW).Render(truncatePlain(strings.ToLower(t.Status), col.statusW))
 	}
-	prioCol := s.priority(t.Priority).Background(bg).Width(prioW).Render(priorityPlain(t.Priority))
+	prioCol := s.priority(t.Priority).Background(bg).Width(col.prioW).Render(priorityPlain(t.Priority))
 
 	// Subtask progress suffix.
 	sub := ""
@@ -308,7 +333,7 @@ func listRowLine(m Model, w, i, statusW, prioW, courseW int, now time.Time, isDo
 		sub = " " + hl(stripeColor).Render(fill) + mutedTxt().Render(track) + mutedTxt().Render(fmt.Sprintf(" %d/%d", head[t.ID][0], head[t.ID][1]))
 	}
 
-	// Title (flexes). Tags follow as dim chips.
+	// Tags follow the title as dim chips; they live inside the TITLE cell.
 	tagStr := ""
 	if len(t.Tags) > 0 {
 		tags := t.Tags
@@ -322,10 +347,58 @@ func listRowLine(m Model, w, i, statusW, prioW, courseW int, now time.Time, isDo
 		tagStr = strings.Join(parts, " ")
 	}
 
-	// Due chip (right-aligned later).
+	// Title budget: indent and tree live inside the title cell, so STS and
+	// PRIO stay pinned to their columns at every depth.
+	indentW := row.Depth * 2
+	treeW := 0
+	if row.Depth > 0 {
+		treeW = 2
+	}
+	tagsW := 0
+	if tagStr != "" {
+		tagsW = runewidth.StringWidth(tagStr) + 1
+	}
+	subW := lipgloss.Width(sub)
+	titleBudget := col.titleW - indentW - treeW - tagsW - subW
+	if titleBudget < 4 {
+		titleBudget = 4
+	}
+
+	courseCol := ""
+	if col.courseW > 0 {
+		name := t.Project
+		if idx := strings.LastIndex(name, "/"); idx >= 0 {
+			name = name[idx+1:]
+		}
+		courseCol = hl(stripeColor).Render(padRightPlain(truncatePlain(name, col.courseW), col.courseW))
+	}
+
+	// Title (+ subtask bar + tags) padded to exactly the title cell width.
+	title := truncatePlain(t.Title, titleBudget)
+	var titleRendered string
+	if done {
+		titleRendered = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Strikethrough(true).Render(title)
+	} else {
+		titleRendered = txt().Render(title)
+	}
+	titleCell := strings.Repeat(" ", indentW)
+	if row.Depth > 0 {
+		titleCell += mutedTxt().Render("↳ ")
+	}
+	titleCell += titleRendered + sub
+	if tagStr != "" {
+		titleCell += " " + mutedTxt().Render(tagStr)
+	}
+	if pad := col.titleW - lipgloss.Width(titleCell); pad > 0 {
+		titleCell += lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", pad))
+	} else if lipgloss.Width(titleCell) > col.titleW {
+		titleCell = clipStyled(titleCell, col.titleW)
+	}
+
+	// Fixed cells to the right edge, every space carrying the row background.
+	space := func(n int) string { return lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", n)) }
 	dueStr := ""
 	if t.Due != "" {
-		done := isDone(t.Project, t.Status)
 		label, heat := gauges.DueLabel(t.Due, now)
 		dc := lipgloss.NewStyle().Background(bg).Bold(heat != gauges.HeatCalm)
 		switch heat {
@@ -343,63 +416,20 @@ func listRowLine(m Model, w, i, statusW, prioW, courseW int, now time.Time, isDo
 		}
 		dueStr = dc.Render(label)
 	}
-
-	// Compute fixed widths.
-	leftFixed := 1 /*stripe*/ + 1 + 1 /*mark*/ + 1 + statusW + 1 + prioW + 1
-	dueW := lipgloss.Width(dueStr)
-	tagsW := 0
-	if tagStr != "" {
-		tagsW = runewidth.StringWidth(tagStr) + 1
-	}
-	subW := lipgloss.Width(sub)
-	titleBudget := w - leftFixed - lipgloss.Width(indent) - lipgloss.Width(tree) - dueW - tagsW - subW - 2
-	if courseW > 0 {
-		titleBudget -= courseW + 2
-	}
-	if titleBudget < 4 {
-		titleBudget = 4
+	dueCell := dueStr
+	if pad := col.dueW - lipgloss.Width(dueCell); pad > 0 {
+		dueCell += lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", pad))
+	} else if lipgloss.Width(dueCell) > col.dueW {
+		dueCell = clipStyled(dueCell, col.dueW)
 	}
 
-	courseCol := ""
-	if courseW > 0 {
-		name := t.Project
-		if idx := strings.LastIndex(name, "/"); idx >= 0 {
-			name = name[idx+1:]
-		}
-		courseCol = hl(stripeColor).Render(padRightPlain(truncatePlain(name, courseW), courseW)) + "  "
+	line := stripe + " " + markStyle.Render(mark) + " " + statusCol + " " + prioCol + " " + titleCell
+	if col.courseW > 0 {
+		line += space(2) + courseCol
 	}
-
-	title := truncatePlain(t.Title, titleBudget)
-	var titleRendered string
-	if done {
-		titleRendered = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Strikethrough(true).Render(title)
-	} else {
-		titleRendered = txt().Render(title)
-	}
-
-	left := stripe + " " + markStyle.Render(mark) + " " + indent + tree + statusCol + " " + prioCol + " " + courseCol + titleRendered + sub
-
-	// Tags after title, dimmed.
-	if tagStr != "" {
-		left += " " + mutedTxt().Render(tagStr)
-	}
-
-	gap := w - lipgloss.Width(left) - dueW - 1
-	if gap < 1 {
-		gap = 1
-	}
-	line := left + strings.Repeat(" ", gap)
-	if dueStr != "" {
-		line += dueStr + " "
-	} else {
-		line += strings.Repeat(" ", dueW+1)
-	}
+	line += space(2) + dueCell + space(1)
 	line = padToWidth(line, w, bg)
-	if selected {
-		// Full-width raised highlight, bold text already set via styles.
-		return lipgloss.NewStyle().Background(bgRaised).Render(line)
-	}
-	return lipgloss.NewStyle().Background(bgSurface).Render(line)
+	return line
 }
 
 func padToWidth(line string, w int, bg lipgloss.Color) string {
