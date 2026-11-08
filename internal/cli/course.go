@@ -19,7 +19,7 @@ func newCourseCmd() *cobra.Command {
 		Use:   "course",
 		Short: "Manage academic courses (projects marked as courses)",
 	}
-	cmd.AddCommand(newCourseAddCmd(), newCourseListCmd(), newCourseShowCmd(), newCourseEditCmd())
+	cmd.AddCommand(newCourseAddCmd(), newCourseListCmd(), newCourseShowCmd(), newCourseEditCmd(), newCourseSyllabusCmd())
 	return cmd
 }
 
@@ -198,6 +198,55 @@ func newCourseEditCmd() *cobra.Command {
 			}
 			commitAndSync(cfg, s.Root, "course edit: "+name)
 			fmt.Printf("updated course %q\n", name)
+			return nil
+		},
+	}
+}
+
+func newCourseSyllabusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "syllabus <course> <file.md|yaml|template>",
+		Short: "Generate a checklist of chapter tasks and subtopic subtasks from a syllabus",
+		Long: `Imports a syllabus as a checklist: one task per chapter, one subtask per
+subtopic. The argument is either a path to a .md/.yaml file, or the name of a
+reusable template stored in templates/<name>.{yaml,yml,md} inside the data
+repo. Re-running with the same syllabus creates nothing twice: existing
+chapters and subtopics are reused.
+
+Markdown format:
+  # Unit 1: ER model
+  - entities
+  - [ ] relationships
+
+YAML format:
+  chapters:
+    - title: "ER model"
+      subtopics: [entities, relationships]`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, s, err := openStore()
+			if err != nil {
+				return err
+			}
+			defer func() { _ = s.Close() }()
+			name, err := actions.ResolveCourse(s, args[0])
+			if err != nil {
+				return err
+			}
+			chapters, source, err := actions.LoadSyllabus(s, args[1])
+			if err != nil {
+				return err
+			}
+			res, err := actions.ImportSyllabus(s, name, chapters)
+			if err != nil {
+				return err
+			}
+			commitAndSync(cfg, s.Root, "syllabus: "+name+" ← "+source)
+			fmt.Printf("syllabus from %s imported into %s\n", source, name)
+			fmt.Printf("  created: %d chapter(s), %d subtask(s)\n", len(res.CreatedChapters), len(res.CreatedSubtasks))
+			if len(res.Skipped) > 0 {
+				fmt.Printf("  skipped (already present): %s\n", strings.Join(res.Skipped, ", "))
+			}
 			return nil
 		},
 	}
