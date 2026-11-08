@@ -27,6 +27,8 @@ type homeData struct {
 	exams     []examCard
 	courses   []courseRow
 
+	upNext []*core.Task // next open tasks by due date + priority
+
 	heatmap   [7 * 52]int
 	weekHours [7]float64
 	weekTotal float64
@@ -41,12 +43,15 @@ type examCard struct {
 }
 
 type courseRow struct {
-	name  string
-	color string
-	done  int
-	total int
-	frac  float64
-	open  int
+	name      string
+	color     string
+	done      int
+	total     int
+	frac      float64
+	open      int
+	weekHours float64    // hours logged in the last 7 days on this course
+	nextExam  *core.Task // nearest open exam for the course, nil when none
+	examDays  int        // days until nextExam (−1 when none)
 }
 
 // homeSelectedTask tracks the Home-view cursor over today's rows.
@@ -223,6 +228,7 @@ func buildHomeData(m Model) homeData {
 	sortCourses(d.courses)
 
 	// This week: hours attributed to the completion day (local-naive).
+	courseWeek := map[string]float64{}
 	for i := 0; i < 7; i++ {
 		day := todayStart.AddDate(0, 0, i-6)
 		for _, t := range m.store.Tasks() {
@@ -241,13 +247,49 @@ func buildHomeData(m Model) homeData {
 				continue
 			}
 			if sameDay(ts, day) {
-				d.weekHours[i] += float64(t.TimeLoggedMinutes) / 60.0
+				h := float64(t.TimeLoggedMinutes) / 60.0
+				d.weekHours[i] += h
+				courseWeek[strings.ToLower(t.Project)] += h
 			}
 		}
 	}
 	for _, h := range d.weekHours {
 		d.weekTotal += h
 	}
+
+	// Attach the per-course week hours and nearest exam to the course rows.
+	examByCourse := map[string]*examCard{}
+	for i := range d.exams {
+		e := &d.exams[i]
+		key := strings.ToLower(e.task.Project)
+		if cur, ok := examByCourse[key]; !ok || e.daysLeft < cur.daysLeft {
+			examByCourse[key] = e
+		}
+	}
+	for i := range d.courses {
+		c := &d.courses[i]
+		c.weekHours = courseWeek[strings.ToLower(c.name)]
+		if e, ok := examByCourse[strings.ToLower(c.name)]; ok {
+			c.nextExam = e.task
+			c.examDays = e.daysLeft
+		} else {
+			c.examDays = -1
+		}
+	}
+
+	// Up next: the six most imminent open tasks, due first then priority.
+	var open []*core.Task
+	for _, t := range m.store.Tasks() {
+		if isDone(t.Project, t.Status) {
+			continue
+		}
+		open = append(open, t)
+	}
+	core.SortTasks(open, []string{core.SortDue, core.SortPriority, core.SortTitle}, isDone)
+	if len(open) > 6 {
+		open = open[:6]
+	}
+	d.upNext = open
 
 	return d
 }

@@ -6,35 +6,35 @@
    All                 9  │ ✦ nothing due today — a clear day                    │                                     
    Today                  │   press a to add something for later                 │                                     
    Week                2  │                                                      │                                     
-   Overdue                │                                                      │                                     
-  C O U R S E S ────────   │                                                      │                                     
-  ▌ dbms ██▎░           3  │                                                      │                                     
-  ▌ maths ░░░░          1  │                                                      │                                     
-  ▌ os ░░░░             1  │                                                      │                                     
-  ▌ inbox ░░░░             │                                                      │                                     
-                           │                                                      │                                     
-                           │                                                      │                                     
-                           ╰──────────────────────────────────────────────────────╯                                     
-                             T H I S   W E E K ───────────────────────────────────                                      
-                                0   0   0   0   0   0   0                                     Nothing selected          
-                                                                                      pick a task and it shows up here  
-                                M   T   W   T   F   S   S                                                               
-                             0.0 h study hours · last 7 days                                                            
-                                                                                                                        
-                             C O U R S E S ───────────────────────────────────────                                      
-                             ▌ dbms   ████▌░░░  57%                                                                     
-                             +2 more                                                                                    
-                                                                                                                        
-                             E X A M S ───────────────────────────────────────────                                      
+   Overdue                ╰──────────────────────────────────────────────────────╯                                     
+  C O U R S E S ────────     C O U R S E S ───────────────────────────────────────                                      
+  ▌ dbms ██▎░           3    ▌ dbms   ▄▄▄▄▄▄▄▄  57% ✦6d                                                                 
+  ▌ maths ░░░░          1    ▌ maths  ▄▄▄▄▄▄▄▄   0%                                                                     
+  ▌ os ░░░░             1    ▌ os     ▄▄▄▄▄▄▄▄   0% ✦12d                                                                
+  ▌ inbox ░░░░                                                                                                          
+                             U P   N E X T ───────────────────────────────────────                                      
+                             ▌ Maths — integration by parts set             in 2d                                       
+                             ▌ ✦ DBMS midterm — relational algebra + SQL   Nov 13                                       
+                             +3 more                                                                                    
+                                                                                              Nothing selected          
+                             E X A M S ───────────────────────────────────────────    pick a task and it shows up here  
                              ▌ DBMS midterm — relational algebra + S… — in 6 days                                       
-                             ▌ OS quiz — scheduling & deadlocks — in 12 days                                            
+                               weight 30%  ·  topics 4/6                                                                
+                             +1 more                                                                                    
                                                                                                                         
+                             T H I S   W E E K ───────────────────────────────────                                      
+                                    0     0     0     0     0     0     0                                               
+                                                                                                                        
+                                   ▁▁▁   ▁▁▁   ▁▁▁   ▁▁▁   ▁▁▁   ▁▁▁   ▁▁▁                                              
+                                    S     M     T     W     T     F     S                                               
+                             0.0 h · last 7 days                                                                        
                                                                                                                         
                              H E A T M A P ───────────────────────────────────────                                      
                              Mon  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
                                   ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
                              Wed  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
                                   ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
-  ✦  Nov 13 · DBMS…          Fri  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
+                             Fri  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
+  ✦  Nov 13 · DBMS…               ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
                                                                                                                         
   0 Home   1 List   2 Board   3 Calendar   4 Courses                   local repo                    14:32  ? help 

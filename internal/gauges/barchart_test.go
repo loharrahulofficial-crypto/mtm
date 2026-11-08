@@ -187,30 +187,22 @@ func TestBarChartTodayAccentAndTotalsLine(t *testing.T) {
 	}
 }
 
-func TestBarChartAverageRule(t *testing.T) {
+func TestBarChartAverageMarker(t *testing.T) {
 	withAvg := RenderBarChart(BarChartConfig{
 		Values: []float64{1, 4, 1, 4, 1, 4, 1}, Labels: []string{"A", "B", "C", "D", "E", "F", "G"},
-		Width: 60, Height: 10, MaxBarRows: 8, ShowAverage: true,
+		Width: 60, Height: 10, MaxBarRows: 8, ShowAverage: true, ShowTotal: true,
 	})
-	found := false
-	for _, l := range withAvg {
-		if strings.Contains(l, "┄") {
-			found = true
-			break
-		}
+	totalRow := withAvg[len(withAvg)-1]
+	if !strings.Contains(totalRow, "avg") {
+		t.Errorf("expected the totals line to carry a muted average marker, got %q", totalRow)
 	}
-	if !found {
-		t.Errorf("expected a muted average rule (┄) when space allows, got:\n%s", strings.Join(withAvg, "\n"))
-	}
-	// Too narrow: no average rule even when requested.
+	// Too narrow: the average marker is dropped even when requested.
 	narrow := RenderBarChart(BarChartConfig{
 		Values: []float64{1, 4, 1, 4, 1, 4, 1}, Labels: []string{"A", "B", "C", "D", "E", "F", "G"},
-		Width: 30, Height: 6, MaxBarRows: 8, ShowAverage: true,
+		Width: 30, Height: 6, MaxBarRows: 8, ShowAverage: true, ShowTotal: true,
 	})
-	for _, l := range narrow {
-		if strings.Contains(l, "┄") {
-			t.Errorf("narrow chart shows an average rule: %q", l)
-		}
+	if totalRow := narrow[len(narrow)-1]; strings.Contains(totalRow, "avg") {
+		t.Errorf("narrow chart shows the average marker: %q", totalRow)
 	}
 }
 

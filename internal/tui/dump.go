@@ -22,21 +22,14 @@ import (
 // regardless of the machine's timezone and wall clock.
 var DumpFixedTime = time.Date(2026, 11, 7, 14, 32, 0, 0, time.UTC)
 
-// RenderDump renders exactly one deterministic frame of the requested view:
-// fixed clock, fixed default theme, nerd icons unless cfg says otherwise.
-// Focus pins to the first row of tasks (deterministic); with zero tasks it
-// renders its empty state. The frame is exactly height lines × width cells.
-// The color profile is pinned to TrueColor so colored output is stable no
-// matter where the frame lands (piped dumps, CI, tests).
+// BuildDumpModel constructs the deterministic model RenderDump (and the
+// blank-ratio test) renders: fixed clock, fixed default theme, nerd icons
+// unless cfg says otherwise, focus pinned to the first row.
 //
 // view: home|list|board|calendar|courses|focus
-func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, noColor bool, t time.Time) (string, error) {
-	switch view {
-	case "home", "list", "board", "calendar", "courses", "focus":
-	default:
-		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|courses|focus)", view)
-	}
+func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, t time.Time) Model {
 	s.Clock = clock.Fixed(t)
+
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	m := New(cfg, s, repo)
 	switch view {
@@ -67,6 +60,17 @@ func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, 
 	m.glamourRenderer = nil // glamour rebuilt lazily at the fixed style
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	m = updated.(Model)
+	return m
+}
+
+// RenderDump renders exactly one deterministic frame of the requested view.
+func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, noColor bool, t time.Time) (string, error) {
+	switch view {
+	case "home", "list", "board", "calendar", "courses", "focus":
+	default:
+		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|courses|focus)", view)
+	}
+	m := BuildDumpModel(cfg, s, repo, view, w, h, t)
 	frame := m.View()
 	if noColor {
 		frame = StripANSI(frame)

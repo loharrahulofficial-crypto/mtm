@@ -104,7 +104,7 @@ func twoTasksFixture(t *testing.T) *store.Store {
 	stamp := ts.Format(core.TimestampFormat)
 	today := ts.Format("2006-01-02")
 	return fixtureStore(t, []fixtureTask{
-		{id: "a00001", title: "Read ch.4 — storage models", project: "inbox", status: "todo", priority: "high", kind: "assignment", due: today + "T09:00", created: stamp, updated: stamp, estimate: 60},
+		{id: "a00001", title: "Read ch.4 — storage models", project: "inbox", status: "todo", priority: "high", kind: "assignment", due: today + "T09:00", created: stamp, updated: stamp, estimate: 60, logged: 90},
 		{id: "a00002", title: "Submit problem set", project: "inbox", status: "todo", priority: "medium", kind: "assignment", due: ts.AddDate(0, 0, 3).Format("2006-01-02"), created: stamp, updated: stamp, estimate: 45},
 	})
 }

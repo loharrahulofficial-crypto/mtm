@@ -49,6 +49,7 @@ type BarChartConfig struct {
 	Bar    func(string) string // other bars
 	Muted  func(string) string // value labels, axis letters, ticks, avg rule
 	Bright func(string) string // total value
+	Bg     func(string) string // gap/pad cells; nil → plain spaces
 }
 
 // barChartGrid is the shared column geometry.
@@ -98,6 +99,14 @@ func layoutWith(n, width, barW, gap, gridW int) barChartGrid {
 
 func identity(s string) string { return s }
 
+// bgRun paints a run of blank cells with the configured gap background.
+func (c BarChartConfig) bgRun(s string) string {
+	if c.Bg != nil {
+		return c.Bg(s)
+	}
+	return s
+}
+
 func (c BarChartConfig) style(role func(string) string) func(string) string {
 	if role != nil {
 		return role
@@ -136,9 +145,8 @@ func chartValueLabels(c BarChartConfig) []string {
 }
 
 // placeCentered composes a row: each placed item is centered on colCenter[i];
-// gaps stay blank. bg is the background run used between and around items
-// (empty = plain spaces).
-func placeCentered(n, width int, g barChartGrid, items []string, styles []func(string) string) string {
+// gaps stay blank (painted when a Bg style is configured).
+func placeCentered(c BarChartConfig, n, width int, g barChartGrid, items []string, styles []func(string) string) string {
 	type placement struct {
 		x    int
 		text string
@@ -166,11 +174,15 @@ func placeCentered(n, width int, g barChartGrid, items []string, styles []func(s
 		if p.x < cursor {
 			p.x = cursor // overlap: clip to what remains rather than corrupt the grid
 		}
-		b.WriteString(strings.Repeat(" ", p.x-cursor))
+		if p.x > cursor {
+			b.WriteString(c.bgRun(strings.Repeat(" ", p.x-cursor)))
+		}
 		b.WriteString(p.bg(p.text))
 		cursor = p.x + runewidth.StringWidth(p.text)
 	}
-	b.WriteString(strings.Repeat(" ", max(0, width-cursor)))
+	if pad := width - cursor; pad > 0 {
+		b.WriteString(c.bgRun(strings.Repeat(" ", pad)))
+	}
 	return b.String()
 }
 
@@ -236,24 +248,16 @@ func RenderBarChart(c BarChartConfig) []string {
 		eighths[i] = e
 	}
 
-	// Average, in eighths above the baseline.
+	// Average, in eighths above the baseline (shown on the totals line
+	// when the grid is wide enough to carry it).
 	avg := total / float64(n)
-	avgE := 0
-	if maxV > 0 && avg > 0 {
-		avgE = int(avg/maxV*float64(barRows)*8 + 0.5)
-	}
-	avgRow := -1 // index from the top of the bar area
-	if c.ShowAverage && avgE > 0 && barRows >= 3 && width >= 44 {
-		fromBottom := (avgE - 1) / 8 // row index from 0 at the baseline
-		avgRow = barRows - 1 - fromBottom
-	}
 
 	lines := []string{}
 	valueStyles := make([]func(string) string, n)
 	for i := range valueStyles {
 		valueStyles[i] = muted
 	}
-	lines = append(lines, placeCentered(n, width, g, valueLabels, valueStyles))
+	lines = append(lines, placeCentered(c, n, width, g, valueLabels, valueStyles))
 
 	barRun := func(text string, i int) string {
 		if i == c.Today {
@@ -269,11 +273,7 @@ func RenderBarChart(c BarChartConfig) []string {
 		cursor := 0
 		writeGap := func(x int) {
 			if x > cursor {
-				if r == avgRow {
-					line += muted(strings.Repeat("┄", x-cursor))
-				} else {
-					line += strings.Repeat(" ", x-cursor)
-				}
+				line += c.bgRun(strings.Repeat(" ", x-cursor))
 				cursor = x
 			}
 		}
@@ -287,7 +287,7 @@ func RenderBarChart(c BarChartConfig) []string {
 				if isBottom {
 					cell = muted(strings.Repeat("▁", g.barW)) // muted baseline tick for zero days
 				} else {
-					cell = strings.Repeat(" ", g.barW)
+					cell = c.bgRun(strings.Repeat(" ", g.barW))
 				}
 			case e >= rowBottom:
 				cell = barRun(strings.Repeat("█", g.barW), i)
@@ -296,21 +296,14 @@ func RenderBarChart(c BarChartConfig) []string {
 				k := e - rowTop
 				cell = barRun(strings.Repeat(string(verticalEighths[k-1]), g.barW), i)
 			default:
-				if r == avgRow {
-					cell = muted(strings.Repeat("┄", g.barW))
-				} else {
-					cell = strings.Repeat(" ", g.barW)
-				}
+				cell = c.bgRun(strings.Repeat(" ", g.barW))
 			}
 			line += cell
 			cursor = left + g.barW
 		}
-		if avgRow == r && c.ShowAverage {
-			// Close the rule out to the grid's right edge.
-			if g.gridW-cursor > 0 {
-				line += muted(strings.Repeat("┄", g.gridW-cursor))
-				cursor = g.gridW
-			}
+		// Paint the remainder of the row so every cell carries a background.
+		if pad := width - cursor; pad > 0 {
+			line += c.bgRun(strings.Repeat(" ", pad))
 		}
 		lines = append(lines, line)
 	}
@@ -325,7 +318,7 @@ func RenderBarChart(c BarChartConfig) []string {
 			letters[i] = c.Labels[i]
 		}
 	}
-	lines = append(lines, placeCentered(n, width, g, letters, letterStyles))
+	lines = append(lines, placeCentered(c, n, width, g, letters, letterStyles))
 
 	if c.ShowTotal {
 		label := c.TotalLabel
@@ -334,7 +327,11 @@ func RenderBarChart(c BarChartConfig) []string {
 		}
 		brightPart := fmt.Sprintf("%.1f h", total)
 		if c.TotalLabel == "" {
-			lines = append(lines, " "+bright(brightPart)+" "+muted("· last 7 days"))
+			suffix := "· last 7 days"
+			if c.ShowAverage && avg > 0 && width >= 44 {
+				suffix += fmt.Sprintf(" · avg %.1fh", avg)
+			}
+			lines = append(lines, " "+bright(brightPart)+" "+muted(suffix))
 		} else {
 			_ = brightPart
 			lines = append(lines, " "+muted(label))

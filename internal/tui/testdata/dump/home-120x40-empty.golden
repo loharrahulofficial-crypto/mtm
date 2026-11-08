@@ -7,34 +7,34 @@
    Today                  │   press a to add something for later                 │                                     
    Week                   │                                                      │                                     
    Overdue                ╰──────────────────────────────────────────────────────╯                                     
-  C O U R S E S ────────     T H I S   W E E K ───────────────────────────────────                                      
-  ▌ inbox ░░░░                  0   0   0   0   0   0   0                                                               
+  C O U R S E S ────────     C O U R S E S ───────────────────────────────────────                                      
+  ▌ inbox ░░░░                                                                                                          
+                             ✦ no courses yet                                                                           
+                               mtm project add <name>                                                                   
                                                                                                                         
-                                M   T   W   T   F   S   S                                                               
-                             0.0 h study hours · last 7 days                                                            
+                             U P   N E X T ───────────────────────────────────────                                      
                                                                                                                         
-                             C O U R S E S ───────────────────────────────────────                                      
+                             ✦ nothing open — a clear runway                                                            
                                                                                                                         
-                             ✦ no courses yet — add one with `mtm project add`                                          
-                                                                                              Nothing selected          
-                             E X A M S ───────────────────────────────────────────    pick a task and it shows up here  
-                                                                                                                        
-                             ✦ no exams yet                                                                             
-                               :exam <course> <name> <date>                                                             
+                             T H I S   W E E K ───────────────────────────────────            Nothing selected          
+                                    0     0     0     0     0     0     0             pick a task and it shows up here  
                                                                                                                         
                                                                                                                         
                                                                                                                         
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                   ▁▁▁   ▁▁▁   ▁▁▁   ▁▁▁   ▁▁▁   ▁▁▁   ▁▁▁                                              
+                                    S     M     T     W     T     F     S                                               
+                             0.0 h · last 7 days                                                                        
                                                                                                                         
                              H E A T M A P ───────────────────────────────────────                                      
-                                 Jul   Aug            Sep         Oct         Nov                                       
                              Mon  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
                                   ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
                              Wed  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
                                   ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
                              Fri  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
                                   ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
-                             Sun  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
-                                 less ▪ ▪ ▪ ▪ more                                                                      
                                                                                                                         
                             a add · F focus · ctrl+p palette · ? help                                                   
   0 Home   1 List   2 Board   3 Calendar   4 Courses                   local repo                    14:32  ? help 
