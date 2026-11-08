@@ -6,15 +6,20 @@
 // user's real mtm roots (derived from the passwd home, not $HOME, so a
 // redirected HOME cannot hide the real location) is a bug — the resolver
 // panics with a message naming the offending path. Tests and sandboxes
-// must redirect HOME and the XDG roots (or MTM_DATA_DIR/MTM_CONFIG_DIR)
-// to a temp dir; contrib/smoke.sh and the test helpers all do this.
+// must redirect HOME and the XDG roots (or MTM_DATA_DIR/MTM_CONFIG_DIR/
+// MTM_STATE_DIR) to a temp dir; contrib/sandbox-env.sh and the test
+// helpers all do this.
 //
 // Resolution order (highest wins):
 //
 //	data:   MTM_DATA_DIR   > $XDG_DATA_HOME/mtm   > <passwd-or-HOME>/.local/share/mtm
 //	config: MTM_CONFIG_DIR > $XDG_CONFIG_HOME/mtm  > <passwd-or-HOME>/.config/mtm
 //	cache:                 $XDG_CACHE_HOME/mtm     > <passwd-or-HOME>/.cache/mtm
-//	state:                 $XDG_STATE_HOME/mtm     > <passwd-or-HOME>/.local/state/mtm
+//	state:  MTM_STATE_DIR  > $XDG_STATE_HOME/mtm   > <passwd-or-HOME>/.local/state/mtm
+//
+// All four roots live in the single `roots` table below; RealRoots, Resolve
+// and Guard all derive from it, so a future root cannot be added in some
+// places and forgotten in others.
 package paths
 
 import (
@@ -32,6 +37,25 @@ type Dirs struct {
 	Config string
 	Cache  string
 	State  string
+}
+
+// root describes one mtm directory: its env override ("" = none), the XDG
+// variable to consult, the fallback relative to the home dir, and which
+// Dirs field it fills. This table is the only place roots are listed —
+// RealRoots, Resolve and Guard all iterate it.
+type root struct {
+	name     string
+	override string
+	xdg      string
+	fallback string
+	field    func(*Dirs) *string
+}
+
+var roots = []root{
+	{"data", "MTM_DATA_DIR", "XDG_DATA_HOME", filepath.Join(".local", "share", "mtm"), func(d *Dirs) *string { return &d.Data }},
+	{"config", "MTM_CONFIG_DIR", "XDG_CONFIG_HOME", filepath.Join(".config", "mtm"), func(d *Dirs) *string { return &d.Config }},
+	{"cache", "", "XDG_CACHE_HOME", filepath.Join(".cache", "mtm"), func(d *Dirs) *string { return &d.Cache }},
+	{"state", "MTM_STATE_DIR", "XDG_STATE_HOME", filepath.Join(".local", "state", "mtm"), func(d *Dirs) *string { return &d.State }},
 }
 
 // Sandboxed reports whether this process must stay away from the real
@@ -58,12 +82,11 @@ func RealRoots() []string {
 	if err != nil {
 		return nil
 	}
-	return []string{
-		filepath.Join(home, ".local", "share", "mtm"),
-		filepath.Join(home, ".config", "mtm"),
-		filepath.Join(home, ".cache", "mtm"),
-		filepath.Join(home, ".local", "state", "mtm"),
+	out := make([]string, 0, len(roots))
+	for _, r := range roots {
+		out = append(out, filepath.Join(home, r.fallback))
 	}
+	return out
 }
 
 func clean(p string) string {
@@ -96,7 +119,7 @@ func Guard(dir string) {
 	}
 	for _, root := range RealRoots() {
 		if underRoot(dir, root) {
-			panic(fmt.Sprintf("mtm: refusing to touch the real data directory %s — this process is running under tests/MTM_SANDBOX but HOME/XDG (or MTM_DATA_DIR/MTM_CONFIG_DIR) still resolve there; redirect them to a temp dir (see contrib/smoke.sh)", clean(dir)))
+			panic(fmt.Sprintf("mtm: refusing to touch the real data directory %s — this process is running under tests/MTM_SANDBOX but HOME/XDG (or MTM_DATA_DIR/MTM_CONFIG_DIR/MTM_STATE_DIR) still resolve there; redirect them to a temp dir (see contrib/sandbox-env.sh)", clean(dir)))
 		}
 	}
 }
@@ -124,25 +147,26 @@ func xdg(varName, fallback string) string {
 	return filepath.Join(homeDir(), fallback)
 }
 
+// resolve applies one root's override chain: MTM_*_DIR wins, then the XDG
+// var, then the fallback under the home dir.
+func (r root) resolve() string {
+	if r.override != "" {
+		if p := os.Getenv(r.override); p != "" {
+			return p
+		}
+	}
+	return xdg(r.xdg, r.fallback)
+}
+
 // Resolve computes the four directories, applying env overrides and the
 // sandbox guard to every one of them.
 func Resolve() Dirs {
-	d := Dirs{
-		Data:   os.Getenv("MTM_DATA_DIR"),
-		Config: os.Getenv("MTM_CONFIG_DIR"),
+	var d Dirs
+	for _, r := range roots {
+		p := r.resolve()
+		Guard(p)
+		*r.field(&d) = p
 	}
-	if d.Data == "" {
-		d.Data = xdg("XDG_DATA_HOME", filepath.Join(".local", "share", "mtm"))
-	}
-	if d.Config == "" {
-		d.Config = xdg("XDG_CONFIG_HOME", filepath.Join(".config", "mtm"))
-	}
-	d.Cache = xdg("XDG_CACHE_HOME", filepath.Join(".cache", "mtm"))
-	d.State = xdg("XDG_STATE_HOME", filepath.Join(".local", "state", "mtm"))
-	Guard(d.Data)
-	Guard(d.Config)
-	Guard(d.Cache)
-	Guard(d.State)
 	return d
 }
 
@@ -161,7 +185,7 @@ func CacheDir() string { return Resolve().Cache }
 // CachePath is the index cache file path (D-006: outside the data repo).
 func CachePath() string { return filepath.Join(CacheDir(), "index.json") }
 
-// StateDir is the runtime state directory (outside the data repo).
+// StateDir is the runtime state directory (MTM_STATE_DIR override honored).
 // Timer/pomodoro runtime state lives here; nothing in here is synced.
 func StateDir() string { return Resolve().State }
 

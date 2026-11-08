@@ -17,6 +17,7 @@ func TestSandboxedGuard(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("XDG_DATA_HOME", "")
 	t.Setenv("XDG_CACHE_HOME", "")
+	t.Setenv("XDG_STATE_HOME", "")
 	if !sandboxed() {
 		t.Fatal("MTM_SANDBOX=1 not accepted")
 	}
@@ -27,6 +28,7 @@ func TestSandboxedGuard(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 	t.Setenv("XDG_DATA_HOME", tmp)
 	t.Setenv("XDG_CACHE_HOME", tmp)
+	t.Setenv("XDG_STATE_HOME", tmp)
 	if !sandboxed() {
 		t.Fatal("temp XDG roots not accepted")
 	}
@@ -34,6 +36,7 @@ func TestSandboxedGuard(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/home/rahul/.config")
 	t.Setenv("XDG_DATA_HOME", "/home/rahul/.local/share")
 	t.Setenv("XDG_CACHE_HOME", "/home/rahul/.cache")
+	t.Setenv("XDG_STATE_HOME", "/home/rahul/.local/state")
 	if sandboxed() {
 		t.Fatal("real XDG roots accepted")
 	}
@@ -41,6 +44,7 @@ func TestSandboxedGuard(t *testing.T) {
 	os.Unsetenv("XDG_CONFIG_HOME")
 	os.Unsetenv("XDG_DATA_HOME")
 	os.Unsetenv("XDG_CACHE_HOME")
+	os.Unsetenv("XDG_STATE_HOME")
 	if sandboxed() {
 		t.Fatal("missing XDG roots accepted")
 	}
@@ -63,6 +67,7 @@ func TestTuiDumpRefusesWithoutSandbox(t *testing.T) {
 	os.Unsetenv("XDG_CONFIG_HOME")
 	os.Unsetenv("XDG_DATA_HOME")
 	os.Unsetenv("XDG_CACHE_HOME")
+	os.Unsetenv("XDG_STATE_HOME")
 	cmd := newTuiCmd()
 	buf := &bytes.Buffer{}
 	cmd.SetOut(buf)

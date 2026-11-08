@@ -13,13 +13,13 @@ import (
 )
 
 // sandboxGuard reports whether the environment is sandboxed for tests/dumps:
-// MTM_SANDBOX=1, or all three XDG roots pointing at temp dirs. Anything else
+// MTM_SANDBOX=1, or all four XDG roots pointing at temp dirs. Anything else
 // refuses to run — the dump command never touches real data or real config.
 func sandboxed() bool {
 	if os.Getenv("MTM_SANDBOX") == "1" {
 		return true
 	}
-	for _, key := range []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"} {
+	for _, key := range []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"} {
 		v := os.Getenv(key)
 		if v == "" {
 			return false
@@ -61,7 +61,7 @@ func newTuiCmd() *cobra.Command {
 			// Hidden verification path: render one frame and print it. Refuses
 			// to run outside a sandbox — this never touches real data.
 			if !sandboxed() {
-				return fmt.Errorf("refusing to dump: not sandboxed (set MTM_SANDBOX=1 or point XDG_CONFIG_HOME/XDG_DATA_HOME/XDG_CACHE_HOME at temp dirs)")
+				return fmt.Errorf("refusing to dump: not sandboxed (set MTM_SANDBOX=1 or point XDG_CONFIG_HOME/XDG_DATA_HOME/XDG_CACHE_HOME/XDG_STATE_HOME at temp dirs)")
 			}
 			w, h, err := parseSize(size)
 			if err != nil {
