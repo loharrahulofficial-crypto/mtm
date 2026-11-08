@@ -54,6 +54,8 @@ func Execute() error {
 		newProjectCmd(),
 		newCourseCmd(),
 		newExamCmd(),
+		newGradeCmd(),
+		newGradesCmd(),
 		newSyncCmd(),
 		newSummaryCmd(),
 		newTuiCmd(),

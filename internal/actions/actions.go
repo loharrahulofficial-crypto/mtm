@@ -151,8 +151,9 @@ type QuickAddOverrides struct {
 	Tags     []string // nil = parsed
 	Due      string   // normalized via core.DueInput when DueSet
 	DueSet   bool
-	Kind     string // "" = task
-	Parent   string // "" = no parent
+	Kind     string   // "" = task
+	Parent   string   // "" = no parent
+	Weight   *float64 // nil = unset
 	Now      time.Time
 }
 
@@ -230,6 +231,7 @@ func QuickAddTask(cfg config.Config, s *store.Store, raw string, ov QuickAddOver
 		EstimateMinutes: parsed.EstimateMinutes,
 		Kind:            kind,
 		Parent:          ov.Parent,
+		Weight:          ov.Weight,
 	}
 	if err := s.Create(t); err != nil {
 		return nil, err

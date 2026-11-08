@@ -18,6 +18,7 @@ func newAddCmd() *cobra.Command {
 		tags     []string
 		due      string
 		kind     string
+		weight   string
 	)
 	cmd := &cobra.Command{
 		Use:   "add <title...>",
@@ -57,6 +58,11 @@ Flags always win over parsed values. Remaining words become the title.`,
 			if changed("tag") {
 				ov.Tags = parseTags(tags)
 			}
+			w, werr := parseWeight(weight)
+			if werr != nil {
+				return werr
+			}
+			ov.Weight = w
 			t, err := actions.QuickAddTask(cfg, s, raw, ov)
 			if err != nil {
 				return err
@@ -71,6 +77,7 @@ Flags always win over parsed values. Remaining words become the title.`,
 	cmd.Flags().StringSliceVarP(&tags, "tag", "t", nil, "tags (comma-separated or repeated)")
 	cmd.Flags().StringVar(&due, "due", "", "due: YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 	cmd.Flags().StringVar(&kind, "kind", core.KindTask, "task|assignment|exam|study|project")
+	cmd.Flags().StringVar(&weight, "weight", "", "grade weight % (for assignments/exams; used by `mtm grades`)")
 	return cmd
 }
 

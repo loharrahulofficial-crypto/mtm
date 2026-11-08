@@ -150,6 +150,7 @@ func SpawnRecurringOccurrence(t *Task, firstStatus string, now time.Time) (*Task
 		EstimateMinutes: t.EstimateMinutes,
 		Kind:            t.Kind,
 		Weight:          t.Weight,
+		ScoreMax:        t.ScoreMax,
 	}
 	return spawned, true, nil
 }

@@ -55,7 +55,9 @@ type Task struct {
 	TimeLoggedMinutes int      `yaml:"time_logged_minutes,omitempty"`
 	Weight            *float64 `yaml:"weight,omitempty"`
 	Score             *float64 `yaml:"score,omitempty"`
-	Kind              string   `yaml:"kind"`
+	// ScoreMax is the maximum the recorded score is out of (default 100).
+	ScoreMax *float64 `yaml:"score_max,omitempty"`
+	Kind     string   `yaml:"kind"`
 	// Body is the Markdown notes below the frontmatter fence. Not YAML.
 	Body string `yaml:"-"`
 	// Archived is set by the store when the task was loaded from archive/.

@@ -154,8 +154,8 @@ func parseWeight(s string) (*float64, error) {
 	if err != nil {
 		return nil, fmt.Errorf("weight %q must be a number", s)
 	}
-	if f < 0 {
-		return nil, fmt.Errorf("weight %v must be non-negative", f)
+	if f < 0 || f > 100 {
+		return nil, fmt.Errorf("weight %v must be between 0 and 100", f)
 	}
 	return &f, nil
 }
