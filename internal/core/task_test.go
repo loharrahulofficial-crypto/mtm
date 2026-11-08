@@ -19,7 +19,6 @@ func TestSlugify(t *testing.T) {
 }
 
 func TestNewID(t *testing.T) {
-	seen := map[string]bool{}
 	for i := 0; i < 1000; i++ {
 		id := NewID()
 		if len(id) != 6 {
@@ -30,11 +29,10 @@ func TestNewID(t *testing.T) {
 				t.Fatalf("id %q contains non-hex char %q", id, string(r))
 			}
 		}
-		if seen[id] {
-			t.Fatalf("id %q generated twice", id)
-		}
-		seen[id] = true
 	}
+	// Note: uniqueness is enforced at creation time by Store.uniqueID's retry
+	// loop, not by NewID itself — a "generated twice" check here is a birthday
+	// paradox coin flip and flakes ~3% of runs.
 }
 
 func TestValidPriority(t *testing.T) {

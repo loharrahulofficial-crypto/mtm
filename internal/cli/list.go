@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -116,6 +117,7 @@ func newListCmd() *cobra.Command {
 		all      bool
 		asJSON   bool
 		archived bool
+		weighted bool
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -150,6 +152,7 @@ func newListCmd() *cobra.Command {
 				return nil
 			}
 			printTasks(os.Stdout, s.Tasks(), filtered, f.DoneCheck, cfg.Sort)
+			printListProgress(os.Stdout, s.Tasks(), filtered, f.DoneCheck, weighted)
 			return nil
 		},
 	}
@@ -161,7 +164,67 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "include done tasks")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	cmd.Flags().BoolVar(&archived, "archived", false, "list archived tasks (instead of active ones)")
+	cmd.Flags().BoolVar(&weighted, "weighted", false, "weight the project bars by assignment/exam grade weights")
 	return cmd
+}
+
+// listProgressLines builds the per-project bar footer shown after `mtm
+// list`. Only projects present in the filtered output get a line. Bars
+// combine subtask completion; --weighted switches to weight-weighted
+// fractions over the assignment/exam tasks of each project.
+func listProgressLines(tasks, filtered []*core.Task, isDone func(string, string) bool, weighted bool) []string {
+	seen := map[string]bool{}
+	for _, t := range filtered {
+		seen[t.Project] = true
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var lines []string
+	for _, name := range names {
+		var proj []*core.Task
+		for _, t := range tasks {
+			if strings.EqualFold(t.Project, name) {
+				proj = append(proj, t)
+			}
+		}
+		p := core.ProgressFraction(proj, func(t *core.Task) bool { return isDone(t.Project, t.Status) }, false)
+		label := name
+		if weighted {
+			var weightedTasks []*core.Task
+			for _, t := range proj {
+				if !strings.EqualFold(t.Kind, core.KindAssignment) && !strings.EqualFold(t.Kind, core.KindExam) {
+					continue
+				}
+				if t.Weight == nil || *t.Weight <= 0 {
+					continue
+				}
+				weightedTasks = append(weightedTasks, t)
+			}
+			if len(weightedTasks) == 0 {
+				lines = append(lines, fmt.Sprintf("  %-24s - (no weighted assignments/exams)", truncateRunes(label, 24)))
+				continue
+			}
+			wp := core.ProgressFraction(weightedTasks, func(t *core.Task) bool { return isDone(t.Project, t.Status) }, true)
+			lines = append(lines, fmt.Sprintf("  %-24s %s", truncateRunes(label, 24), bar(wp, 24)+" (weighted)"))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("  %-24s %s", truncateRunes(label, 24), bar(p, 24)))
+	}
+	return lines
+}
+
+func printListProgress(w io.Writer, all, filtered []*core.Task, isDone func(string, string) bool, weighted bool) {
+	lines := listProgressLines(all, filtered, isDone, weighted)
+	if len(lines) == 0 {
+		return
+	}
+	fmt.Fprintln(w, "progress")
+	for _, l := range lines {
+		fmt.Fprintln(w, l)
+	}
 }
 
 // archivedOnly keeps only tasks loaded from archive/.
