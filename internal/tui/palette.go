@@ -548,3 +548,15 @@ func padBoxLine(line string, w int, fill lipgloss.Style, bg lipgloss.Color) stri
 	}
 	return lipgloss.NewStyle().MaxWidth(w).Render(line + lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", w-lipgloss.Width(line))))
 }
+
+// openPaletteWith opens the palette prefilled with text (course-scoped
+// exam/grade shortcuts from the Courses view).
+func (m *Model) openPaletteWith(text string) tea.Cmd {
+	cmd := m.openPalette()
+	m.paletteInput.SetValue(text)
+	m.paletteInput.CursorEnd()
+	m.paletteQuery = text
+	m.paletteItems = paletteItemsFor(*m, text)
+	m.paletteSel = 0
+	return cmd
+}

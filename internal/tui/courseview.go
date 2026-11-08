@@ -126,23 +126,7 @@ func sortExamsByDays(exams []courseExam) {
 	}
 }
 
-// cardCols picks the columns for the grid from the content width:
-// 1 col below 64, 2 below 100, 3 above.
-func cardCols(w int) int {
-	switch {
-	case w >= 100:
-		return 3
-	case w >= 64:
-		return 2
-	default:
-		return 1
-	}
-}
-
-const cardGap = 1
-const cardRowGap = 1
-
-// renderCoursesBody renders the course dashboard at exactly w×h.
+// renderCoursesBody renders the courses panel at exactly w×h.
 func renderCoursesBody(m Model, w, h int) string {
 	cards, err := collectCourseCards(m)
 	hint := ""
@@ -158,216 +142,128 @@ func renderCoursesBody(m Model, w, h int) string {
 	if len(cards) == 0 {
 		return panel([]string{"", " " + m.styles.muted.Render("no courses yet — see `mtm course add -h`")})
 	}
-	body := renderCardGrid(m, w-2, h-2, cards)
+	if m.courseSel < 0 {
+		m.courseSel = 0
+	}
+	if m.courseSel >= len(cards) {
+		m.courseSel = len(cards) - 1
+	}
+	if w >= 100 {
+		inner := w - 2
+		listW := clampInt(inner*32/100, 30, 38)
+		gutter := 1
+		rightW := inner - listW - gutter
+		listBody := renderCourseList(m, cards, listW, h-2)
+		dashBody := renderCourseDetail(m, cards[m.courseSel], rightW, h-2)
+		lines := []string{}
+		for i := 0; i < maxInt(len(listBody), len(dashBody)); i++ {
+			l, r := blankSurfaceLine(m, listW), blankSurfaceLine(m, rightW)
+			if i < len(listBody) {
+				l = listBody[i]
+			}
+			if i < len(dashBody) {
+				r = dashBody[i]
+			}
+			lines = append(lines, l+blankSurfaceLine(m, gutter)+r)
+		}
+		return panel(lines)
+	}
+	// Stacked: list on top (content-sized), dashboard below.
+	listW := w - 2
+	listH := len(cards) + 1
+	if listH > 9 {
+		listH = 9
+	}
+	listBody := renderCourseList(m, cards, listW, listH)
+	rest := h - 2 - len(listBody) - 1
+	if rest < 6 {
+		rest = 6
+	}
+	dashBody := renderCourseDetail(m, cards[m.courseSel], listW, rest)
+	body := append(listBody, dashBody...)
 	return panel(body)
 }
 
-// renderCardGrid lays the cards out in a 1–3 column grid. Every card is
-// nine rows tall (leading blank + seven content rows + trailing pad for
-// unselected cards; accent rounded border for the selected card).
-func renderCardGrid(m Model, w, h int, cards []courseCard) []string {
-	surface := lipgloss.Color(m.palette.Surface)
-	cols := cardCols(w)
-	cardW := (w - (cols-1)*cardGap) / cols
-	if cardW < 20 {
-		cardW = 20
+// blankSurfaceLine renders a surface-filled run of n cells.
+func blankSurfaceLine(m Model, n int) string {
+	if n < 0 {
+		n = 0
 	}
-
-	lines := []string{}
-	for row := 0; row < len(cards); row += cols {
-		end := row + cols
-		if end > len(cards) {
-			end = len(cards)
-		}
-		rendered := [][]string{}
-		for idx := row; idx < end; idx++ {
-			rendered = append(rendered, renderCourseCard(m, idx, cards[idx], cardW))
-		}
-		slotH := 0
-		for _, cl := range rendered {
-			if len(cl) > slotH {
-				slotH = len(cl)
-			}
-		}
-		fill := func(n int) string {
-			return lipgloss.NewStyle().Background(lipgloss.Color(m.palette.SurfaceRaised)).Render(strings.Repeat(" ", n))
-		}
-		for lineIdx := 0; lineIdx < slotH; lineIdx++ {
-			parts := []string{}
-			for _, cl := range rendered {
-				if lineIdx < len(cl) {
-					parts = append(parts, cl[lineIdx])
-				} else {
-					parts = append(parts, fill(cardW))
-				}
-			}
-			line := parts[0]
-			for j := 1; j < len(parts); j++ {
-				line += strings.Repeat(" ", cardGap) + parts[j]
-			}
-			if pad := w - lipgloss.Width(line); pad > 0 {
-				line += lipgloss.NewStyle().Background(surface).Render(strings.Repeat(" ", pad))
-			}
-			lines = append(lines, line)
-		}
-		// Surface gap between grid rows.
-		if end < len(cards) {
-			for i := 0; i < cardRowGap; i++ {
-				lines = append(lines, lipgloss.NewStyle().Background(surface).Render(strings.Repeat(" ", w)))
-			}
-		}
-	}
-	return lines
+	return lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface)).Render(strings.Repeat(" ", n))
 }
 
-// renderCourseCard renders one card. Selected cards wrap the content in
-// the accent rounded border (replacing the blank fill rows).
-func renderCourseCard(m Model, idx int, card courseCard, w int) []string {
-	selected := idx == m.courseSel
-	p := card.project
-	course := p.Course
-	bg := lipgloss.Color(m.palette.SurfaceRaised)
-	raised := bg
-	courseColor := theme.CourseColor(m.palette, p.Name, projectColorOverride(m, p.Name))
+func courseListName(p *core.Project) string {
+	if p.Course != nil && strings.TrimSpace(p.Course.Code) != "" {
+		return p.Course.Code
+	}
+	return leafName(p.Name)
+}
 
-	name := leafName(p.Name)
-	if course != nil && strings.TrimSpace(course.Code) != "" {
-		name = course.Code
-		if strings.TrimSpace(course.Name) != "" && !strings.EqualFold(course.Code, course.Name) {
-			name = course.Code + " — " + course.Name
+// renderCourseList renders the compact course list: stripe, name, thin
+// bar, grade %, next-exam chip. The selected row sits on raised.
+func renderCourseList(m Model, cards []courseCard, w, h int) []string {
+	surface := lipgloss.Color(m.palette.Surface)
+	raised := lipgloss.Color(m.palette.SurfaceRaised)
+
+	nameW := 6
+	for _, c := range cards {
+		if n := lipgloss.Width(courseListName(c.project)); n > nameW {
+			nameW = n
 		}
 	}
-	bright := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(raised).Bold(true)
-	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(raised)
-	mutedRaw := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(raised)
-	fillStyle := lipgloss.NewStyle().Background(raised)
-
-	stripe := lipgloss.NewStyle().Foreground(lipgloss.Color(courseColor)).Background(raised).Render("▌")
-	nameBudget := w - 3
-	nameTxt := bright.Render(truncatePlain(name, nameBudget))
-	row0 := stripe + " " + nameTxt
-
-	// Meta row: semester · credits · target (verbatim Phase 4 format).
-	meta := []string{}
-	if course != nil {
-		if course.Semester != "" {
-			meta = append(meta, course.Semester)
+	nameW = clampInt(nameW, 4, 12)
+	const barW = 8
+	lines := []string{}
+	for i, c := range cards {
+		if i >= h {
+			break
 		}
-		if course.Credits > 0 {
-			meta = append(meta, fmt.Sprintf("%d cr", course.Credits))
+		selected := i == m.courseSel
+		bg := surface
+		if selected {
+			bg = raised
 		}
-		if strings.TrimSpace(course.TargetGrade) != "" {
-			if pct, err := core.GradeToPercent(course.TargetGrade); err == nil {
-				meta = append(meta, fmt.Sprintf("target %s (%.0f%%)", course.TargetGrade, pct))
-			} else {
-				meta = append(meta, "target "+course.TargetGrade)
-			}
+		color := theme.CourseColor(m.palette, c.project.Name, projectColorOverride(m, c.project.Name))
+		stripe := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bg).Render("▌")
+		name := padRightPlain(truncatePlain(courseListName(c.project), nameW), nameW)
+		nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg)
+		if selected {
+			nameStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(bg).Bold(true)
 		}
-	}
-	row1 := "  " + muted.Render(truncatePlain(strings.Join(meta, " · "), w-3))
-
-	// Grade gauge with a target tick.
-	g := card.grades
-	gaugeRow := ""
-	if g == nil || len(g.Items) == 0 {
-		gaugeRow = "  " + m.styles.muted.Render("grade  nothing graded yet")
-	} else if g.Unweighted {
-		gaugeRow = "  " + muted.Render(fmt.Sprintf("grade  avg %.1f%% · no weights set", g.UnweightedPct))
-	} else {
-		const gaugeW = 12
-		frac := clampFloat(g.StandingPct/100, 0, 1)
-		fillCells := int(frac*float64(gaugeW) + 0.5)
-		tickAt := -1
-		if g.HasTarget && g.TargetPct > 0 {
-			tickAt = int(g.TargetPct/100*float64(gaugeW) + 0.5)
-			if tickAt >= gaugeW {
-				tickAt = gaugeW - 1
-			}
-			if tickAt < 0 {
-				tickAt = 0
-			}
+		frac := 0.0
+		if c.stats != nil {
+			frac = c.stats.Overall.Fraction
 		}
-		var gb strings.Builder
-		for i := 0; i < gaugeW; i++ {
+		fill, track := gauges.ThinBar(easedFrac(m, frac), barW)
+		subtleRow := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.SurfaceStrong)).Background(bg)
+		bar := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bg).Render(fill) + subtleRow.Render(track)
+		pct := fmt.Sprintf("%3.0f%%", frac*100)
+		pctStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bg)
+		if selected {
+			pctStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(bg).Bold(true)
+		}
+		chip := padRightPlain("", 5)
+		if len(c.exams) > 0 {
+			d := c.exams[0].daysLeft
+			t := "today"
 			switch {
-			case i == tickAt:
-				gb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(raised).Render("│"))
-			case i < fillCells:
-				gb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(courseColor)).Background(raised).Render("█"))
-			default:
-				gb.WriteString(mutedRaw.Render("░"))
+			case d == 1:
+				t = "1d"
+			case d > 1:
+				t = fmt.Sprintf("%dd", d)
 			}
+			if len(t) > 4 {
+				t = t[:4]
+			}
+			chip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render(padRightPlain("✦"+t, 5))
 		}
-		pct := fmt.Sprintf("%3.0f%%", g.StandingPct)
-		gaugeRow = "  " + muted.Render("grade  ") + gb.String() + " " + bright.Render(pct)
+		line := " " + stripe + " " + nameStyle.Render(name) + " " + bar + " " + pctStyle.Render(pct) + " " + chip
+		lines = append(lines, padToWidth(line, w, bg))
 	}
-
-	// Overall progress bar.
-	overall := card.stats.Overall
-	fillBar, track := gauges.Bar(easedFrac(m, overall.Fraction), 8)
-	bar := lipgloss.NewStyle().Foreground(lipgloss.Color(courseColor)).Background(raised).Render(fillBar) +
-		mutedRaw.Render(track)
-	fracTxt := fmt.Sprintf("%3.0f%%", overall.Fraction*100)
-	doneTxt := fmt.Sprintf("%d/%d", overall.Done, overall.Total)
-	doneRow := "  " + muted.Render("done   ") + bar + " " + bright.Render(fracTxt) + " " + muted.Render(doneTxt)
-
-	// 7-day hours sparkline.
-	spark := gauges.Sparkline(card.weekHours[:])
-	weekTotal := 0.0
-	for _, v := range card.weekHours {
-		weekTotal += v
+	if len(cards) > len(lines) {
+		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(surface).Render(fmt.Sprintf(" +%d more", len(cards)-len(lines))))
 	}
-	hoursRow := "  " + muted.Render("hours  ") +
-		lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(raised).Render(spark) +
-		" " + bright.Render(fmt.Sprintf("%.1fh", weekTotal)) +
-		muted.Render(" this week")
-
-	// All-time total, kept short so the row fits narrow cards.
-	if card.hasHours && card.hours.LoggedMinutes > 0 {
-		tot := card.hours.LoggedMinutes / 60
-		hoursRow += muted.Render(fmt.Sprintf(" · %dh", tot))
-	}
-
-	// Next exam chip with countdown.
-	examRow := "  " + muted.Render("exam   ") + muted.Render("nothing scheduled")
-	if len(card.exams) > 0 {
-		e := card.exams[0]
-		countdown := "today"
-		switch {
-		case e.daysLeft == 1:
-			countdown = "tomorrow"
-		case e.daysLeft > 1:
-			countdown = fmt.Sprintf("in %d days", e.daysLeft)
-		}
-		title := truncatePlain(e.task.Title, w-20-lipgloss.Width(countdown))
-		star := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(raised).Bold(true).Render("✦")
-		examRow = "  " + star + " " + bright.Render(title) + " " + muted.Render("· "+countdown)
-	}
-
-	// Grade status line (wording unchanged from the Phase 4 dashboard).
-	statusRow := "  " + muted.Render(truncatePlain(gradeStatusLine(g), w-3))
-
-	content := []string{row0, row1, gaugeRow, doneRow, hoursRow, examRow, statusRow}
-
-	if !selected {
-		out := make([]string, 0, 9)
-		out = append(out, fillStyle.Render(strings.Repeat(" ", w)))
-		for _, l := range content {
-			out = append(out, padRightCourseCard(l, w, raised))
-		}
-		out = append(out, fillStyle.Render(strings.Repeat(" ", w)))
-		return out
-	}
-	// Selected card: accent rounded border replacing the blank fill rows.
-	border := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(raised)
-	top := border.Render("╭" + strings.Repeat("─", w-2) + "╮")
-	bot := border.Render("╰" + strings.Repeat("─", w-2) + "╯")
-	out := []string{top}
-	for _, l := range content {
-		out = append(out, border.Render("│")+padRightCourseCard(l, w-2, raised)+border.Render("│"))
-	}
-	out = append(out, bot)
-	return out
+	return lines
 }
 
 func padRightCourseCard(line string, w int, bg lipgloss.Color) string {
@@ -426,28 +322,26 @@ func trimFloat(f float64) string {
 
 var _ = dates.HumanDay
 
-// updateCoursesKey moves the card selection with h/j/k/l, opens the
-// selected course's task list with enter, and returns nothing else.
+// updateCoursesKey moves the course selection with j/k, opens the
+// selected course's task list with enter, adds an exam with e and records
+// a grade with g (both prefill the palette), and returns nothing else.
 func (m Model) updateCoursesKey(act string) (tea.Model, tea.Cmd) {
 	cards, err := collectCourseCards(m)
 	n := 0
 	if err == nil {
 		n = len(cards)
 	}
-	cols := cardCols(m.width - 2 - 2) // content minus panel + padding
 	switch act {
 	case aUp:
-		m.courseSel -= cols
+		m.courseSel -= 1
 	case aDown:
-		m.courseSel += cols
-	case aLeft:
-		m.courseSel--
-	case aRight:
-		m.courseSel++
+		m.courseSel += 1
 	case aTop:
 		m.courseSel = 0
 	case aBottom:
 		m.courseSel = n - 1
+	case aTitle: // "e" — add an exam to the selected course
+		return m.openExamPalette(cards, err)
 	case aEnter:
 		return m.openCourseDetail(cards, err)
 	}
@@ -458,6 +352,34 @@ func (m Model) updateCoursesKey(act string) (tea.Model, tea.Cmd) {
 		m.courseSel = n - 1
 	}
 	return m, nil
+}
+
+// openExamPalette opens the palette prefilled with "exam <course> " for
+// the selected course.
+func (m Model) openExamPalette(cards []courseCard, err error) (tea.Model, tea.Cmd) {
+	if err == nil && m.courseSel >= 0 && m.courseSel < len(cards) {
+		cmd := m.openPaletteWith("exam " + cards[m.courseSel].project.Name + " ")
+		return m, cmd
+	}
+	return m, m.openPalette()
+}
+
+// openGradePalette opens the palette prefilled with "grade <id> " for the
+// first ungraded weighted item of the selected course (or "grade ").
+func (m Model) openGradePalette() (tea.Model, tea.Cmd) {
+	prefill := "grade "
+	if cards, err := collectCourseCards(m); err == nil && m.courseSel >= 0 && m.courseSel < len(cards) {
+		if g := cards[m.courseSel].grades; g != nil {
+			for _, it := range g.Items {
+				if !it.Scored {
+					prefill = "grade " + it.ID + " "
+					break
+				}
+			}
+		}
+	}
+	cmd := m.openPaletteWith(prefill)
+	return m, cmd
 }
 
 // openCourseDetail switches to the list view with the selected course's
@@ -474,6 +396,7 @@ func (m Model) openCourseDetail(cards []courseCard, err error) (tea.Model, tea.C
 		}
 	}
 	m.coursesDrillIn = name
+	m.coursesDrillFrom = m.courseSel
 	m.view = viewList
 	m.refreshTasks()
 	m.cursor = 0

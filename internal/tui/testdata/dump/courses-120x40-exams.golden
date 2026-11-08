@@ -1,37 +1,37 @@
                            ╭─ C O U R S E S ───────────────────────────────────────────────────────────────── 3 active ╮
-  mtm · study desk         │╭───────────────────────────────────────────╮                                              │
-                           ││▌ DBMS — Database Systems                  │ ▌ MAM — Mathematics                          │
-  V I E W S ────────────   ││  2026-odd · 4 cr · target A (90%)         │   2026-odd · 3 cr · target A (90%)           │
-   Home                   ││  grade  ░░░░░░░░░░░│   0%                 │   grade  avg 0.0% · no weights set           │
-   All                 9  ││  done   ████▌░░░  57% 4/7                 │   done   ░░░░░░░░   0% 0/1                   │
-   Today                  ││  hours  ▁▁▁▁▁▁▁ 0.0h this week            │   hours  ▁▁▁▁▁▁▁ 0.0h this week              │
-   Week                2  ││  ✦ DBMS midterm — … · in 6 days           │   exam   nothing scheduled                   │
-   Overdue                ││  need 90.0% on remaining 30               │   avg 0.0% · no weights set                  │
-  C O U R S E S ────────   │╰───────────────────────────────────────────╯                                              │
-  ▌ dbms ██▎░           3  │                                                                                           │
-  ▌ maths ░░░░          1  │                                                                                           │
-  ▌ os ░░░░             1  │▌ OS — Operating Systems                                                                   │
-  ▌ inbox ░░░░             │  2026-odd · 4 cr · target B+ (83%)                                                        │
-                           │  grade  ░░░░░░░░░░│░   0%                                                                 │
-                           │  done   ░░░░░░░░   0% 0/1                                                                 │
-                           │  hours  ▁▁▁▁▁▁▁ 0.0h this week                                                            │
-                           │  ✦ OS quiz — sche… · in 12 days                                                           │
-                           │  need 83.0% on remaining 10                                                               │
+  mtm · study desk         │ ▌ DBMS   ▄▄▄▄▄▄▄▄  57% ✦6d                                                                │
+                           │ ▌ MAM    ▄▄▄▄▄▄▄▄   0%                                                                    │
+  V I E W S ────────────   │ ▌ OS     ▄▄▄▄▄▄▄▄   0% ✦12d                                                               │
+   Home                   │ ▌ DBMS — Database Systems                                                                 │
+   All                 9  │   2026-odd · 4 cr · target A (90%)                                                        │
+   Today                  │ grade  ▄▄▄▄▄▄▄▄▄▄▄│   0.0%  ▏ target                                                      │
+   Week                2  │        ▏ target 90%                                                                       │
+   Overdue                │  need 90.0% on remaining 30                                                               │
+  C O U R S E S ────────   │ GRADED ITEMS ──────────────────────────────────────────────────────────────────────────── │
+  ▌ dbms ▄▄▄▄           3  │ ITEM                                                               WEIGHT     SCORE   CONT│
+  ▌ maths ▄▄▄▄          1  │ ✦ DBMS midterm — relational algebra + SQL                              30         —      —│
+  ▌ os ▄▄▄▄             1  │───────────────────────────────────────────────────────────────────────────────────────────│
+  ▌ inbox ▄▄▄▄             │ TOTAL                                                                  30              0.0│
+                           │ HOURS ─────────────────────────────────────────────────────────────────────────────────── │
+                           │                              0    0    0    0    0    0    0                              │
                            │                                                                                           │
                            │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
-                           │                                                                                           │
+                           │                             ▁▁   ▁▁   ▁▁   ▁▁   ▁▁   ▁▁   ▁▁                              │
+                           │                              S    M    T    W    T    F    S                              │
+                           │ 0.0 h · last 7 days                                                                       │
+                           │ total 0m logged · est ~2h                                                                 │
+                           │ EXAMS ─────────────────────────────────────────────────────────────────────────────────── │
+                           │ ✦ DBMS midterm — relational algebra + SQL                                                 │
+                           │   Fri 13 Nov · weight 30% · topics 4/6                                                    │
+                           │  █▀▀▀       █  Fri 13 Nov                                                                 │
+                           │  █▀▀▀█  ▄▀▀▄█  in 6 days                                                                  │
+                           │  ▀▄▄▄▀  ▀▄▄▀█                                                                             │
+                           │   ✦ topics ▄▄▄▄▄▄▄▄▄▄ 4/6                                                                 │
+                           │   [x] Revise ch.1                                                                         │
+                           │   [x] Revise ch.2                                                                         │
+                           │ NEXT TASKS ────────────────────────────────────────────────────────────────────────────── │
+                           │ ▌ Revise ch.5                                                                             │
+                           │ ▌ Revise ch.6                                                                             │
                            │                                                                                           │
                            │                                                                                           │
                            │                                                                                           │

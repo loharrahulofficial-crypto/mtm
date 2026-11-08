@@ -194,8 +194,9 @@ type Model struct {
 	timer core.TimerView
 
 	// course dashboard scroll offset (lines)
-	courseSel      int
-	coursesDrillIn string
+	courseSel        int
+	coursesDrillIn   string
+	coursesDrillFrom int // course list index to restore on esc
 
 	// command palette
 	paletteQuery  string

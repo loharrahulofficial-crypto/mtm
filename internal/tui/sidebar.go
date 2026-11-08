@@ -256,9 +256,10 @@ func sidebarItemLine(m Model, it sidebarItem, w int, selected bool) string {
 		if it.Total > 0 {
 			frac = float64(it.Done) / float64(it.Total)
 		}
-		barFill, barTrack := gauges.Bar(frac, 4)
+		barFill, barTrack := gauges.ThinBar(frac, 4)
+		subtleRow := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.SurfaceStrong)).Background(fill.GetBackground())
 		bar := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(fill.GetBackground()).Render(barFill) +
-			mutedOn(m, fill, barTrack)
+			subtleRow.Render(barTrack)
 		left = left + " " + bar
 		if it.Count > 0 {
 			right = fmt.Sprint(it.Count)

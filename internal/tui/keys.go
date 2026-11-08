@@ -100,6 +100,12 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	s := msg.String()
 
+	// Courses view: a bare g records a grade (gg's top-of-list binding is
+	// sacrificed there; the rest of the board keeps gg).
+	if s == "g" && m.view == viewCourses && m.mode == modeNormal {
+		return m.openGradePalette()
+	}
+
 	// Multi-key sequences (gg, dd): accumulate against the prefix buffer.
 	if m.pendingKey != "" {
 		seq := m.pendingKey + s
@@ -123,8 +129,12 @@ func (m Model) updateNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.coursesDrillIn != "" {
 			m.coursesDrillIn = ""
 			m.view = viewCourses
-			m.courseSel = 0
-			// Restore the original sidebar selection by re-indexing courses.
+			if m.coursesDrillFrom < 0 {
+				m.coursesDrillFrom = 0
+			}
+			if m.coursesDrillFrom >= 0 && m.courseSel != m.coursesDrillFrom {
+				m.courseSel = m.coursesDrillFrom
+			}
 			return m, nil
 		}
 		if m.searchQuery != "" {
