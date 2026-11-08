@@ -412,11 +412,20 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 	titleW := w - 3
 	cut1, cut2 := wrapTitle(t.Title, titleW)
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(cardBg)
-	if done {
-		titleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Strikethrough(true).Background(cardBg)
+	padTitle := func(title string) string {
+		var titleStyled string
+		if done {
+			titleStyled = strikeTitle(lipgloss.Color(m.palette.Muted), cardBg, title)
+		} else {
+			titleStyled = titleStyle.Render(title)
+		}
+		if pad := titleW - lipgloss.Width(titleStyled); pad > 0 {
+			return titleStyled + bgFill.Render(strings.Repeat(" ", pad))
+		}
+		return titleStyled
 	}
-	line1 := stripe + bgFill.Render(" ") + titleStyle.Render(padRightPlain(cut1, titleW))
-	line2 := stripe + bgFill.Render(" ") + titleStyle.Render(padRightPlain(cut2, titleW))
+	line1 := stripe + bgFill.Render(" ") + padTitle(cut1)
+	line2 := stripe + bgFill.Render(" ") + padTitle(cut2)
 
 	// Meta: priority badge chip, due chip, tags, subtask progress.
 	chip := priorityChip(m, t.Priority, cardBg)
@@ -430,21 +439,25 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 	}
 	meta := stripe + bgFill.Render(" ") + chip + bgFill.Render(" ")
 
-	if t.Due != "" {
-		label, heat := gauges.DueLabel(t.Due, now)
+	if t.Due != "" || (done && (t.Completed != "" || t.Updated != "")) {
 		dc := lipgloss.NewStyle().Background(cardBg)
-		switch heat {
-		case gauges.HeatWarm:
-			dc = dc.Foreground(lipgloss.Color(m.palette.HeatWarm))
-		case gauges.HeatHot:
-			dc = dc.Foreground(lipgloss.Color(m.palette.HeatHot)).Bold(true)
-		case gauges.HeatOverdue:
-			dc = dc.Foreground(lipgloss.Color(m.palette.HeatOverdue)).Bold(true)
-		default:
-			dc = dc.Foreground(lipgloss.Color(m.palette.MutedSoft))
-		}
+		var label string
 		if done {
-			dc = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(cardBg)
+			label = doneLabelFor(t, now)
+			dc = dc.Foreground(lipgloss.Color(m.palette.Muted))
+		} else {
+			l, heat := gauges.DueLabel(t.Due, now)
+			label = l
+			switch heat {
+			case gauges.HeatWarm:
+				dc = dc.Foreground(lipgloss.Color(m.palette.HeatWarm))
+			case gauges.HeatHot:
+				dc = dc.Foreground(lipgloss.Color(m.palette.HeatHot)).Bold(true)
+			case gauges.HeatOverdue:
+				dc = dc.Foreground(lipgloss.Color(m.palette.HeatOverdue)).Bold(true)
+			default:
+				dc = dc.Foreground(lipgloss.Color(m.palette.MutedSoft))
+			}
 		}
 		meta += dc.Render(label) + bgFill.Render(" ")
 	}

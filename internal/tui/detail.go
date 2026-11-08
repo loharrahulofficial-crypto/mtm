@@ -131,7 +131,7 @@ func (m Model) renderDetail(w, h int) string {
 	} else {
 		statusChip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Base)).Background(lipgloss.Color(m.palette.Blue)).Bold(true).Render(" " + strings.ToLower(t.Status) + " ")
 	}
-	body = append(body, " "+statusChip+"  "+s.priorityBadge(t.Priority))
+	body = append(body, " "+statusChip+"  "+priorityBadge(s, t.Priority, done))
 	body = append(body, "")
 
 	// Meta rows: aligned label/value pairs.
@@ -147,7 +147,9 @@ func (m Model) renderDetail(w, h int) string {
 		}
 		body = append(body, " "+label(l)+value(v))
 	}
-	if t.Due != "" {
+	if done {
+		row("DUE", meta.Render(doneLabelFor(t, now)))
+	} else if t.Due != "" {
 		dueLabel, heat := gauges.DueLabel(t.Due, now)
 		dc := lipgloss.NewStyle().Background(bgSurface)
 		switch heat {
@@ -159,9 +161,6 @@ func (m Model) renderDetail(w, h int) string {
 			dc = dc.Foreground(lipgloss.Color(m.palette.HeatOverdue)).Bold(true)
 		default:
 			dc = dc.Foreground(lipgloss.Color(m.palette.Text))
-		}
-		if done {
-			dc = meta
 		}
 		row("DUE", dc.Render(dueLabel))
 	}
@@ -185,7 +184,7 @@ func (m Model) renderDetail(w, h int) string {
 		row("CREATED", dates.HumanStamp(t.Created, now.Location()))
 	}
 	if t.Completed != "" {
-		row("COMPLETED", dates.HumanDayStamp(t.Completed, now.Location()))
+		row("Completed", dates.HumanDayStamp(t.Completed, now.Location()))
 	}
 	if t.Updated != "" {
 		row("UPDATED", dates.HumanStamp(t.Updated, now.Location()))

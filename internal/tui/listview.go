@@ -106,7 +106,7 @@ type listColumns struct {
 //	x=0 stripe · x=2 mark · x=4 STS · x=sts+5 PRIO · x=prefixW TITLE
 //	TITLE flexes · 2-cell gap · COURSE (optional) · 2-cell gap · DUE · 1 trailing cell.
 func listColumnLayout(w int) listColumns {
-	const statusW, prioW, dueW = 6, 4, 9
+	const statusW, prioW, dueW = 6, 4, 12
 	courseW := 0
 	if w >= 78 {
 		courseW = 10
@@ -381,7 +381,7 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 	title := truncatePlain(t.Title, titleBudget)
 	var titleRendered string
 	if done {
-		titleRendered = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Strikethrough(true).Render(title)
+		titleRendered = strikeTitle(lipgloss.Color(m.palette.Muted), bg, title)
 	} else {
 		titleRendered = txt().Render(title)
 	}
@@ -401,7 +401,11 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 
 	// Fixed cells to the right edge.
 	dueStr := ""
-	if t.Due != "" {
+	if done && (t.Completed != "" || t.Updated != "" || t.Due != "") {
+		// Done tasks never show overdue/urgency — a muted completion marker.
+		dc := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bg)
+		dueStr = dc.Render(doneLabelFor(t, now))
+	} else if t.Due != "" {
 		label, heat := gauges.DueLabel(t.Due, now)
 		dc := lipgloss.NewStyle().Background(bg).Bold(heat != gauges.HeatCalm)
 		switch heat {
@@ -413,9 +417,6 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 			dc = dc.Foreground(lipgloss.Color(m.palette.HeatOverdue))
 		default:
 			dc = dc.Foreground(lipgloss.Color(m.palette.MutedSoft))
-		}
-		if done {
-			dc = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bg)
 		}
 		dueStr = dc.Render(label)
 	}

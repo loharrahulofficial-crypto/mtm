@@ -333,14 +333,14 @@ func todayBody(m Model, w, h int, d homeData) []string {
 			}
 		}
 		prio := ""
-		if strings.EqualFold(t.Priority, "high") || strings.EqualFold(t.Priority, "urgent") {
+		if !done && (strings.EqualFold(t.Priority, "high") || strings.EqualFold(t.Priority, "urgent")) {
 			prio = " ! " + strings.ToUpper(t.Priority[:4])
 		}
 
 		label := truncatePlain(t.Title, w-6-9-lipgloss.Width(est)-lipgloss.Width(prio)-3)
 		var titleStyle lipgloss.Style
 		if done {
-			titleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Strikethrough(true)
+			titleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg)
 		} else {
 			titleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg).Bold(sel)
 		}
@@ -348,8 +348,12 @@ func todayBody(m Model, w, h int, d homeData) []string {
 		if done {
 			mark = "✔"
 		}
+		renderedTitle := titleStyle.Render(label)
+		if done {
+			renderedTitle = strikeTitle(lipgloss.Color(m.palette.Muted), bg, label)
+		}
 		line := rowBg.Render(" ") + lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bg).Render(timeStr) +
-			rowBg.Render(" ") + stripe + rowBg.Render(mark+" ") + titleStyle.Render(label)
+			rowBg.Render(" ") + stripe + rowBg.Render(mark+" ") + renderedTitle
 		rest := rowBg.Render(" ") + mutedTxt.Render(est) + dangerStyleFor(t, m, bg).Render(prio)
 		line += rowBg.Render(strings.Repeat(" ", max(0, w-lipglossWidth(line)-lipglossWidth(rest)-1))) + rest + rowBg.Render(" ")
 		lines = append(lines, padToWidth(line, w, bg))

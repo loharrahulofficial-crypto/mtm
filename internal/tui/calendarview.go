@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -149,10 +150,12 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 			t := tasks[i]
 			done := m.store.IsDoneStatus(t.Project, t.Status)
 			ts := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg)
+			title := truncatePlain(t.Title, cw-2)
 			if done {
-				ts = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Strikethrough(true)
+				out[1+i] = gitRun(fill.Render(" ") + strikeTitle(lipgloss.Color(m.palette.Muted), bg, title))
+				continue
 			}
-			out[1+i] = gitRun(fill.Render(" ") + ts.Render(truncatePlain(t.Title, cw-2)))
+			out[1+i] = gitRun(fill.Render(" ") + ts.Render(title))
 		}
 	}
 
@@ -434,30 +437,39 @@ func renderCalendarBody(m Model, w, h int) []string {
 		}
 		// Exams carry a ✦ next to the title, not only the calendar dot.
 		exam := strings.EqualFold(t.Kind, core.KindExam)
-		titleW := w - 14
-		if exam {
-			titleW = w - 16
-		}
 		examMark := ""
 		if exam {
 			examMark = "✦ "
 		}
 		color := theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))
 		stripe := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bgSurface).Render("▌")
+		boardTitle := func(bg lipgloss.Color, style lipgloss.Style, budget int) string {
+			whole := truncatePlain(t.Title, budget)
+			if done {
+				return strikeTitle(lipgloss.Color(m.palette.Muted), bg, whole)
+			}
+			return style.Render(whole)
+		}
+		titleBudget := w - 14 - runewidth.StringWidth(examMark)
 		if i == m.calAgendaSel && m.focus != focusSidebar {
 			selBG := lipgloss.NewStyle().Background(bgRaised)
 			selMut := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgRaised)
 			selTxt := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bgRaised).Bold(true)
 			selStripe := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bgRaised).Render("▌")
-			selLine := selBG.Render(" ") + selMut.Render(timeStr) + selStripe + selMut.Render(" "+mark+" ") + selTxt.Render(examMark+truncatePlain(t.Title, titleW))
+			selLine := selBG.Render(" ") + selMut.Render(timeStr) + selStripe + selMut.Render(" "+mark+" ")
+			if exam {
+				selLine += selTxt.Render(examMark)
+			}
+			selLine += boardTitle(bgRaised, selTxt, titleBudget)
 			lines = append(lines, padToWidth(selLine, w, bgRaised))
 			continue
 		}
 		textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bgSurface)
-		if done {
-			textStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgSurface).Strikethrough(true)
+		line := " " + muted.Render(timeStr) + stripe + " "
+		if exam {
+			line += textStyle.Render(examMark)
 		}
-		line := " " + muted.Render(timeStr) + stripe + " " + textStyle.Render(mark+" "+examMark+truncatePlain(t.Title, titleW))
+		line += boardTitle(bgSurface, textStyle, titleBudget)
 		lines = append(lines, padToWidth(line, w, bgSurface))
 	}
 	if len(agenda) == 0 {

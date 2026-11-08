@@ -2,11 +2,9 @@ package tui
 
 import (
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
@@ -153,7 +151,9 @@ func (s styles) priority(p string) lipgloss.Style {
 	}
 }
 
-func (s styles) priorityBadge(p string) string {
+// priorityBadge renders the [MED]-style bracket badge. Done tasks get a
+// muted badge — never urgency coloring.
+func priorityBadge(s styles, p string, done bool) string {
 	label := strings.ToUpper(p)
 	switch strings.ToLower(p) {
 	case "urgent":
@@ -165,44 +165,8 @@ func (s styles) priorityBadge(p string) string {
 	case "low":
 		label = "LOW"
 	}
+	if done {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(s.p.MutedSoft)).Background(lipgloss.Color(s.p.Surface)).Render("[" + label + "]")
+	}
 	return s.priority(p).Render("[" + label + "]")
-}
-
-func (s styles) dueBadge(due string, done bool, now time.Time) string {
-	if due == "" {
-		return ""
-	}
-	label, heat := gauges.DueLabel(due, now)
-	style := s.dueSoon
-	switch heat {
-	case gauges.HeatCalm:
-		style = s.dueSoon
-	case gauges.HeatWarm:
-		style = s.heatWarm
-	case gauges.HeatHot:
-		style = s.heatHot
-	case gauges.HeatOverdue:
-		style = s.heatOver
-	}
-	if done {
-		style = s.dim
-	}
-	return style.Render(label)
-}
-
-// heatStyle resolves the due heat to a style for trailing chips.
-func (s styles) heatStyle(h gauges.Heat, done bool) lipgloss.Style {
-	if done {
-		return s.dim
-	}
-	switch h {
-	case gauges.HeatWarm:
-		return s.heatWarm
-	case gauges.HeatHot:
-		return s.heatHot
-	case gauges.HeatOverdue:
-		return s.heatOver
-	default:
-		return s.dim
-	}
 }

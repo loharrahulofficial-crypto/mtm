@@ -260,9 +260,24 @@ func boardColumnsFixture(t *testing.T) *store.Store {
 	})
 }
 
+// doneTasksFixture: inbox tasks with a done one (completed today, spaces
+// in the title) — the shared done-display fixture.
+func doneTasksFixture(t *testing.T) *store.Store {
+	ts := DumpFixedTime
+	stamp := ts.Format(core.TimestampFormat)
+	today := ts.Format("2006-01-02")
+	cam := 30.0
+	_ = cam
+	return fixtureStore(t, []fixtureTask{
+		{id: "e00001", title: "Write the plan now", project: "inbox", status: "done", priority: "high", kind: "task", due: today + "T09:00", created: stamp, updated: stamp, completed: stamp},
+		{id: "e00002", title: "Keep the remaining thing open", project: "inbox", status: "todo", priority: "medium", kind: "task", due: ts.AddDate(0, 0, 2).Format("2006-01-02"), created: stamp, updated: stamp},
+	})
+}
+
 var fixtures = map[string]func(t *testing.T) *store.Store{
 	"empty":        emptyFixture,
 	"populated":    twoTasksFixture,
+	"doneTasks":    doneTasksFixture,
 	"manyTasks":    manyTasksFixture,
 	"longTitles":   longTitlesFixture,
 	"subtasks":     subtasksFixture,
