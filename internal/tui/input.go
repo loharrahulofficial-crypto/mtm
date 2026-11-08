@@ -187,7 +187,15 @@ func (m Model) submitExam(arg string) (tea.Model, tea.Cmd) {
 		m.statusMsg = "exam needs a name — :exam <course> <name> <date>"
 		return m, nil
 	}
-	return m.submitQuickAddKind(rest, "", "exam", course)
+	// The :exam palette command and `mtm exam add` share the same core
+	// function (actions.AddExam); only the input source differs (the palette
+	// accepts relative dates via the quick-add grammar, the CLI takes ISO).
+	if _, err := actions.AddExam(m.store, course, parsed.Title, parsed.Due, nil, nil); err != nil {
+		m.statusMsg = err.Error()
+		return m, nil
+	}
+	m.statusMsg = "exam added: " + parsed.Title
+	return m, m.afterChange("exam add: " + parsed.Title)
 }
 
 // lookupCourse resolves a course name to an existing project. Exact match
