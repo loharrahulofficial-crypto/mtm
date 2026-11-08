@@ -93,9 +93,11 @@ func (m Model) renderMain(w, h int) string {
 	case viewBoard:
 		return panel("board", renderBoardBody(m, w-2, h-2))
 	case viewCalendar:
-		return panel("", renderCalendarBody(m, w-2, h-2))
+		return panel("CALENDAR", renderCalendarBody(m, w-2, h-2))
 	default:
-		return panel("", renderListBody(m, w-2, h-2))
+		body := renderListBody(m, w-2, h-2)
+		chips := filterChipsText(m, (w*45)/100)
+		return renderPanel(m, listPanelTitle(m), w, h, focused, body, "", chips)
 	}
 }
 

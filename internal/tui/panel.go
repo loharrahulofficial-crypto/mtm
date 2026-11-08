@@ -92,14 +92,18 @@ func renderPanel(m Model, title string, w, h int, focused bool, body []string, h
 	if len(hint) > 0 {
 		hintText = hint[0]
 	}
+	chipsText := ""
+	if len(hint) > 1 {
+		chipsText = hint[1]
+	}
 	if focused {
-		lines = append(lines, panelEdge(m, w, true, title, border, surface, hintText))
+		lines = append(lines, panelEdge(m, w, true, title, border, surface, hintText, chipsText))
 		for _, row := range grid {
 			lines = append(lines, border.Render("│")+row+border.Render("│"))
 		}
 		lines = append(lines, panelEdge(m, w, false, "", border, surface, ""))
 	} else {
-		cap := panelTitleRow(m, title, w, surface, hintText)
+		cap := panelTitleRow(m, title, w, surface, hintText, chipsText)
 		lines = append(lines, cap)
 		for _, row := range grid {
 			lines = append(lines, surface.Render(" ")+row+surface.Render(" "))
@@ -125,12 +129,25 @@ func panelTitleRow(m Model, title string, w int, surface lipgloss.Style, hint ..
 		hintStr = hint[0]
 		hintW = lipgloss.Width(hintStr) + 1
 	}
-	ruleLen := w - lead - textW - 2 - hintW
+	chipsStr := ""
+	chipsW := 0
+	if len(hint) > 1 && hint[1] != "" {
+		candidate := hint[1]
+		// The label is never clipped to make room — drop the chips instead.
+		if textW+lipgloss.Width(candidate)+1 <= w-lead-2-hintW {
+			chipsStr = candidate
+			chipsW = lipgloss.Width(chipsStr) + 1
+		}
+	}
+	ruleLen := w - lead - textW - 2 - hintW - chipsW
 	if ruleLen < 1 {
 		ruleLen = 1
 	}
-	line := surface.Render(strings.Repeat(" ", lead)) + text +
-		surface.Render(" "+strings.Repeat("─", ruleLen)+" ")
+	line := surface.Render(strings.Repeat(" ", lead)) + text
+	if chipsStr != "" {
+		line += surface.Render(" ") + chipsStr
+	}
+	line += surface.Render(" " + strings.Repeat("─", ruleLen) + " ")
 	if hintStr != "" {
 		line += surface.Render(hintStr + " ")
 	}
@@ -161,17 +178,31 @@ func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style, h
 		hintStr = hint[0]
 		hintW = lipgloss.Width(hintStr) + 2 // " hint "
 	}
-	// ╭─ TITLE ─── hint ╮
+	chipsStr := ""
+	chipsW := 0
+	if len(hint) > 1 && hint[1] != "" {
+		candidate := hint[1]
+		// The label is never clipped to make room — drop the chips instead.
+		if lipgloss.Width(cap)+lipgloss.Width(candidate)+1 <= w-3-2-hintW {
+			chipsStr = candidate
+			chipsW = lipgloss.Width(chipsStr) + 1
+		}
+	}
+	// ╭─ TITLE chips ─── hint ╮
 	const pre, tail = 3, 2 // "╭─ " and " "+cornerR
-	inner := w - pre - tail - hintW
+	inner := w - pre - tail - hintW - chipsW
 	if lipgloss.Width(cap) > inner {
 		cap = clipStyled(cap, inner)
 	}
-	fillN := inner - lipgloss.Width(cap)
+	fillN := inner - lipgloss.Width(cap) - chipsW
 	if fillN < 0 {
 		fillN = 0
 	}
-	out := edge.Render("╭─ ") + cap + edge.Render(" "+strings.Repeat(fill, fillN))
+	out := edge.Render("╭─ ") + cap
+	if chipsStr != "" {
+		out += edge.Render(" ") + chipsStr
+	}
+	out += edge.Render(" " + strings.Repeat(fill, fillN))
 	if hintStr != "" {
 		out += edge.Render(" " + hintStr + " ")
 	}
@@ -182,14 +213,18 @@ func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style, h
 // panelEdge draws the top or bottom edge of a focused panel, embedding an
 // optional letterspaced title in the top edge. The hint (optional) is
 // right-aligned in the top edge.
-func panelEdge(m Model, w int, top bool, title string, border, surface lipgloss.Style, hint string) string {
+func panelEdge(m Model, w int, top bool, title string, border, surface lipgloss.Style, hint string, chips ...string) string {
 	if w < 2 {
 		return border.Render("│")
 	}
-	if hint == "" {
+	chipsText := ""
+	if len(chips) > 0 {
+		chipsText = chips[0]
+	}
+	if hint == "" && chipsText == "" {
 		return titledBorder(m, title, w, top, border)
 	}
-	return titledBorder(m, title, w, top, border, hint)
+	return titledBorder(m, title, w, top, border, hint, chipsText)
 }
 
 // clipStyled truncates a line that may contain ANSI escape sequences to

@@ -292,7 +292,11 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 
 	bgRaised := lipgloss.Color(m.palette.SurfaceRaised)
 	bgSurface := lipgloss.Color(m.palette.Surface)
+	zebra := theme.Blend(m.palette.Surface, m.palette.SurfaceRaised, 0.3)
 	bg := bgSurface
+	if i%2 == 1 {
+		bg = lipgloss.Color(zebra)
+	}
 	if selected {
 		bg = bgRaised
 	}
@@ -308,8 +312,11 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bg)
 	}
 
-	// Course stripe.
+	// Course stripe — replaced with an accent left bar when selected.
 	stripeColor := theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))
+	if selected {
+		stripeColor = m.palette.Accent
+	}
 	stripe := hl(stripeColor).Render("▌")
 
 	// Status glyph.
