@@ -139,12 +139,59 @@ func nearestExamChip(m Model, w int) string {
 	if bestTask == nil {
 		return ""
 	}
-	label, _ := gauges.DueLabel(bestTask.Due, now)
 	surface := lipgloss.Color(m.palette.Surface)
 	star := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(surface).Bold(true).Render("✦")
-	text := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(surface).Render(" " + label + " · ")
-	title := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(surface).Render(truncatePlain(bestTask.Title, w-8))
-	return " " + star + " " + text + title
+	muted := func(s string) string {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(surface).Render(s)
+	}
+	txt := func(s string) string {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(surface).Render(s)
+	}
+
+	label, _ := gauges.DueLabel(bestTask.Due, now)
+	build := func(lbl, title string) string {
+		return " " + star + " " + muted(" "+lbl+" · ") + txt(title)
+	}
+	fixedW := func(lbl string) int { return 1 + 1 + 1 + 1 + lipgloss.Width(lbl) + 3 } // " ✦ " + " dl · "
+
+	// 1) Full label, title word-truncated with an ellipsis.
+	if title, ok := wordTruncate(bestTask.Title, w-fixedW(label)); ok {
+		return build(label, title)
+	}
+	// 2) Last resort: character cut with an ellipsis.
+	budget := w - fixedW(label)
+	if budget < 1 {
+		budget = 1
+	}
+	return build(label, truncatePlain(bestTask.Title, budget))
+}
+
+// wordTruncate fits s into budget cells by dropping whole trailing words
+// and appending an ellipsis. Reports ok=false when even the first word
+// does not fit (callers may fall back to a character cut).
+func wordTruncate(s string, budget int) (string, bool) {
+	if budget < 1 {
+		return "", false
+	}
+	if lipgloss.Width(s) <= budget {
+		return s, true
+	}
+	words := strings.Fields(s)
+	cur := ""
+	for _, word := range words {
+		cand := word
+		if cur != "" {
+			cand = cur + " " + word
+		}
+		if lipgloss.Width(cand)+1 > budget { // +1 for the ellipsis
+			break
+		}
+		cur = cand
+	}
+	if cur == "" {
+		return "", false
+	}
+	return cur + "…", true
 }
 
 // brandBlock renders the pinned single-line wordmark: "mtm · study desk".
