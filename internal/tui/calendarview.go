@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/dates"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
@@ -397,7 +398,7 @@ func renderCalendarBody(m Model, w, h int) []string {
 
 	// Agenda.
 	lines = append(lines, padToWidth("", w, bgSurface))
-	agendaHead := dayStartT(m.calDay).Format("January 2, 2006")
+	agendaHead := dates.HumanDay(dayStartT(m.calDay))
 	if dayStartT(m.calDay).Equal(today) {
 		agendaHead = "TODAY · " + agendaHead
 	}

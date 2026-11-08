@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/dates"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
@@ -82,7 +83,7 @@ func (m Model) homeDataCached() homeData {
 func buildHomeData(m Model) homeData {
 	d := homeData{
 		user:         homeUser(),
-		dateLine:     m.clock.Now().Format("Mon 2 Jan"),
+		dateLine:     dates.HumanDay(m.clock.Now()),
 		nextExamDays: -1,
 	}
 	now := m.clock.Now()

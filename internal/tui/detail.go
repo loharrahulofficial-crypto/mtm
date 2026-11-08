@@ -3,12 +3,12 @@ package tui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/dates"
 	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
@@ -182,13 +182,13 @@ func (m Model) renderDetail(w, h int) string {
 		row("REMINDER", t.Reminder)
 	}
 	if t.Created != "" {
-		row("CREATED", t.Created)
+		row("CREATED", dates.HumanStamp(t.Created, now.Location()))
 	}
 	if t.Completed != "" {
-		row("COMPLETED", t.Completed)
+		row("COMPLETED", dates.HumanDayStamp(t.Completed, now.Location()))
 	}
 	if t.Updated != "" {
-		row("UPDATED", t.Updated)
+		row("UPDATED", dates.HumanStamp(t.Updated, now.Location()))
 	}
 
 	// Subtask progress.
@@ -260,10 +260,3 @@ func renderCenteredBlock(m Model, w, h int, lines []string) string {
 
 // homeSelectedTask is defined in homeview.go; the detail pane reuses it in
 // Home mode.
-func dueSuffix(t *core.Task, now time.Time) string {
-	if t.Due == "" {
-		return ""
-	}
-	label, _ := gauges.DueLabel(t.Due, now)
-	return "  (" + label + ")"
-}
