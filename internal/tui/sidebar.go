@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
@@ -52,6 +53,12 @@ func renderSidebar(m Model, w, h int) string {
 	items := m.sidebarItems
 	rows := sidebarRows(items)
 
+	// Pinned nearest-exam chip at the bottom of the sidebar.
+	footer := []string{}
+	if chip := nearestExamChip(m, innerW-1); chip != "" {
+		footer = []string{"", chip}
+	}
+
 	// Budget for the scrollable part; selection stays visible.
 	selRow := 0
 	for i, r := range rows {
@@ -59,7 +66,7 @@ func renderSidebar(m Model, w, h int) string {
 			selRow = i
 		}
 	}
-	avail := h - len(lines)
+	avail := h - len(lines) - len(footer)
 	if avail < 1 {
 		avail = 1
 	}
@@ -87,8 +94,57 @@ func renderSidebar(m Model, w, h int) string {
 		line++
 	}
 
-	_ = line
+	if len(footer) > 0 {
+		innerH := h - 2 // panel border rows
+		for len(body) < innerH-len(footer) {
+			body = append(body, "")
+		}
+		body = append(body, footer...)
+	}
+
 	return renderPanel(m, "", w, h, m.focus == focusSidebar, body)
+}
+
+// nearestExamChip renders the pinned bottom line: the nearest upcoming exam,
+// e.g. " ✦ in 23d · DBMS midterm". Empty when there is no upcoming exam.
+func nearestExamChip(m Model, w int) string {
+	if w < 8 {
+		return ""
+	}
+	now := m.clock.Now()
+	todayStart := dayStartT(now)
+	best := -1
+	var bestTask *core.Task
+	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
+	for _, t := range m.store.Tasks() {
+		if !strings.EqualFold(t.Kind, core.KindExam) {
+			continue
+		}
+		if isDone(t.Project, t.Status) {
+			continue
+		}
+		dueDay := parseDayStart(t.Due, now.Location())
+		if dueDay.IsZero() {
+			continue
+		}
+		diff := int(dueDay.Sub(todayStart).Hours() / 24)
+		if diff < 0 {
+			continue
+		}
+		if best == -1 || diff < best {
+			best = diff
+			bestTask = t
+		}
+	}
+	if bestTask == nil {
+		return ""
+	}
+	label, _ := gauges.DueLabel(bestTask.Due, now)
+	surface := lipgloss.Color(m.palette.Surface)
+	star := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(surface).Bold(true).Render("✦")
+	text := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(surface).Render(" " + label + " · ")
+	title := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(surface).Render(truncatePlain(bestTask.Title, w-8))
+	return " " + star + " " + text + title
 }
 
 // brandBlock renders the pinned single-line wordmark: "mtm · study desk".

@@ -30,6 +30,7 @@ const (
 	viewList
 	viewBoard
 	viewCalendar
+	viewCourses
 )
 
 type focusID int
@@ -189,6 +190,9 @@ type Model struct {
 
 	// active timer (state file outside the repo; see internal/actions/timer.go)
 	timer core.TimerView
+
+	// course dashboard scroll offset (lines)
+	courseScroll int
 
 	// command palette
 	paletteQuery  string

@@ -29,12 +29,12 @@ var DumpFixedTime = time.Date(2026, 11, 7, 14, 32, 0, 0, time.UTC)
 // The color profile is pinned to TrueColor so colored output is stable no
 // matter where the frame lands (piped dumps, CI, tests).
 //
-// view: home|list|board|calendar|focus
+// view: home|list|board|calendar|courses|focus
 func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, noColor bool, t time.Time) (string, error) {
 	switch view {
-	case "home", "list", "board", "calendar", "focus":
+	case "home", "list", "board", "calendar", "courses", "focus":
 	default:
-		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|focus)", view)
+		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|courses|focus)", view)
 	}
 	s.Clock = clock.Fixed(t)
 	lipgloss.SetColorProfile(termenv.TrueColor)
@@ -49,6 +49,8 @@ func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, 
 		m.resetBoardCursor()
 	case "calendar":
 		m.view = viewCalendar
+	case "courses":
+		m.view = viewCourses
 	case "focus":
 		m.view = viewList
 		if task := m.selectedTask(); task != nil {

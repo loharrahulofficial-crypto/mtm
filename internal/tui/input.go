@@ -253,6 +253,15 @@ func (m Model) execCommand(value string) (tea.Model, tea.Cmd) {
 		return m.submitQuickAdd(arg, "")
 	case "exam":
 		return m.submitExam(arg)
+	case "grade":
+		return m.commandGrade(arg)
+	case "timer":
+		return m.commandTimer(arg)
+	case "pomo":
+		return m.commandPomo(arg)
+	case "courses", "view4":
+		m.view = viewCourses
+		return m, nil
 	case "subtask":
 		if arg == "" {
 			m.statusMsg = "usage: :subtask <text>"

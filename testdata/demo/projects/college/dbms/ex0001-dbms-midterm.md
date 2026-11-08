@@ -10,7 +10,7 @@ updated: 2026-11-07T09:00
 due: 2026-11-13T09:00
 tags:
     - exam
-weight: 0.3
+weight: 40
 estimate_minutes: 120
 ---
 Syllabus: ch 1-6. Focus on normalization + transactions.

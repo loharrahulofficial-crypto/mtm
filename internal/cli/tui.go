@@ -85,7 +85,7 @@ func newTuiCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&dump, "dump", false, "render one frame to stdout (hidden; requires MTM_SANDBOX=1 or temp XDG roots)")
-	cmd.Flags().StringVar(&view, "view", "home", "view to dump: home|list|board|calendar|focus")
+	cmd.Flags().StringVar(&view, "view", "home", "view to dump: home|list|board|calendar|courses|focus")
 	cmd.Flags().StringVar(&size, "size", "120x40", "frame size as WxH, e.g. 120x40")
 	cmd.Flags().BoolVar(&noColor, "no-color", false, "strip ANSI escape sequences")
 	_ = cmd.Flags().MarkHidden("dump")

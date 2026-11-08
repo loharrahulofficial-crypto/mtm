@@ -431,6 +431,16 @@ func renderCalendarBody(m Model, w, h int) []string {
 		if done {
 			mark = "✔"
 		}
+		// Exams carry a ✦ next to the title, not only the calendar dot.
+		exam := strings.EqualFold(t.Kind, core.KindExam)
+		titleW := w - 14
+		if exam {
+			titleW = w - 16
+		}
+		examMark := ""
+		if exam {
+			examMark = "✦ "
+		}
 		color := theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))
 		stripe := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bgSurface).Render("▌")
 		if i == m.calAgendaSel && m.focus != focusSidebar {
@@ -438,7 +448,7 @@ func renderCalendarBody(m Model, w, h int) []string {
 			selMut := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgRaised)
 			selTxt := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bgRaised).Bold(true)
 			selStripe := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bgRaised).Render("▌")
-			selLine := selBG.Render(" ") + selMut.Render(timeStr) + selStripe + selMut.Render(" "+mark+" ") + selTxt.Render(truncatePlain(t.Title, w-14))
+			selLine := selBG.Render(" ") + selMut.Render(timeStr) + selStripe + selMut.Render(" "+mark+" ") + selTxt.Render(examMark+truncatePlain(t.Title, titleW))
 			lines = append(lines, padToWidth(selLine, w, bgRaised))
 			continue
 		}
@@ -446,7 +456,7 @@ func renderCalendarBody(m Model, w, h int) []string {
 		if done {
 			textStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgSurface).Strikethrough(true)
 		}
-		line := " " + muted.Render(timeStr) + stripe + " " + textStyle.Render(mark+" "+truncatePlain(t.Title, w-14))
+		line := " " + muted.Render(timeStr) + stripe + " " + textStyle.Render(mark+" "+examMark+truncatePlain(t.Title, titleW))
 		lines = append(lines, padToWidth(line, w, bgSurface))
 	}
 	if len(agenda) == 0 {

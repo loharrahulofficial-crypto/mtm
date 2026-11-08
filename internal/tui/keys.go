@@ -156,8 +156,11 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 	case aViewCalendar:
 		m.view = viewCalendar
 		return m, nil
+	case aViewCourses:
+		m.view = viewCourses
+		return m, nil
 	case aCycleView:
-		m.view = (m.view + 1) % 4
+		m.view = (m.view + 1) % 5
 		return m, nil
 	case aFocus:
 		if t := m.selectedTask(); t != nil {
@@ -205,6 +208,8 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		return m.updateCalendarKey(act)
 	case viewHome:
 		return m.updateHomeKey(act)
+	case viewCourses:
+		return m.updateCoursesKey(act)
 	}
 	return m, nil
 }

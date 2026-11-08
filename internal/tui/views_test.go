@@ -55,6 +55,25 @@ func TestCalendarCursorStartsToday(t *testing.T) {
 	}
 }
 
+// An exam due on the selected day must wear ✦ next to its title in the
+// agenda, not only the cell dot; ordinary tasks must not.
+func TestCalendarAgendaExamMark(t *testing.T) {
+	today := time.Now().Format("2006-01-02")
+	m, _ := newTestModel(t, []*core.Task{
+		{Title: "DBMS midterm — algebra", Project: "inbox", Status: "todo", Kind: core.KindExam, Due: today + "T09:00"},
+		{Title: "regular chore", Project: "inbox", Status: "todo", Kind: core.KindTask, Due: today + "T10:00"},
+	})
+	m.view = viewCalendar
+	m.calDay = m.clock.Today()
+	cal := stripANSI(strings.Join(renderCalendarBody(m, m.width-2, m.height-3), "\n"))
+	if !strings.Contains(cal, "✦ DBMS midterm") {
+		t.Fatalf("exam ✦ missing next to title in agenda:\n%s", cal)
+	}
+	if strings.Contains(cal, "✦ regular chore") {
+		t.Fatal("✦ leaked to a non-exam task")
+	}
+}
+
 // An empty day in the calendar must show a day summary in the detail pane,
 // not a stale task from the previously selected day.
 func TestCalendarDetailFollowsSelectionEmptyDay(t *testing.T) {

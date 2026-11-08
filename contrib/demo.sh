@@ -41,6 +41,11 @@ cp -a "$repo_root/testdata/demo/projects/." "$data/projects/"
   git -c user.name=mtm -c user.email=mtm@example.invalid commit -qm "demo: example tasks"
 ) >/dev/null
 
+# Seed a running demo timer on the ER-diagram task before launching, so the
+# statusline chip, the Focus view and `mtm summary` all have something live
+# to show. It keeps running after the TUI closes (stop with mtm timer stop).
+"$binary" timer start lt0001
+
 cat > "$XDG_CONFIG_HOME/mtm/config.yaml" <<'EOF'
 data_repo: __DATA__
 default_project: college/dbms

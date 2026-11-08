@@ -182,6 +182,7 @@ func (m Model) renderFocus() string {
 	v := m.timer
 	idle := v.Phase == core.TimerPhaseIdle
 	elapsed := v.Total - v.Remaining
+	openEnded := !idle && v.Total <= 0 // plain stopwatch: no phase end
 	frac := v.Progress
 	barW := clampInt(inner-22, 16, 44)
 	barFill, barTrack := gauges.Bar(frac, barW)
@@ -191,6 +192,14 @@ func (m Model) renderFocus() string {
 	body = append(body, "")
 	if idle {
 		body = append(body, strings.Repeat(" ", pad)+muted.Render("no timer running — press space to start a pomodoro"))
+	} else if openEnded {
+		// Plain stopwatch: big elapsed time, no phase bar.
+		big := formatFocusDuration(v.Accrued)
+		label := "elapsed"
+		if !v.Running {
+			label += "  ·  paused"
+		}
+		body = append(body, strings.Repeat(" ", pad)+bright.Render(big)+"  "+muted.Render(label+"  ·  open stopwatch — :timer stop banks the minutes"))
 	} else {
 		body = append(body, strings.Repeat(" ", pad)+formatFocusDuration(elapsed)+"  "+fill+track+"  "+formatFocusDuration(v.Remaining))
 	}
@@ -241,10 +250,10 @@ func pomodoroState(m Model) string {
 		if !v.Running {
 			return "paused"
 		}
-		if v.Mode == core.TimerModePomodoro {
-			return fmt.Sprintf("focusing… · pomodoro %d", v.PhaseIndex)
+		if v.Mode == core.TimerModeTimer {
+			return "focusing… · open stopwatch"
 		}
-		return "focusing…"
+		return fmt.Sprintf("focusing… · pomodoro %d", v.PhaseIndex)
 	}
 }
 

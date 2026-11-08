@@ -74,9 +74,10 @@ func (m Model) footerPillSegments(width int) []pillSeg {
 		{"1", "List", m.icon("list"), viewList},
 		{"2", "Board", m.icon("board"), viewBoard},
 		{"3", "Calendar", m.icon("calendar"), viewCalendar},
+		{"4", "Courses", m.icon("course"), viewCourses},
 	}
 	compact := width < 90
-	activeOnly := width < 56
+	activeOnly := width < 72 // 5 pills + clock + help don't fit below this
 	out := []pillSeg{}
 	for _, p := range pills {
 		active := m.view == p.view

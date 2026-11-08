@@ -457,8 +457,9 @@ func examsBody(m Model, w, h int, d homeData) []string {
 		}
 		// Weight + topics covered bar.
 		meta := ""
+		// Weight is a percent of the course (e.g. 30 = 30%).
 		if e.weight >= 0 {
-			meta += fmt.Sprintf("weight %.0f%%", e.weight*100)
+			meta += fmt.Sprintf("weight %.0f%%", e.weight)
 		}
 		if e.subTotal > 0 {
 			if meta != "" {

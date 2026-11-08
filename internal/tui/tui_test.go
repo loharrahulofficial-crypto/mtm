@@ -446,13 +446,24 @@ func TestViewSwitchingAndTab(t *testing.T) {
 		t.Fatal("tab 1 -> want Calendar")
 	}
 	m = press(t, m, "tab")
+	if m.view != viewCourses {
+		t.Fatal("tab 2 -> want Courses")
+	}
+	m = press(t, m, "tab")
 	if m.view != viewHome {
-		t.Fatal("tab 2 -> want Home")
+		t.Fatal("tab 3 -> want Home")
 	}
 	m = press(t, m, "tab")
 	if m.view != viewList {
-		t.Fatal("tab 3 -> want List")
+		t.Fatal("tab 4 -> want List")
 	}
+	// Direct jump with its key.
+	m = press(t, m, "4")
+	if m.view != viewCourses {
+		t.Fatal("4 -> want Courses")
+	}
+	// Back to Home for a stable end state.
+	m = press(t, m, "0")
 }
 
 func TestNotesSaveViaEditor(t *testing.T) {

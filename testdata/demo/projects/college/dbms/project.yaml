@@ -5,3 +5,9 @@ statuses:
     - name: doing
     - name: done
       done: true
+course:
+    code: DBMS
+    name: Database Systems
+    semester: 2026-odd
+    credits: 4
+    target_grade: A

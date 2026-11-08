@@ -5,3 +5,9 @@ statuses:
     - name: doing
     - name: done
       done: true
+course:
+    code: MAM
+    name: Mathematics
+    semester: 2026-odd
+    credits: 3
+    target_grade: A

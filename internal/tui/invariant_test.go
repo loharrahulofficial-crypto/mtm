@@ -141,7 +141,7 @@ func (g frameGrid) rows() int { return len(g.ch) }
 
 func TestFrameInvariants(t *testing.T) {
 	sizes := []struct{ w, h int }{{80, 24}, {120, 40}, {200, 50}, {97, 31}, {143, 37}, {61, 16}}
-	views := []string{"home", "list", "board", "calendar", "focus"}
+	views := []string{"home", "list", "board", "calendar", "courses", "focus"}
 	for _, size := range sizes {
 		for _, view := range views {
 			for _, state := range []string{"empty", "populated"} {

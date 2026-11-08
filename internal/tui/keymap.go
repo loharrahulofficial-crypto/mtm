@@ -13,6 +13,7 @@ const (
 	aViewList     = "view_list"
 	aViewBoard    = "view_board"
 	aViewCalendar = "view_calendar"
+	aViewCourses  = "view_courses"
 	aCycleView    = "cycle_view"
 	aFocus        = "focus"
 	aPalette      = "palette"
@@ -54,7 +55,7 @@ const (
 )
 
 var actionOrder = []string{
-	aQuit, aViewHome, aViewList, aViewBoard, aViewCalendar, aCycleView, aFocus, aPalette,
+	aQuit, aViewHome, aViewList, aViewBoard, aViewCalendar, aViewCourses, aCycleView, aFocus, aPalette,
 	aUp, aDown, aLeft, aRight, aTop, aBottom, aPageDown, aPageUp,
 	aSearch, aSearchNext, aSearchPrev, aCommand,
 	aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle,
@@ -69,6 +70,7 @@ var actionDescriptions = map[string]string{
 	aViewList:     "list view",
 	aViewBoard:    "board view",
 	aViewCalendar: "calendar view",
+	aViewCourses:  "course dashboard",
 	aCycleView:    "cycle views",
 	aFocus:        "focus current task",
 	aPalette:      "command palette",
@@ -123,6 +125,7 @@ func DefaultKeyMap() KeyMap {
 		aViewList:     "1",
 		aViewBoard:    "2",
 		aViewCalendar: "3",
+		aViewCourses:  "4",
 		aCycleView:    "tab",
 		aFocus:        "F",
 		aPalette:      "ctrl+p",

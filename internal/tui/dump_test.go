@@ -28,6 +28,7 @@ type fixtureTask struct {
 	parent                                          string
 	estimate, logged                                int
 	weight                                          *float64
+	score, scoreMax                                 *float64
 	body                                            string
 }
 
@@ -41,7 +42,12 @@ func fixedEnv(tb testing.TB) {
 	tb.Setenv("XDG_STATE_HOME", tb.TempDir())
 }
 
-func fixtureStore(t *testing.T, tasks []fixtureTask, projects ...struct{ name, color string }) *store.Store {
+type fixtureProject struct {
+	name, color string
+	course      *core.Course
+}
+
+func fixtureStore(t *testing.T, tasks []fixtureTask, projects ...fixtureProject) *store.Store {
 	t.Helper()
 	fixedEnv(t)
 	s, err := store.Open(t.TempDir(), filepath.Join(t.TempDir(), "index.json"))
@@ -49,10 +55,11 @@ func fixtureStore(t *testing.T, tasks []fixtureTask, projects ...struct{ name, c
 		t.Fatal(err)
 	}
 	s.Clock = clock.Fixed(DumpFixedTime)
-	defaults := []struct{ name, color string }{{"inbox", ""}}
+	defaults := []fixtureProject{{name: "inbox", color: ""}}
 	for _, p := range append(defaults, projects...) {
 		proj := core.DefaultProject(p.name)
 		proj.Color = p.color
+		proj.Course = p.course
 		if err := s.SaveProject(proj); err != nil {
 			t.Fatal(err)
 		}
@@ -74,6 +81,8 @@ func fixtureStore(t *testing.T, tasks []fixtureTask, projects ...struct{ name, c
 			EstimateMinutes:   ft.estimate,
 			TimeLoggedMinutes: ft.logged,
 			Weight:            ft.weight,
+			Score:             ft.score,
+			ScoreMax:          ft.scoreMax,
 			Body:              ft.body,
 		}
 		if tk.ID == "" {
@@ -138,7 +147,7 @@ func longTitlesFixture(t *testing.T) *store.Store {
 func subtasksFixture(t *testing.T) *store.Store {
 	ts := DumpFixedTime
 	stamp := ts.Format(core.TimestampFormat)
-	weight := 0.3
+	weight := 30.0
 	tasks := []fixtureTask{
 		{id: "d00000", title: "DBMS midterm — relational algebra + SQL", project: "college/dbms", status: "todo", priority: "urgent", kind: "exam", due: ts.AddDate(0, 0, 6).Format("2006-01-02") + "T09:00", created: stamp, updated: stamp, weight: &weight, estimate: 120, body: "Syllabus: ch 1-6. Focus on normalization + transactions."},
 	}
@@ -155,20 +164,25 @@ func subtasksFixture(t *testing.T) *store.Store {
 		})
 	}
 	return fixtureStore(t, tasks,
-		struct{ name, color string }{"college/dbms", "blue"},
-		struct{ name, color string }{"college/os", "green"},
-		struct{ name, color string }{"college/maths", "yellow"},
+		fixtureProject{name: "college/dbms", color: "blue", course: &core.Course{Code: "DBMS", Name: "Database Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "A"}},
+		fixtureProject{name: "college/os", color: "green", course: &core.Course{Code: "OS", Name: "Operating Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "B+"}},
+		fixtureProject{name: "college/maths", color: "yellow", course: &core.Course{Code: "MAM", Name: "Mathematics", Semester: "2026-odd", Credits: 3, TargetGrade: "A"}},
 	)
 }
+
+func f64(f float64) *float64 { return &f }
 
 func coursesFixture(t *testing.T) *store.Store {
 	ts := DumpFixedTime
 	stamp := ts.Format(core.TimestampFormat)
 	today := ts.Format("2006-01-02")
 	tasks := []fixtureTask{
-		{id: "e00001", title: "Read ch.4 — storage models", project: "college/dbms", status: "todo", priority: "high", kind: "assignment", due: today + "T09:00", created: stamp, updated: stamp, estimate: 60},
-		{id: "e00002", title: "OS lab report — page replacement", project: "college/os", status: "doing", priority: "high", kind: "assignment", due: today + "T14:00", created: stamp, updated: stamp, estimate: 90, tags: []string{"os", "lab"}},
-		{id: "e00003", title: "Maths revision — integration by parts", project: "college/maths", status: "todo", priority: "urgent", kind: "assignment", due: ts.AddDate(0, 0, -1).Format("2006-01-02"), created: stamp, updated: stamp},
+		{id: "e00001", title: "Read ch.4 — storage models", project: "college/dbms", status: "todo", priority: "high", kind: "assignment", due: today + "T09:00", created: stamp, updated: stamp, estimate: 60, weight: f64(30), score: f64(27), scoreMax: f64(30)},
+		{id: "e00002", title: "OS lab report — page replacement", project: "college/os", status: "doing", priority: "high", kind: "assignment", due: today + "T14:00", created: stamp, updated: stamp, estimate: 90, tags: []string{"os", "lab"}, weight: f64(20), score: f64(8), scoreMax: f64(10)},
+		{id: "e00003", title: "Maths revision — integration by parts", project: "college/maths", status: "todo", priority: "urgent", kind: "assignment", due: ts.AddDate(0, 0, -1).Format("2006-01-02"), created: stamp, updated: stamp, weight: f64(30), score: f64(27), scoreMax: f64(30)},
+		{id: "e00020", title: "DBMS midterm — relational algebra + SQL", project: "college/dbms", status: "todo", priority: "urgent", kind: "exam", due: ts.AddDate(0, 0, 6).Format("2006-01-02") + "T09:00", created: stamp, updated: stamp, estimate: 120, weight: f64(30)},
+		{id: "e00021", title: "OS final — scheduling + deadlocks", project: "college/os", status: "todo", priority: "high", kind: "exam", due: ts.AddDate(0, 0, 13).Format("2006-01-02") + "T10:00", created: stamp, updated: stamp, estimate: 90, weight: f64(40)},
+		{id: "e00022", title: "Maths final — series convergence", project: "college/maths", status: "todo", priority: "high", kind: "exam", due: ts.AddDate(0, 0, 19).Format("2006-01-02") + "T10:00", created: stamp, updated: stamp, estimate: 90, weight: f64(40)},
 	}
 	// Completed history for courses + heatmap.
 	for i := 0; i < 12; i++ {
@@ -183,9 +197,9 @@ func coursesFixture(t *testing.T) *store.Store {
 		})
 	}
 	return fixtureStore(t, tasks,
-		struct{ name, color string }{"college/dbms", "blue"},
-		struct{ name, color string }{"college/os", "green"},
-		struct{ name, color string }{"college/maths", "yellow"},
+		fixtureProject{name: "college/dbms", color: "blue", course: &core.Course{Code: "DBMS", Name: "Database Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "A"}},
+		fixtureProject{name: "college/os", color: "green", course: &core.Course{Code: "OS", Name: "Operating Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "B+"}},
+		fixtureProject{name: "college/maths", color: "yellow", course: &core.Course{Code: "MAM", Name: "Mathematics", Semester: "2026-odd", Credits: 3, TargetGrade: "A"}},
 	)
 }
 
@@ -195,8 +209,8 @@ func coursesFixture(t *testing.T) *store.Store {
 func examsFixture(t *testing.T) *store.Store {
 	ts := DumpFixedTime
 	stamp := ts.Format(core.TimestampFormat)
-	dbmsWeight := 0.3
-	osWeight := 0.1
+	dbmsWeight := 30.0
+	osWeight := 10.0
 	tasks := []fixtureTask{
 		{id: "x00001", title: "DBMS midterm — relational algebra + SQL", project: "college/dbms", status: "todo", priority: "urgent", kind: "exam", due: ts.AddDate(0, 0, 6).Format("2006-01-02") + "T09:00", created: stamp, updated: stamp, weight: &dbmsWeight, estimate: 120, body: "Syllabus: ch 1-6. Focus on normalization + transactions."},
 		{id: "x00002", title: "OS quiz — scheduling & deadlocks", project: "college/os", status: "todo", priority: "high", kind: "exam", due: ts.AddDate(0, 0, 12).Format("2006-01-02") + "T10:00", created: stamp, updated: stamp, weight: &osWeight, estimate: 45},
@@ -221,9 +235,9 @@ func examsFixture(t *testing.T) *store.Store {
 		created: stamp, updated: stamp,
 	})
 	return fixtureStore(t, tasks,
-		struct{ name, color string }{"college/dbms", "blue"},
-		struct{ name, color string }{"college/os", "green"},
-		struct{ name, color string }{"college/maths", "yellow"},
+		fixtureProject{name: "college/dbms", color: "blue", course: &core.Course{Code: "DBMS", Name: "Database Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "A"}},
+		fixtureProject{name: "college/os", color: "green", course: &core.Course{Code: "OS", Name: "Operating Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "B+"}},
+		fixtureProject{name: "college/maths", color: "yellow", course: &core.Course{Code: "MAM", Name: "Mathematics", Semester: "2026-odd", Credits: 3, TargetGrade: "A"}},
 	)
 }
 
@@ -280,7 +294,7 @@ func renderFixture(t *testing.T, view, size, state string) string {
 }
 
 func TestDumpGolden(t *testing.T) {
-	views := []string{"home", "list", "board", "calendar", "focus"}
+	views := []string{"home", "list", "board", "calendar", "courses", "focus"}
 	sizes := []string{"80x24", "120x40", "200x50"}
 	states := []string{"empty", "populated"}
 

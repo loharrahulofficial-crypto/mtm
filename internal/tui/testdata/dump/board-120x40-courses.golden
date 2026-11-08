@@ -3,14 +3,14 @@
                            │ ────────────────────────── ──────────────────────────│                                     
   V I E W S ────────────   │                                                      │                                     
    Home                   │                                                      │                                     
-   All                15  │          No tasks                   No tasks         │                                     
+   All                18  │          No tasks                   No tasks         │                                     
    Today               2  │                                                      │                                     
-   Week                2  │                                                      │                                     
+   Week                3  │                                                      │                                     
    Overdue             3  │                                                      │                                     
   C O U R S E S ────────   │                                                      │                                     
-  ▌ dbms ███▏           1  │                                                      │                                     
-  ▌ maths ███▏          1  │                                                      │                                     
-  ▌ os ███▏             1  │                                                      │                                     
+  ▌ dbms ██▋░           2  │                                                      │                                     
+  ▌ maths ██▋░          2  │                                                      │                                     
+  ▌ os ██▋░             2  │                                                      │                                     
   ▌ inbox ░░░░             │                                                      │                                     
                            │                                                      │                                     
                            │                                                      │                                     
@@ -35,6 +35,6 @@
                            │                                                      │                                     
                            │                                                      │                                     
                            │                                                      │                                     
-                           │                                                      │                                     
+  ✦  Nov 13 · DBMS midter  │                                                      │                                     
                            ╰──────────────────────────────────────────────────────╯                                     
-  0 Home   1 List   2 Board   3 Calendar                          local repo                          14:32  ? help 
+  0 Home   1 List   2 Board   3 Calendar   4 Courses                   local repo                    14:32  ? help 

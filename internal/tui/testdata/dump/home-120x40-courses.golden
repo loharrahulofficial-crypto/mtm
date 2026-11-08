@@ -3,28 +3,28 @@
                             Good afternoon, Rahul.  2 due today · 3 overdue           ▌ college/dbms  ·  assignment     
   V I E W S ────────────   ╭─ T O D A Y ──────────────────────────────────────────╮                                     
    Home                   │ 09:00 ▌○ Read ch.4 — storage models       ~1h ! HIGH │    todo   [HIGH]                    
-   All                15  │ 14:00 ▌○ OS lab report — page repl…       ~1h ! HIGH │                                     
+   All                18  │ 14:00 ▌○ OS lab report — page repl…       ~1h ! HIGH │                                     
    Today               2  │       ▌✔ completed item 0                            │   DUE       today                   
-   Week                2  │───────────────────────── now ────────────────────────│   ESTIMATE  60m                     
+   Week                3  │───────────────────────── now ────────────────────────│   ESTIMATE  60m                     
    Overdue             3  │                                                      │   CREATED   2026-11-07T14:32        
   C O U R S E S ────────   │                                                      │   UPDATED   2026-11-07T14:32        
-  ▌ dbms ███▏           1  │                                                      │                                     
-  ▌ maths ███▏          1  │                                                      │   N   O   T   E   S                 
-  ▌ os ███▏             1  ╰──────────────────────────────────────────────────────╯   No notes yet. Press m to write.   
+  ▌ dbms ██▋░           2  │                                                      │                                     
+  ▌ maths ██▋░          2  │                                                      │   N   O   T   E   S                 
+  ▌ os ██▋░             2  ╰──────────────────────────────────────────────────────╯   No notes yet. Press m to write.   
   ▌ inbox ░░░░               T H I S   W E E K ───────────────────────────────────                                      
                                                                                                                         
                              █▇▇▆▆▆▅                                                                                    
                                                                                                                         
                              C O U R S E S ───────────────────────────────────────                                      
-                             ▌ college/dbms   ██████▍░  80%                                                             
-                             ▌ college/maths  ██████▍░  80%                                                             
-                             ▌ college/os     ██████▍░  80%                                                             
+                             ▌ college/dbms   █████▎░░  67%                                                             
+                             ▌ college/maths  █████▎░░  67%                                                             
+                             ▌ college/os     █████▎░░  67%                                                             
                                                                                                                         
                                                                                                                         
                              E X A M S ───────────────────────────────────────────                                      
-                                                                                                                        
-                             ✦ no exams yet                                                                             
-                               :exam <course> <name> <date>                                                             
+                             ▌ DBMS midterm — relational algebra + SQL — 6d                                             
+                             ▌ OS final — scheduling + deadlocks — 13d                                                  
+                             ▌ Maths final — series convergence — 19d                                                   
                                                                                                                         
                                                                                                                         
                              H E A T M A P ───────────────────────────────────────                                      
@@ -35,6 +35,6 @@
                              Fri ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                                        
                                  ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                                        
                              Sun ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██ ██                                        
-                                  less ▪ ▪ ▪ ▪ more                                                                     
+  ✦  Nov 13 · DBMS midter         less ▪ ▪ ▪ ▪ more                                                                     
                                                                                                                         
-  0 Home   1 List   2 Board   3 Calendar                          local repo                          14:32  ? help 
+  0 Home   1 List   2 Board   3 Calendar   4 Courses                   local repo                    14:32  ? help 

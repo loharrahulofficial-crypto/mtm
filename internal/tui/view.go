@@ -27,6 +27,9 @@ func (m Model) View() string {
 
 	sidebarW := sideWidth(m.width, m.sidebarHidden)
 	detailW := detailWidth(m.width, m.detailOn)
+	if m.view == viewCourses {
+		detailW = 0 // course dashboard is read-only; no detail pane
+	}
 	gutters := 0
 	if sidebarW > 0 {
 		gutters++
@@ -84,6 +87,9 @@ func (m Model) renderMain(w, h int) string {
 		// Home gets no outer border; its inner panels carry the single
 		// focus ring (renderHomeBody gives it to TODAY when focused).
 		return renderPanelBorderless(m, w, h, renderHomeBody(m, w, h))
+	case viewCourses:
+		// Borderless slab like Home; the dashboard is read-only with scroll.
+		return renderCoursesBody(m, w, h)
 	case viewBoard:
 		return panel("board", renderBoardBody(m, w-2, h-2))
 	case viewCalendar:

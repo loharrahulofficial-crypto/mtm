@@ -27,6 +27,7 @@ func (m Model) buildPaletteItems() []paletteItem {
 		{id: "view:list", label: "Go to List", hint: "1", group: "Commands"},
 		{id: "view:board", label: "Go to Board", hint: "2", group: "Commands"},
 		{id: "view:calendar", label: "Go to Calendar", hint: "3", group: "Commands"},
+		{id: "view:courses", label: "Go to Courses", hint: "4", group: "Commands"},
 		{id: "focus", label: "Focus current task", hint: "F", group: "Commands"},
 		{id: "toggle:sidebar", label: "Toggle sidebar", hint: m.keymap.Seq(aSidebar), group: "Commands"},
 		{id: "toggle:detail", label: "Toggle detail pane", hint: m.keymap.Seq(aDetail), group: "Commands"},
@@ -34,6 +35,10 @@ func (m Model) buildPaletteItems() []paletteItem {
 		{id: "archive", label: "Archive completed tasks", hint: "", group: "Commands"},
 		{id: "reload", label: "Reload tasks", hint: "", group: "Commands"},
 		{id: "help", label: "Help / keybindings", hint: "?", group: "Commands"},
+		{id: "timer:toggle", label: "Timer: start/stop on selected task", hint: ":", group: "Actions"},
+		{id: "pomo:start", label: "Pomodoro: start on selected task", hint: ":", group: "Actions"},
+		{id: "exam:add", label: "Exam: add…", hint: ":exam", group: "Actions"},
+		{id: "grade:record", label: "Grade: record for selected task", hint: ":grade", group: "Actions"},
 	}
 	for _, t := range m.store.Tasks() {
 		if m.store.IsDoneStatus(t.Project, t.Status) {
@@ -323,6 +328,7 @@ var knownCommands = map[string]bool{
 	"list": true, "view1": true, "board": true, "kanban": true, "view2": true,
 	"calendar": true, "cal": true, "view3": true, "quit": true, "q": true,
 	"home": true, "view0": true, "focus": true, "exam": true,
+	"courses": true, "view4": true, "timer": true, "pomo": true, "grade": true,
 }
 
 func filterOut(ids []string, drop string) []string {
@@ -348,6 +354,32 @@ func (m Model) executePaletteAction(id string) (Model, tea.Cmd) {
 		m.resetBoardCursor()
 	case "view:calendar":
 		m.view = viewCalendar
+	case "view:courses":
+		m.view = viewCourses
+	case "timer:toggle":
+		return quickTimerToggle(m)
+	case "pomo:start":
+		return quickPomoStart(m)
+	case "exam:add":
+		m.mode = modePalette
+		m.paletteInput.SetValue("exam ")
+		m.paletteInput.CursorEnd()
+		m.paletteQuery = "exam "
+		m.paletteItems = paletteItemsFor(m, m.paletteQuery)
+		m.paletteSel = 0
+		return m, nil
+	case "grade:record":
+		if t := m.selectedTask(); t != nil {
+			m.mode = modePalette
+			m.paletteInput.SetValue("grade " + t.ID + " ")
+			m.paletteInput.CursorEnd()
+			m.paletteQuery = "grade " + t.ID + " "
+			m.paletteItems = paletteItemsFor(m, m.paletteQuery)
+			m.paletteSel = 0
+			return m, nil
+		}
+		m.statusMsg = "no task selected"
+		return m, nil
 	case "focus":
 		if t := m.selectedTask(); t != nil {
 			return m.enterFocusTask(t)

@@ -40,6 +40,10 @@ func (m *Model) detailTask() *core.Task {
 	if m.view == viewHome {
 		return m.homeSelectedTask()
 	}
+	if m.view == viewCourses {
+		// The course dashboard is read-only; no task detail.
+		return nil
+	}
 	return m.selectedTask()
 }
 
