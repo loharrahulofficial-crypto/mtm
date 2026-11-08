@@ -27,7 +27,7 @@ type homeData struct {
 	exams     []examCard
 	courses   []courseRow
 
-	heatmap   [7 * 26]int
+	heatmap   [7 * 52]int
 	weekHours [7]float64
 	weekTotal float64
 }
@@ -150,10 +150,10 @@ func buildHomeData(m Model) homeData {
 		if stamp != "" {
 			if ts, err := time.ParseInLocation(core.TimestampFormat, stamp, now.Location()); err == nil {
 				dayIdx := int(todayStart.Sub(time.Date(ts.Year(), ts.Month(), ts.Day(), 0, 0, 0, 0, now.Location())).Hours() / (24 * 7))
-				if dayIdx >= 0 && dayIdx < 26 {
-					col := 25 - dayIdx
+				if dayIdx >= 0 && dayIdx < 52 {
+					col := 51 - dayIdx
 					row := int(ts.Weekday()+6) % 7
-					d.heatmap[row*26+col]++
+					d.heatmap[row*52+col]++
 				}
 			}
 		}
