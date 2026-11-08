@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Launch the Study Desk TUI against a throwaway copy of the demo dataset
-# (73 example tasks across three courses). Everything — HOME, XDG roots,
+# (80+ example tasks across three courses, dates relative to today via
+# `mtm demo-seed`). Everything — HOME, XDG roots,
 # the data repo — lives in a temp dir that is removed on exit, so your real
 # tasks are never touched.
 #
@@ -24,7 +25,7 @@ sandbox="$MTM_SANDBOX_DIR"
 
 data="$XDG_DATA_HOME/mtm"
 mkdir -p "$data" "$XDG_CONFIG_HOME/mtm"
-cp -a "$repo_root/testdata/demo/projects/." "$data/projects/"
+"$binary" demo-seed "$data/projects"
 
 # Keep the demo data repo a git repo like a real one (sync stays off).
 (
@@ -63,6 +64,6 @@ saved_views: []
 EOF
 sed -i "s|__DATA__|$data|" "$XDG_CONFIG_HOME/mtm/config.yaml"
 
-echo "mtm demo — 73 example tasks in a throwaway sandbox: $sandbox"
+echo "mtm demo — 80+ example tasks (dated relative to today) in a throwaway sandbox: $sandbox"
 echo "(the sandbox is deleted when mtm exits)"
 "$binary" tui
