@@ -57,6 +57,8 @@ func Execute() error {
 		newGradeCmd(),
 		newGradesCmd(),
 		newHoursCmd(),
+		newTimerCmd(),
+		newPomoCmd(),
 		newSyncCmd(),
 		newSummaryCmd(),
 		newTuiCmd(),

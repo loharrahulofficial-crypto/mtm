@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/clock"
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
@@ -186,11 +187,8 @@ type Model struct {
 	conflictDone   map[string]bool
 	conflictReturn modeID
 
-	// focus timer (Pomodoro)
-	focusEnd       time.Time
-	focusRemaining time.Duration
-	focusPaused    bool
-	focusTotal     time.Duration
+	// active timer (state file outside the repo; see internal/actions/timer.go)
+	timer core.TimerView
 
 	// command palette
 	paletteQuery  string
@@ -274,6 +272,7 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 	if unknown := m.keymap.ApplyOverrides(cfg.Keys); len(unknown) > 0 {
 		m.statusMsg = fmt.Sprintf("ignoring unknown keys: entries: %s", strings.Join(unknown, ", "))
 	}
+	m.timer = actions.LoadTimerView(s)
 	m.sidebarItems = m.buildSidebar()
 	m.sidebarSel = 0 // land on "All"
 	m.refreshTasks()

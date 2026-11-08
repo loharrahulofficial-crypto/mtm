@@ -8,32 +8,52 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
-// focusTickMsg fires once per second while focus mode is active.
-type focusTickMsg struct{}
+// timerTickMsg fires once per second, everywhere in the TUI: it advances
+// phases through the shared timer engine, auto-finalizes stale sessions,
+// and refreshes the cached view the statusline and Focus mode render.
+type timerTickMsg struct{}
 
-// enterFocusTask enters full-screen focus mode pinned to t, starting a
-// fresh Pomodoro work timer and its 1-second tick.
+// enterFocusTask enters full-screen focus mode pinned to t, starting or
+// attaching to the shared timer (pomodoro in Focus mode).
 func (m Model) enterFocusTask(t *core.Task) (Model, tea.Cmd) {
-	work := m.cfg.Pomodoro.WorkMinutes
-	if work <= 0 {
-		work = 25
-	}
-	m.focusTotal = time.Duration(work) * time.Minute
-	m.focusRemaining = m.focusTotal
-	m.focusEnd = m.clock.Now().Add(m.focusTotal)
-	m.focusPaused = false
 	m.notesID = t.ID // reuse for identity of the focused task
 	m.mode = modeFocus
-	return m, focusTickCmd()
+	m.attachOrStartTimer(t)
+	return m, nil
 }
 
-func focusTickCmd() tea.Cmd {
-	return tea.Tick(time.Second, func(time.Time) tea.Msg { return focusTickMsg{} })
+// attachOrStartTimer starts a pomodoro for t when no timer is running,
+// attaches to the running one, and never starts a second session.
+func (m *Model) attachOrStartTimer(t *core.Task) {
+	v := actions.LoadTimerView(m.store)
+	switch {
+	case v.Phase == core.TimerPhaseIdle:
+		if _, err := actions.StartTimer(m.store, m.cfg, t.ID, core.TimerModePomodoro); err != nil {
+			m.statusMsg = err.Error()
+		} else {
+			m.statusMsg = "pomodoro started"
+		}
+	case v.TaskID == t.ID:
+		m.statusMsg = "attached to the running timer"
+	default:
+		title := v.TaskID
+		if other, err := m.store.Resolve(v.TaskID); err == nil {
+			title = other.Title
+		}
+		m.statusMsg = "timer already running on " + title
+	}
+	m.refreshTimer()
+}
+
+// refreshTimer re-reads the cached timer view the render path consumes.
+func (m *Model) refreshTimer() {
+	m.timer = actions.LoadTimerView(m.store)
 }
 
 // updateFocusKey handles keys while focus mode is active.
@@ -42,17 +62,30 @@ func (m Model) updateFocusKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
 		m.mode = modeNormal
-		m.focusPaused = true
 		return m, nil
 	case " ":
-		m.focusPaused = !m.focusPaused
-		if m.focusPaused {
-			m.focusRemaining = time.Until(m.focusEnd)
-			if m.focusRemaining < 0 {
-				m.focusRemaining = 0
+		if m.timer.Phase == core.TimerPhaseIdle {
+			if t := m.focusTask(); t != nil {
+				if _, err := actions.StartTimer(m.store, m.cfg, t.ID, core.TimerModePomodoro); err != nil {
+					m.statusMsg = err.Error()
+					return m, nil
+				}
+				m.statusMsg = "pomodoro started"
+				m.refreshTimer()
+				return m, nil
 			}
+			return m, nil
+		}
+		v, err := actions.TogglePauseTimer(m.store)
+		if err != nil {
+			m.statusMsg = err.Error()
+			return m, nil
+		}
+		m.timer = v
+		if v.Running {
+			m.statusMsg = "resumed"
 		} else {
-			m.focusEnd = m.clock.Now().Add(m.focusRemaining)
+			m.statusMsg = "paused"
 		}
 		return m, nil
 	case "x":
@@ -76,27 +109,9 @@ func (m Model) focusTask() *core.Task {
 	return m.selectedTask()
 }
 
-// handleFocusTick advances the countdown once per second.
-func (m Model) handleFocusTick() (tea.Model, tea.Cmd) {
-	if m.mode != modeFocus {
-		return m, nil
-	}
-	if m.focusPaused {
-		return m, focusTickCmd()
-	}
-	remaining := time.Until(m.focusEnd)
-	if remaining <= 0 {
-		m.focusRemaining = 0
-		m.focusPaused = true
-		m.statusMsg = "pomodoro done — take a break"
-		return m, focusTickCmd()
-	}
-	m.focusRemaining = remaining
-	return m, focusTickCmd()
-}
-
+// formatFocusDuration renders mm:ss for the focus surface.
 func formatFocusDuration(d time.Duration) string {
-	total := int(d.Seconds())
+	total := int(d.Round(time.Second).Seconds())
 	if total < 0 {
 		total = 0
 	}
@@ -163,19 +178,22 @@ func (m Model) renderFocus() string {
 		body = append(body, strings.Repeat(" ", pad)+muted.Render(strings.Join(chips, "  ")))
 	}
 
-	// Timer bar + times.
-	elapsed := m.focusTotal - m.focusRemaining
-	frac := 0.0
-	if m.focusTotal > 0 {
-		frac = float64(elapsed) / float64(m.focusTotal)
-	}
+	// Timer bar + times (from the shared timer state).
+	v := m.timer
+	idle := v.Phase == core.TimerPhaseIdle
+	elapsed := v.Total - v.Remaining
+	frac := v.Progress
 	barW := clampInt(inner-22, 16, 44)
 	barFill, barTrack := gauges.Bar(frac, barW)
 	fill := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(lipgloss.Color(m.palette.Base)).Render(barFill)
 	track := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Border)).Background(lipgloss.Color(m.palette.Base)).Render(barTrack)
 	body = append(body, "")
 	body = append(body, "")
-	body = append(body, strings.Repeat(" ", pad)+formatFocusDuration(elapsed)+"  "+fill+track+"  "+formatFocusDuration(m.focusRemaining))
+	if idle {
+		body = append(body, strings.Repeat(" ", pad)+muted.Render("no timer running — press space to start a pomodoro"))
+	} else {
+		body = append(body, strings.Repeat(" ", pad)+formatFocusDuration(elapsed)+"  "+fill+track+"  "+formatFocusDuration(v.Remaining))
+	}
 	body = append(body, strings.Repeat(" ", pad)+muted.Render(pomodoroState(m)))
 
 	// Notes preview.
@@ -210,10 +228,24 @@ func (m Model) renderFocus() string {
 }
 
 func pomodoroState(m Model) string {
-	if m.focusPaused {
-		return "paused"
+	v := m.timer
+	switch v.Phase {
+	case core.TimerPhaseIdle:
+		return "space starts a pomodoro · esc exit"
+	case core.TimerPhaseBreak:
+		if !v.Running {
+			return "break — paused"
+		}
+		return fmt.Sprintf("break — rest · %d pomodoro(s) done", v.Pomodoros)
+	default:
+		if !v.Running {
+			return "paused"
+		}
+		if v.Mode == core.TimerModePomodoro {
+			return fmt.Sprintf("focusing… · pomodoro %d", v.PhaseIndex)
+		}
+		return "focusing…"
 	}
-	return "focusing…"
 }
 
 func wrapLines(s string, width, maxLines int) []string {

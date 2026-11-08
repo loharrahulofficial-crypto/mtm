@@ -1,10 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
+	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
@@ -14,6 +17,34 @@ type syncDoneMsg struct {
 	note string
 	err  error
 }
+
+// handleTimerTick advances the shared timer, finalizes stale sessions and
+// refreshes the cached view every second. Phase-transition events fire the
+// desktop notification themselves.
+func (m Model) handleTimerTick() (tea.Model, tea.Cmd) {
+	v, _, auto, err := actions.TickTimer(m.store, m.cfg, true)
+	switch {
+	case err != nil:
+		m.statusMsg = "timer: " + err.Error()
+	case auto != nil:
+		m.statusMsg = fmt.Sprintf("timer ended while away — logged %s%s", actions.FormatMinutes(auto.Minutes), capSuffix(auto.Capped))
+		m.refreshTasks()
+		m.sidebarItems = m.buildSidebar()
+		m.clampCursor()
+		m.timer = core.TimerView{Phase: core.TimerPhaseIdle}
+	default:
+		m.timer = v
+	}
+	return m, tea.Tick(time.Second, func(time.Time) tea.Msg { return timerTickMsg{} })
+}
+
+func capSuffix(capped bool) string {
+	if capped {
+		return " (capped)"
+	}
+	return ""
+}
+
 type editorDoneMsg struct {
 	kind string // "notes" | "taskfile" | "conflict"
 	path string // conflict file or notes temp path
@@ -27,12 +58,13 @@ const (
 	pendingKeyTimeout = 700 * time.Millisecond
 )
 
-// Init starts the background sync and the theme poll ticker.
+// Init starts the background sync, the theme poll and the 1-second timer tick.
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.kickSyncCmd(),
 		tea.Tick(themePollInterval, func(t time.Time) tea.Msg { return themeTickMsg(t) }),
 		m.spinner.Tick,
+		tea.Tick(time.Second, func(time.Time) tea.Msg { return timerTickMsg{} }),
 	)
 }
 
@@ -104,8 +136,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case focusTickMsg:
-		return m.handleFocusTick()
+	case timerTickMsg:
+		return m.handleTimerTick()
 
 	case animTickMsg:
 		if m.animFrame > 1 {

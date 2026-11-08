@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/spf13/cobra"
 )
@@ -65,6 +66,23 @@ func newSummaryCmd() *cobra.Command {
 				if len(exams) > 1 {
 					line1 += fmt.Sprintf(" (+%d more)", len(exams)-1)
 				}
+			}
+			// Active timer (read-only peek; phase advances happen on TUI/pomo ticks).
+			if v := actions.LoadTimerView(s); v.Phase != core.TimerPhaseIdle {
+				ref := shortID(v.TaskID)
+				if t, err := s.Resolve(v.TaskID); err == nil {
+					ref = shortID(v.TaskID) + " " + t.Title
+				}
+				var chip string
+				if v.Mode == core.TimerModePomodoro && v.Total > 0 {
+					chip = fmt.Sprintf("pomo %s left · %s %d · %s", formatClock(v.Remaining), v.Phase, v.PhaseIndex, ref)
+				} else {
+					chip = fmt.Sprintf("timer %s elapsed · %s", actions.FormatMinutes(int(v.Accrued/time.Minute)), ref)
+				}
+				if !v.Running {
+					chip += " (paused)"
+				}
+				line1 += " · " + chip
 			}
 
 			// Per-project progress.

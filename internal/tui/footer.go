@@ -1,9 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 )
 
 // renderFooterBar renders the statusline: view pills on the left, the
@@ -141,6 +145,28 @@ func (m Model) syncStateLabel() string {
 	}
 }
 
+// timerChip renders the compact countdown for the statusline, e.g.
+// "24:59 work", "break 4:32", "12m timer". Empty when no timer runs.
+func timerChip(v core.TimerView) string {
+	if v.Phase == core.TimerPhaseIdle {
+		return ""
+	}
+	var chip string
+	switch {
+	case v.Mode == core.TimerModePomodoro && v.Total > 0:
+		chip = fmt.Sprintf("%02d:%02d %s", int(v.Remaining.Minutes()), int(v.Remaining.Seconds())%60, v.Phase)
+	default:
+		chip = fmt.Sprintf("%dm timer", int(v.Accrued.Round(time.Minute).Minutes()))
+	}
+	if !v.Running {
+		chip += " paused"
+	}
+	if v.Stale {
+		chip = "stale " + chip
+	}
+	return chip
+}
+
 // footerMiddle is the transient status / filter message followed by the
 // labeled sync state. The left pills and this middle always yield space to
 // the right side.
@@ -152,6 +178,13 @@ func (m Model) footerMiddle() string {
 			msg = filter
 		} else {
 			msg = msg + " · " + filter
+		}
+	}
+	if chip := timerChip(m.timer); chip != "" {
+		if msg == "" {
+			msg = chip
+		} else {
+			msg = chip + " · " + msg
 		}
 	}
 	if msg == "" {
