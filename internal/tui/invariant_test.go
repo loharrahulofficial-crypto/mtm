@@ -186,6 +186,13 @@ func TestFrameInvariants(t *testing.T) {
 					// (4) Plain panel rows are uniform on the panel background
 					// except for small intentional chips.
 					checkPanelUniformity(t, grid)
+
+					// (5) The selected row is one continuous raised block, end to end.
+					// List only: board cards and the calendar today-pill are
+					// deliberate filled chips on raised blocks, not rows.
+					if state == "populated" && view == "list" {
+						checkSelectedRowUniform(t, grid, size.w)
+					}
 				})
 			}
 		}
@@ -366,4 +373,44 @@ func offBGRuns(grid frameGrid, r, c0, c1 int, panelBG, baseGutter string) []offR
 	}
 	flush()
 	return runs
+}
+
+// checkSelectedRowUniform asserts that a row carrying the SurfaceRaised
+// background (a selected list/home row, a selected card) carries it as one
+// CONTINUOUS block — every cell between the first and last raised cell in
+// the row must be raised too. Chips inside the row included: a single
+// off-raised cell breaks the continuous highlight. Cells outside the block
+// (sidebar, detail pane, gutters) are out of scope.
+func checkSelectedRowUniform(t *testing.T, grid frameGrid, w int) {
+	t.Helper()
+	raised := renderedBGProbe(theme.Defaults().SurfaceRaised)
+	if raised == "" {
+		t.Fatal("could not probe raised background fingerprint")
+	}
+	checked := 0
+	for r := 0; r < grid.rows(); r++ {
+		first, last := -1, -1
+		for c := 0; c < w; c++ {
+			_, bg := grid.cell(r, c)
+			if bg == raised {
+				if first < 0 {
+					first = c
+				}
+				last = c
+			}
+		}
+		if first < 0 {
+			continue
+		}
+		checked++
+		for c := first; c <= last; c++ {
+			_, bg := grid.cell(r, c)
+			if bg != raised {
+				t.Errorf("row %d: cell %d has background %q, want raised %q — the highlight must be continuous from cell %d to %d", r, c, bg, raised, first, last)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Error("no raised (selected) row found — the populated list fixture must have one")
+	}
 }

@@ -297,6 +297,10 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 		bg = bgRaised
 	}
 	hl := func(c string) lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Background(bg) }
+	// Every gap cell carries the row background: raw spaces would fall back to
+	// the terminal default once a styled segment resets SGR (the reason the
+	// selected row used to show through).
+	sp := func(n int) string { return lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", n)) }
 	txt := func() lipgloss.Style {
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg)
 	}
@@ -330,7 +334,7 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 	if head[t.ID][1] > 0 {
 		frac := float64(head[t.ID][0]) / float64(head[t.ID][1])
 		fill, track := gauges.Bar(frac, 4)
-		sub = " " + hl(stripeColor).Render(fill) + mutedTxt().Render(track) + mutedTxt().Render(fmt.Sprintf(" %d/%d", head[t.ID][0], head[t.ID][1]))
+		sub = sp(1) + hl(stripeColor).Render(fill) + mutedTxt().Render(track) + mutedTxt().Render(fmt.Sprintf(" %d/%d", head[t.ID][0], head[t.ID][1]))
 	}
 
 	// Tags follow the title as dim chips; they live inside the TITLE cell.
@@ -381,13 +385,13 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 	} else {
 		titleRendered = txt().Render(title)
 	}
-	titleCell := strings.Repeat(" ", indentW)
+	titleCell := sp(indentW)
 	if row.Depth > 0 {
 		titleCell += mutedTxt().Render("↳ ")
 	}
 	titleCell += titleRendered + sub
 	if tagStr != "" {
-		titleCell += " " + mutedTxt().Render(tagStr)
+		titleCell += sp(1) + mutedTxt().Render(tagStr)
 	}
 	if pad := col.titleW - lipgloss.Width(titleCell); pad > 0 {
 		titleCell += lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", pad))
@@ -395,8 +399,7 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 		titleCell = clipStyled(titleCell, col.titleW)
 	}
 
-	// Fixed cells to the right edge, every space carrying the row background.
-	space := func(n int) string { return lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", n)) }
+	// Fixed cells to the right edge.
 	dueStr := ""
 	if t.Due != "" {
 		label, heat := gauges.DueLabel(t.Due, now)
@@ -423,11 +426,11 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 		dueCell = clipStyled(dueCell, col.dueW)
 	}
 
-	line := stripe + " " + markStyle.Render(mark) + " " + statusCol + " " + prioCol + " " + titleCell
+	line := stripe + sp(1) + markStyle.Render(mark) + sp(1) + statusCol + sp(1) + prioCol + sp(1) + titleCell
 	if col.courseW > 0 {
-		line += space(2) + courseCol
+		line += sp(2) + courseCol
 	}
-	line += space(2) + dueCell + space(1)
+	line += sp(2) + dueCell + sp(1)
 	line = padToWidth(line, w, bg)
 	return line
 }
