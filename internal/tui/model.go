@@ -157,6 +157,7 @@ type Model struct {
 	calMonth     time.Time
 	calDay       time.Time
 	calAgendaSel int
+	calShowDone  bool // `d` toggles completed tasks in day cells
 
 	// input bar
 	input      textinput.Model

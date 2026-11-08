@@ -132,6 +132,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case pendingKeyMsg:
 		if int(msg) == m.pendingGen {
+			// A lone "d" waited out the sequence timeout: in the calendar it
+			// is the completed-tasks toggle (dd still deletes — the second
+			// d resolves the "dd" sequence before the timeout).
+			if m.pendingKey == "d" && m.view == viewCalendar {
+				m.pendingKey = ""
+				return m.doAction(aToggleCalendarDone)
+			}
 			m.pendingKey = ""
 		}
 		return m, nil

@@ -17,7 +17,7 @@ func renderHelpBox(km KeyMap, s styles, width int) string {
 		{"view", []string{aViewHome, aViewList, aViewBoard, aViewCalendar, aCycleView, aFocus}},
 		{"move", []string{aUp, aDown, aLeft, aRight, aJumpLeft, aJumpRight, aTop, aBottom, aPageDown, aPageUp, aFocusLeft, aFocusRight, aSidebar}},
 		{"filter", []string{aSearch, aSearchNext, aSearchPrev, aPalette}},
-		{"task", []string{aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle, aArchive}},
+		{"task", []string{aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle, aArchive, aToggleCalendarDone}},
 		{"notes", []string{aNotes, aNotesEditor, aEditFile, aDetail}},
 		{"sync", []string{aSync, aConflicts}},
 		{"meta", []string{aHelp, aQuit, aCommand}},

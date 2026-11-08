@@ -8,50 +8,51 @@ import (
 // Action names used for config overrides (keys: section of config.yaml) and
 // help display.
 const (
-	aQuit         = "quit"
-	aViewHome     = "view_home"
-	aViewList     = "view_list"
-	aViewBoard    = "view_board"
-	aViewCalendar = "view_calendar"
-	aViewCourses  = "view_courses"
-	aCycleView    = "cycle_view"
-	aFocus        = "focus"
-	aPalette      = "palette"
-	aPaletteColon = "palette_colon"
-	aUp           = "up"
-	aDown         = "down"
-	aLeft         = "left"
-	aRight        = "right"
-	aTop          = "top"
-	aBottom       = "bottom"
-	aPageDown     = "page_down"
-	aPageUp       = "page_up"
-	aSearch       = "search"
-	aSearchNext   = "search_next"
-	aSearchPrev   = "search_prev"
-	aCommand      = "command"
-	aAdd          = "add"
-	aAddSubtask   = "subtask"
-	aToggleDone   = "toggle_done"
-	aDelete       = "delete"
-	aStatus       = "status"
-	aPriority     = "priority"
-	aDue          = "due"
-	aTags         = "tags"
-	aTitle        = "title"
-	aNotes        = "notes"
-	aNotesEditor  = "notes_editor"
-	aEditFile     = "edit_file"
-	aArchive      = "archive"
-	aSync         = "sync"
-	aDetail       = "toggle_detail"
-	aSidebar      = "toggle_sidebar"
-	aHelp         = "help"
-	aConflicts    = "conflicts"
-	aFocusLeft    = "focus_left"
-	aFocusRight   = "focus_right"
-	aJumpLeft     = "jump_left"
-	aJumpRight    = "jump_right"
+	aQuit               = "quit"
+	aViewHome           = "view_home"
+	aViewList           = "view_list"
+	aViewBoard          = "view_board"
+	aViewCalendar       = "view_calendar"
+	aViewCourses        = "view_courses"
+	aCycleView          = "cycle_view"
+	aFocus              = "focus"
+	aPalette            = "palette"
+	aPaletteColon       = "palette_colon"
+	aUp                 = "up"
+	aDown               = "down"
+	aLeft               = "left"
+	aRight              = "right"
+	aTop                = "top"
+	aBottom             = "bottom"
+	aPageDown           = "page_down"
+	aPageUp             = "page_up"
+	aSearch             = "search"
+	aSearchNext         = "search_next"
+	aSearchPrev         = "search_prev"
+	aCommand            = "command"
+	aAdd                = "add"
+	aAddSubtask         = "subtask"
+	aToggleDone         = "toggle_done"
+	aDelete             = "delete"
+	aStatus             = "status"
+	aPriority           = "priority"
+	aDue                = "due"
+	aTags               = "tags"
+	aTitle              = "title"
+	aNotes              = "notes"
+	aNotesEditor        = "notes_editor"
+	aEditFile           = "edit_file"
+	aArchive            = "archive"
+	aSync               = "sync"
+	aDetail             = "toggle_detail"
+	aToggleCalendarDone = "toggle_calendar_done"
+	aSidebar            = "toggle_sidebar"
+	aHelp               = "help"
+	aConflicts          = "conflicts"
+	aFocusLeft          = "focus_left"
+	aFocusRight         = "focus_right"
+	aJumpLeft           = "jump_left"
+	aJumpRight          = "jump_right"
 )
 
 var actionOrder = []string{
@@ -61,6 +62,7 @@ var actionOrder = []string{
 	aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle,
 	aNotes, aNotesEditor, aEditFile, aArchive, aSync,
 	aDetail, aSidebar, aFocusLeft, aFocusRight, aConflicts, aHelp,
+	aToggleCalendarDone,
 	aJumpLeft, aJumpRight,
 }
 
@@ -142,28 +144,29 @@ func DefaultKeyMap() KeyMap {
 		aSearchNext:   "n",
 		aSearchPrev:   "N",
 
-		aAdd:         "a",
-		aAddSubtask:  "A",
-		aToggleDone:  "x",
-		aDelete:      "dd",
-		aStatus:      "s",
-		aPriority:    "p",
-		aDue:         "D",
-		aTags:        "t",
-		aTitle:       "e",
-		aNotes:       "m",
-		aNotesEditor: "M",
-		aEditFile:    "E",
-		aArchive:     "X",
-		aSync:        "S",
-		aDetail:      "v",
-		aSidebar:     "ctrl+b",
-		aFocusLeft:   "ctrl+h",
-		aFocusRight:  "ctrl+l",
-		aConflicts:   "ctrl+x",
-		aHelp:        "?",
-		aJumpLeft:    "H",
-		aJumpRight:   "L",
+		aAdd:                "a",
+		aAddSubtask:         "A",
+		aToggleDone:         "x",
+		aDelete:             "dd",
+		aStatus:             "s",
+		aPriority:           "p",
+		aDue:                "D",
+		aTags:               "t",
+		aTitle:              "e",
+		aNotes:              "m",
+		aNotesEditor:        "M",
+		aEditFile:           "E",
+		aArchive:            "X",
+		aSync:               "S",
+		aDetail:             "v",
+		aToggleCalendarDone: "d",
+		aSidebar:            "ctrl+b",
+		aFocusLeft:          "ctrl+h",
+		aFocusRight:         "ctrl+l",
+		aConflicts:          "ctrl+x",
+		aHelp:               "?",
+		aJumpLeft:           "H",
+		aJumpRight:          "L",
 	}}
 }
 

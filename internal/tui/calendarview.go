@@ -33,6 +33,13 @@ func (m Model) updateCalendarKey(act string) (tea.Model, tea.Cmd) {
 		m.calDay = clampCalDay(m.calMonth, m.calDay)
 	case aTop:
 		m.calAgendaSel = 0
+	case aToggleCalendarDone:
+		m.calShowDone = !m.calShowDone
+		if m.calShowDone {
+			m.statusMsg = "calendar: showing completed tasks"
+		} else {
+			m.statusMsg = "calendar: hiding completed tasks"
+		}
 	default:
 		if m2, cmd, handled := m.updateSimpleTaskAction(act); handled {
 			return m2, cmd
@@ -114,14 +121,19 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 	}
 	fill := lipgloss.NewStyle().Background(bg)
 	gitRun := func(row string) string {
+		if lipgloss.Width(row) > cw {
+			return clipStyled(row, cw)
+		}
 		if pad := cw - lipgloss.Width(row); pad > 0 {
 			row += fill.Render(strings.Repeat(" ", pad))
 		}
-		// A row wider than cw is clipped by the panel.
 		return row
 	}
+	titlesShown := cellH >= 5 && cw >= 14
 
 	// Row 0: day number (pill for today, bold accent when cursor is on it).
+	// Dots sit on the SAME line, to the right of the number. When the cell
+	// is tall enough to show titles, the dots are dropped entirely.
 	numStr := fmt.Sprintf("%d", day.Day())
 	st := calendarCellStyle(m, day)
 	switch {
@@ -133,14 +145,35 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 		numStr = lipgloss.NewStyle().Foreground(st.GetForeground()).Background(bg).Bold(st.GetBold()).Render(numStr)
 	}
 
-	row0 := fill.Render(" ") + numStr
+	// Dots (open tasks due on the day).
+	dotsRow := ""
+	if !titlesShown {
+		colors, total, _, exam := dotsForDay(m, day)
+		any := false
+		for _, c := range colors {
+			dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Background(bg).Render("●")
+			any = true
+		}
+		if total > len(colors) {
+			dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Render(fmt.Sprintf("+%d", total-len(colors)))
+			any = true
+		}
+		if exam {
+			dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render("✦")
+			any = true
+		}
+		if any {
+			dotsRow = fill.Render(" ") + dotsRow
+		}
+	}
+	row0 := fill.Render(" ") + numStr + dotsRow
 	out := []string{gitRun(row0)}
 	for i := 1; i < cellH; i++ {
 		out = append(out, gitRun(""))
 	}
 
 	// Task titles (only when the cell can breathe).
-	if cellH >= 5 && cw >= 14 {
+	if titlesShown {
 		tasks := tasksDueOn(m, day)
 		maxTitles := 2
 		if cellH-2 < maxTitles {
@@ -159,46 +192,34 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 		}
 	}
 
-	// Dots row (bottom-left), with +N overflow and an exam marker.
-	colors, total, _, exam := dotsForDay(m, day)
-	dotsRow := fill.Render(" ")
-	any := false
-	for _, c := range colors {
-		dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Background(bg).Render("●")
-		any = true
-	}
-	if total > len(colors) {
-		dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Render(fmt.Sprintf("+%d", total-len(colors)))
-		any = true
-	}
-	if exam {
-		dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render("✦")
-		any = true
-	}
-	dotsLine := any
-
-	// Bottom row: selected → accent underline rule; else dots.
+	_ = fill
+	// Bottom row: selected → accent underline rule. Dots live on row 0.
 	last := cellH - 1
 	if isSelected {
 		out[last] = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Render(strings.Repeat("─", cw))
-		if dotsLine && last-1 >= 1 {
-			out[last-1] = gitRun(dotsRow)
-		}
-		return out
-	}
-	if dotsLine {
-		out[last] = gitRun(dotsRow)
 	}
 	return out
 }
 
 // tasksDueOn returns tasks due on day, sorted like the agenda.
+// tasksDueOn feeds the day cells; completed tasks are hidden unless the
+// `d` toggle is on.
 func tasksDueOn(m Model, day time.Time) []*core.Task {
 	saved := m.calDay
 	m.calDay = day
 	out := agendaTasks(m)
 	m.calDay = saved
-	return out
+	if m.calShowDone {
+		return out
+	}
+	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
+	kept := out[:0]
+	for _, t := range out {
+		if !isDone(t.Project, t.Status) {
+			kept = append(kept, t)
+		}
+	}
+	return kept
 }
 
 // calendarCellStyle picks the base style for one day's number. Today keeps
@@ -301,15 +322,32 @@ func calendarGrid(m Model) (gridStart time.Time, weeks int) {
 	return gridStart, weeks
 }
 
-// calendarLayout computes the cell width and grid height for the current
-// content box: cw is the single cell width shared by weekday headers and
-// day cells; cells are separated by 1-cell base gutters.
-func calendarLayout(m Model, w, h int) (cw, cellH, weeks int, gridStart time.Time) {
+// calendarColWidths distributes w cells across the 7 columns plus six
+// 1-cell gutters, so the grid fills the panel exactly (no leftover
+// strip). The first columns absorb the remainder.
+func calendarColWidths(w int) []int {
 	const gap = 1
-	cw = (w - 6*gap) / 7
-	if cw < 4 {
-		cw = 4
+	base := (w - 6*gap) / 7
+	if base < 2 {
+		base = 2
 	}
+	rem := (w - 6*gap) - base*7
+	cols := make([]int, 7)
+	for i := range cols {
+		cols[i] = base
+		if i < rem {
+			cols[i]++
+		}
+	}
+	return cols
+}
+
+// calendarLayout computes the per-column widths and grid height for the
+// current content box: colWidths[i] is the width of column i (shared by
+// weekday headers and day cells); cells are separated by 1-cell base
+// gutters.
+func calendarLayout(m Model, w, h int) (colWidths []int, cellH, weeks int, gridStart time.Time) {
+	colWidths = calendarColWidths(w)
 	gridStart, weeks = calendarGrid(m)
 
 	agendaRows := 2 // header + at least one line (empty state)
@@ -325,7 +363,7 @@ func calendarLayout(m Model, w, h int) (cw, cellH, weeks int, gridStart time.Tim
 	if cellH < 3 {
 		cellH = 3
 	}
-	return cw, cellH, weeks, gridStart
+	return colWidths, cellH, weeks, gridStart
 }
 
 func weekdayHeaders(weekStart string) []string {
@@ -360,25 +398,25 @@ func renderCalendarBody(m Model, w, h int) []string {
 	titleLine := " " + cap_ + strings.Repeat(" ", max(0, titleW-lipglossWidth(cap_))) + " " + muted.Render(hints)
 	lines := []string{padToWidth(titleLine, w, bgSurface)}
 
-	cw, cellH, weeks, gridStart := calendarLayout(m, w, h)
+	colWidths, cellH, weeks, gridStart := calendarLayout(m, w, h)
 	_ = cellH
 	baseGutter := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base)).Render(strings.Repeat(" ", gap))
 
-	// Weekday caps, centered over their columns (same cw + gaps).
+	// Weekday caps, left-aligned with the day numbers (leading space,
+	// same per-column widths).
 	weekday := weekdayHeaders(m.cfg.WeekStart)
 	weekNames := []string{}
 	for _, d := range weekday {
 		weekNames = append(weekNames, strings.ToUpper(d))
 	}
-	if cw < 5 {
-		weekNames = []string{"M", "T", "W", "T", "F", "S", "S"}
-		if strings.ToLower(m.cfg.WeekStart) == "sunday" {
-			weekNames = []string{"S", "M", "T", "W", "T", "F", "S"}
+	for i, cw := range colWidths {
+		if cw < 5 {
+			weekNames[i] = strings.ToUpper(weekNames[i][:1])
 		}
 	}
 	headCells := make([]string, 0, 7)
-	for _, name := range weekNames {
-		headCells = append(headCells, muted.Width(cw).Render(center(name, cw)))
+	for i, name := range weekNames {
+		headCells = append(headCells, muted.Width(colWidths[i]).Render(" "+name))
 	}
 	lines = append(lines, joinGridRow(baseBGcolor, baseGutter, headCells, w))
 
@@ -388,7 +426,7 @@ func renderCalendarBody(m Model, w, h int) []string {
 		cells := make([][]string, 0, 7)
 		for d := 0; d < 7; d++ {
 			day := weekStart.AddDate(0, 0, d)
-			cells = append(cells, calendarCell(m, day, cw, cellH, today))
+			cells = append(cells, calendarCell(m, day, colWidths[d], cellH, today))
 		}
 		for row := 0; row < cellH; row++ {
 			rowCells := make([]string, 0, 7)
@@ -495,7 +533,7 @@ func (m *Model) clickCalendar(x, y int) {
 	}
 	innerW := m.width - 2
 	contentH := m.height - 2
-	cw, cellH, weeks, gridStart := calendarLayout(*m, innerW, contentH)
+	colWidths, cellH, weeks, gridStart := calendarLayout(*m, innerW, contentH)
 	_ = gridStart
 	const padTop = 1
 	gridTop := 2
@@ -503,13 +541,17 @@ func (m *Model) clickCalendar(x, y int) {
 	gy := y - padTop - gridTop
 	week := gy / cellH
 	if gy >= 0 && week < weeks {
-		col := x - 1 // body inset 1
-		cell := col / (cw + 1)
-		within := col % (cw + 1)
-		if cell > 6 {
-			cell = 6
+		local := x - 1 // body inset 1
+		off := 0
+		cell := -1
+		for i, cw := range colWidths {
+			if local >= off && local < off+cw {
+				cell = i
+				break
+			}
+			off += cw + 1
 		}
-		if cell < 0 || within == cw {
+		if cell < 0 {
 			return // clicked a base gutter
 		}
 		m.calDay = gridStart.AddDate(0, 0, week*7+cell)
