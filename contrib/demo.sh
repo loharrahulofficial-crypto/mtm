@@ -16,21 +16,14 @@ if [ ! -x "$binary" ]; then
   binary="$repo_root/bin/mtm"
 fi
 
-sandbox="$(mktemp -d "${TMPDIR:-/tmp}/mtm-demo.XXXXXX")"
-cleanup() { rm -rf "$sandbox"; }
-trap cleanup EXIT
-
-export HOME="$sandbox/home"
-export XDG_CONFIG_HOME="$HOME/.config"
-export XDG_DATA_HOME="$HOME/.local/share"
-export XDG_CACHE_HOME="$sandbox/cache"
-export OMARCHY_STATE_HOME="$HOME/.local/state/omarchy"
-# Render one deterministic frame? No — this is the interactive path, and it
-# is fully sandboxed, so the demo data can never reach the real store.
-export MTM_SANDBOX=1
+# Sandbox first: HOME and every XDG root land in a temp dir, MTM_SANDBOX=1,
+# EXIT trap deletes the sandbox. No exec at the end of this script — the
+# trap must get to run.
+source "$repo_root/contrib/sandbox-env.sh"
+sandbox="$MTM_SANDBOX_DIR"
 
 data="$XDG_DATA_HOME/mtm"
-mkdir -p "$data" "$XDG_CONFIG_HOME/mtm" "$XDG_CACHE_HOME" "$OMARCHY_STATE_HOME"
+mkdir -p "$data" "$XDG_CONFIG_HOME/mtm"
 cp -a "$repo_root/testdata/demo/projects/." "$data/projects/"
 
 # Keep the demo data repo a git repo like a real one (sync stays off).
@@ -72,4 +65,4 @@ sed -i "s|__DATA__|$data|" "$XDG_CONFIG_HOME/mtm/config.yaml"
 
 echo "mtm demo — 73 example tasks in a throwaway sandbox: $sandbox"
 echo "(the sandbox is deleted when mtm exits)"
-exec "$binary" tui
+"$binary" tui
