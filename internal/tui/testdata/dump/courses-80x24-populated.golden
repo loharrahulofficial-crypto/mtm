@@ -1,24 +1,24 @@
-                      no courses yet — mark one with `mtm course add <name> --co
-  mtm · study desk                                                              
-                                                                                
-  V I E W S ──────                                                              
-   Home                                                                        
-   All           2                                                             
-   Today         1                                                             
-   Week          2                                                             
-   Overdue       1                                                             
-  C O U R S E S ──                                                              
-  ▌ inbox ░░░░    2                                                             
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
+                     ╭─ C O U R S E S ─────────────────────────────── 0 active ╮
+  mtm · study desk   │                                                         │
+                     │ no courses yet — see `mtm course add -h`                │
+  V I E W S ──────   │                                                         │
+   Home             │                                                         │
+   All           2  │                                                         │
+   Today         1  │                                                         │
+   Week          2  │                                                         │
+   Overdue       1  │                                                         │
+  C O U R S E S ──   │                                                         │
+  ▌ inbox ░░░░    2  │                                                         │
+                     │                                                         │
+                     │                                                         │
+                     │                                                         │
+                     │                                                         │
+                     │                                                         │
+                     │                                                         │
+                     │                                                         │
+                     │                                                         │
+                     │                                                         │
+                     │                                                         │
+                     │                                                         │
+                     ╰─────────────────────────────────────────────────────────╯
  0 Home  1 List  2 Board  3 Calendar  4 Courses    local repo     14:32  ? help 

@@ -57,7 +57,8 @@ func renderPanelBorderless(m Model, w, h int, body []string) string {
 // renderPanel draws one pane. body must already be split into lines; each
 // line is clipped/padded to the content width. focused draws the accent
 // rounded border; title (optional, uppercase caps) sits in the top edge.
-func renderPanel(m Model, title string, w, h int, focused bool, body []string) string {
+// hint (optional, e.g. "3 active") is right-aligned in the title row / edge.
+func renderPanel(m Model, title string, w, h int, focused bool, body []string, hint ...string) string {
 	surface := m.styles.surface
 	border := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(lipgloss.Color(m.palette.Surface))
 
@@ -87,14 +88,18 @@ func renderPanel(m Model, title string, w, h int, focused bool, body []string) s
 	}
 
 	lines := make([]string, 0, h)
+	hintText := ""
+	if len(hint) > 0 {
+		hintText = hint[0]
+	}
 	if focused {
-		lines = append(lines, panelEdge(m, w, true, title, border, surface))
+		lines = append(lines, panelEdge(m, w, true, title, border, surface, hintText))
 		for _, row := range grid {
 			lines = append(lines, border.Render("│")+row+border.Render("│"))
 		}
-		lines = append(lines, panelEdge(m, w, false, "", border, surface))
+		lines = append(lines, panelEdge(m, w, false, "", border, surface, ""))
 	} else {
-		cap := panelTitleRow(m, title, w, surface)
+		cap := panelTitleRow(m, title, w, surface, hintText)
 		lines = append(lines, cap)
 		for _, row := range grid {
 			lines = append(lines, surface.Render(" ")+row+surface.Render(" "))
@@ -105,28 +110,40 @@ func renderPanel(m Model, title string, w, h int, focused bool, body []string) s
 }
 
 // panelTitleRow renders the inner title line of an unfocused panel:
-// letterspaced caps section label + hairline rule.
-func panelTitleRow(m Model, title string, w int, surface lipgloss.Style) string {
+// letterspaced caps section label + hairline rule, with an optional
+// right-aligned hint ("3 active") after the rule.
+func panelTitleRow(m Model, title string, w int, surface lipgloss.Style, hint ...string) string {
 	if strings.TrimSpace(title) == "" {
 		return surface.Render(strings.Repeat(" ", w))
 	}
 	text := sectionLabelText(m, title)
 	textW := lipgloss.Width(text)
 	lead := 2
-	ruleLen := w - lead - textW - 2
+	hintStr := ""
+	hintW := 0
+	if len(hint) > 0 && hint[0] != "" {
+		hintStr = hint[0]
+		hintW = lipgloss.Width(hintStr) + 1
+	}
+	ruleLen := w - lead - textW - 2 - hintW
 	if ruleLen < 1 {
 		ruleLen = 1
 	}
-	return surface.Render(strings.Repeat(" ", lead)) + text +
+	line := surface.Render(strings.Repeat(" ", lead)) + text +
 		surface.Render(" "+strings.Repeat("─", ruleLen)+" ")
+	if hintStr != "" {
+		line += surface.Render(hintStr + " ")
+	}
+	return line
 }
 
 // titledBorder renders one edge of a rounded box, width cells. top edges
 // embed the letterspaced caps title; the filler is computed from the display
 // width of the FINAL title string (letterspacing, padding, icons included),
 // never from len() or raw rune counts — a border that stops short of the
-// corner breaks the frame's vertical rhythm.
-func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style) string {
+// corner breaks the frame's vertical rhythm. Optional hint sits at the
+// right end of the top edge.
+func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style, hint ...string) string {
 	cornerL, cornerR, fill := "╭", "╮", "─"
 	if !top {
 		cornerL, cornerR = "╰", "╯"
@@ -138,9 +155,15 @@ func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style) s
 		return edge.Render(cornerL + strings.Repeat(fill, w-2) + cornerR)
 	}
 	cap := sectionLabelText(m, title)
-	// ╭─ TITLE ───╮
+	hintStr := ""
+	hintW := 0
+	if len(hint) > 0 && hint[0] != "" {
+		hintStr = hint[0]
+		hintW = lipgloss.Width(hintStr) + 2 // " hint "
+	}
+	// ╭─ TITLE ─── hint ╮
 	const pre, tail = 3, 2 // "╭─ " and " "+cornerR
-	inner := w - pre - tail
+	inner := w - pre - tail - hintW
 	if lipgloss.Width(cap) > inner {
 		cap = clipStyled(cap, inner)
 	}
@@ -148,16 +171,25 @@ func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style) s
 	if fillN < 0 {
 		fillN = 0
 	}
-	return edge.Render("╭─ ") + cap + edge.Render(" "+strings.Repeat(fill, fillN)+cornerR)
+	out := edge.Render("╭─ ") + cap + edge.Render(" "+strings.Repeat(fill, fillN))
+	if hintStr != "" {
+		out += edge.Render(" " + hintStr + " ")
+	}
+	out += edge.Render(cornerR)
+	return out
 }
 
 // panelEdge draws the top or bottom edge of a focused panel, embedding an
-// optional letterspaced title in the top edge.
-func panelEdge(m Model, w int, top bool, title string, border, surface lipgloss.Style) string {
+// optional letterspaced title in the top edge. The hint (optional) is
+// right-aligned in the top edge.
+func panelEdge(m Model, w int, top bool, title string, border, surface lipgloss.Style, hint string) string {
 	if w < 2 {
 		return border.Render("│")
 	}
-	return titledBorder(m, title, w, top, border)
+	if hint == "" {
+		return titledBorder(m, title, w, top, border)
+	}
+	return titledBorder(m, title, w, top, border, hint)
 }
 
 // clipStyled truncates a line that may contain ANSI escape sequences to

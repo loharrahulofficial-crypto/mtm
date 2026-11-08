@@ -119,6 +119,14 @@ func (m Model) updateNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Command-line style alternatives: escape clears transient state.
 	switch s {
 	case "esc":
+		// Drilled into a course from the Courses view? esc returns there.
+		if m.coursesDrillIn != "" {
+			m.coursesDrillIn = ""
+			m.view = viewCourses
+			m.courseSel = 0
+			// Restore the original sidebar selection by re-indexing courses.
+			return m, nil
+		}
 		if m.searchQuery != "" {
 			m.searchQuery = ""
 			m.refreshTasks()

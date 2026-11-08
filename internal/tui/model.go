@@ -193,7 +193,8 @@ type Model struct {
 	timer core.TimerView
 
 	// course dashboard scroll offset (lines)
-	courseScroll int
+	courseSel      int
+	coursesDrillIn string
 
 	// command palette
 	paletteQuery  string
