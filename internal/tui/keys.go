@@ -325,6 +325,18 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	x, y := msg.X, msg.Y
 
 	switch msg.Type {
+	case tea.MouseWheelLeft:
+		if m.view == viewBoard {
+			m.boardCol = clampInt(m.boardCol-1, 0, len(m.boardStatuses())-1)
+			m.syncCursorToBoardCard()
+			return m, nil
+		}
+	case tea.MouseWheelRight:
+		if m.view == viewBoard {
+			m.boardCol = clampInt(m.boardCol+1, 0, len(m.boardStatuses())-1)
+			m.syncCursorToBoardCard()
+			return m, nil
+		}
 	case tea.MouseWheelUp:
 		m.focusTo(x, sidebarW, mainW, detailW)
 		if m.focus == focusDetail {
@@ -333,6 +345,12 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.view == viewCourses && m.focus != focusSidebar {
 			m.coursesScroll = clampInt(m.coursesScroll-3, 0, m.coursesScrollBounds())
+			return m, nil
+		}
+		if m.view == viewBoard && y == 1 && m.focus != focusSidebar {
+			// Hovering the header: the wheel slides the column window.
+			m.boardCol = clampInt(m.boardCol-1, 0, len(m.boardStatuses())-1)
+			m.syncCursorToBoardCard()
 			return m, nil
 		}
 		m.moveSelection(-3)
@@ -345,6 +363,12 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.view == viewCourses && m.focus != focusSidebar {
 			m.coursesScroll = clampInt(m.coursesScroll+3, 0, m.coursesScrollBounds())
+			return m, nil
+		}
+		if m.view == viewBoard && y == 1 && m.focus != focusSidebar {
+			// Hovering the header: the wheel slides the column window.
+			m.boardCol = clampInt(m.boardCol+1, 0, len(m.boardStatuses())-1)
+			m.syncCursorToBoardCard()
 			return m, nil
 		}
 		m.moveSelection(+3)

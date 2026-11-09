@@ -921,6 +921,23 @@ func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
 	}
 	mainW := m.width - sidebarW - detailW - gutters
 	innerW := mainW - 2
+	// Header row: the inset chevrons scroll the column window (the window
+	// derives from boardCol, so this mirrors h/l).
+	if y == 1 {
+		winStart, visCols, _ := boardLayout(m, innerW)
+		n := len(m.boardStatuses())
+		switch {
+		case x == 1 && winStart > 0:
+			m.boardCol = clampInt(m.boardCol-1, 0, n-1)
+			m.syncCursorToBoardCard()
+			return m, nil
+		case x == innerW && winStart+visCols < n:
+			m.boardCol = clampInt(m.boardCol+1, 0, n-1)
+			m.syncCursorToBoardCard()
+			return m, nil
+		}
+		return m, nil
+	}
 	winStart, visCols, colW := boardLayout(m, innerW)
 	if visCols < 1 {
 		return m, nil
