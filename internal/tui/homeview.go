@@ -65,8 +65,9 @@ func homeLayout(m Model, w, h int) [][]homeRect {
 	if upIdeal < 4 {
 		upIdeal = 4
 	}
-	if upIdeal > 8 {
-		upIdeal = 8
+	// Show up to 8 tasks at tall terminals: 8 task rows + panel chrome.
+	if upIdeal > 10 {
+		upIdeal = 10
 	}
 	heatBand, heatMin := 11, 9 // 9 content rows + title + spacer
 	chartNat := 13             // value row + 8 bar rows + axis + totals (+2)
