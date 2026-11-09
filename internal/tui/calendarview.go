@@ -147,22 +147,47 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 		numStr = lipgloss.NewStyle().Foreground(st.GetForeground()).Background(bg).Bold(st.GetBold()).Render(numStr)
 	}
 
-	// Dots (open tasks due on the day).
+	// Dots (open tasks due on the day). Cells too narrow for titles
+	// (< 12 columns, spec 0b.4) show a count chip with the total in
+	// addition to as many course-colored dots as fit.
 	dotsRow := ""
 	if !titlesShown {
 		colors, total, _, exam := dotsForDay(m, day)
 		any := false
-		for _, c := range colors {
-			dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Background(bg).Render("●")
+		if cw < 12 && total > 0 {
+			chip := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(lipgloss.Color(m.palette.SurfaceRaised)).Bold(true).Render(fmt.Sprintf("%d", total))
+			chipW := lipgloss.Width(chip)
+			numW := lipgloss.Width(numStr)
+			shown := 0
+			room := cw - 3 - numW - chipW // row fill + num + gap before chip
+			if exam {
+				room--
+			}
+			for shown < len(colors) {
+				if shown >= room {
+					break
+				}
+				dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(colors[shown])).Background(bg).Render("●")
+				shown++
+			}
+			if exam {
+				dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render("✦")
+			}
+			dotsRow += " " + chip
 			any = true
-		}
-		if total > len(colors) {
-			dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Render(fmt.Sprintf("+%d", total-len(colors)))
-			any = true
-		}
-		if exam {
-			dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render("✦")
-			any = true
+		} else {
+			for _, c := range colors {
+				dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Background(bg).Render("●")
+				any = true
+			}
+			if total > len(colors) {
+				dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Render(fmt.Sprintf("+%d", total-len(colors)))
+				any = true
+			}
+			if exam {
+				dotsRow += lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render("✦")
+				any = true
+			}
 		}
 		if any {
 			dotsRow = fill.Render(" ") + dotsRow

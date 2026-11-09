@@ -395,3 +395,38 @@ func TestCalendarCellShowsTimePrefixForTimedTasks(t *testing.T) {
 		}
 	}
 }
+
+// Spec 0b.4: narrow cells (< 12 columns) show a count chip in addition to
+// the dots when titles can't fit.
+func TestCalendarNarrowCellCountChip(t *testing.T) {
+	due := DumpFixedTime.Format("2006-01-02")
+	tasks := []fixtureTask{
+		{id: "n00001", title: "task one", project: "inbox", status: "todo", priority: "high", kind: "task", due: due + "T09:00"},
+		{id: "n00002", title: "task two", project: "inbox", status: "todo", priority: "medium", kind: "assignment", due: due + "T11:00"},
+		{id: "n00003", title: "task three", project: "inbox", status: "todo", priority: "low", kind: "study", due: due + "T15:00"},
+		{id: "n00004", title: "task four", project: "inbox", status: "todo", priority: "low", kind: "task", due: due + "T17:00"},
+	}
+	s := fixtureStore(t, tasks)
+	defer func() { _ = s.Close() }()
+	m := BuildDumpModel(dumpConfig(), s, sync.New(s.Root), "calendar", 80, 24, DumpFixedTime)
+	m.calDay = DumpFixedTime
+
+	cellH := 4
+	fmt.Sprintf("day: %v", m.calDay.Format("2006-01-02"))
+	day := DumpFixedTime
+
+	narrow := calendarCell(m, day, 9, cellH, day)
+	joined := StripANSI(strings.Join(narrow, "\n"))
+	if !strings.Contains(joined, "●") {
+		t.Errorf("narrow cell missing dots:\n%s", joined)
+	}
+	if !strings.Contains(joined, "4") {
+		t.Errorf("narrow cell missing count chip (4 due):\n%s", joined)
+	}
+
+	wide := calendarCell(m, day, 30, cellH, day)
+	wideJoined := StripANSI(strings.Join(wide, "\n"))
+	if strings.Contains(wideJoined, " 4 ") {
+		t.Errorf("wide cell shows the count chip; only narrow cells (<12 cols) should:\n%s", wideJoined)
+	}
+}
