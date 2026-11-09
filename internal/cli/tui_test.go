@@ -3,50 +3,42 @@ package cli
 import (
 	"bytes"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/paths"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 )
 
+// The admission matrix itself lives in internal/paths/admit_test.go;
+// here we only check that the dump command honors it.
 func TestSandboxedGuard(t *testing.T) {
-	// MTM_SANDBOX=1 always works.
-	t.Setenv("MTM_SANDBOX", "1")
-	t.Setenv("XDG_CONFIG_HOME", "")
-	t.Setenv("XDG_DATA_HOME", "")
-	t.Setenv("XDG_CACHE_HOME", "")
-	t.Setenv("XDG_STATE_HOME", "")
-	if !sandboxed() {
-		t.Fatal("MTM_SANDBOX=1 not accepted")
-	}
-	// All XDG roots under temp dirs works.
-	t.Setenv("MTM_SANDBOX", "")
-	os.Unsetenv("MTM_SANDBOX")
+	// MTM_SANDBOX=1 with roots under temp dirs is admitted.
 	tmp := t.TempDir()
+	t.Setenv("MTM_SANDBOX", "1")
+	t.Setenv("HOME", tmp)
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 	t.Setenv("XDG_DATA_HOME", tmp)
 	t.Setenv("XDG_CACHE_HOME", tmp)
 	t.Setenv("XDG_STATE_HOME", tmp)
-	if !sandboxed() {
-		t.Fatal("temp XDG roots not accepted")
+	if err := paths.AdmitSandbox(); err != nil {
+		t.Fatalf("sandboxed env refused: %v", err)
 	}
-	// Real-looking XDG roots refuse.
-	t.Setenv("XDG_CONFIG_HOME", "/home/rahul/.config")
-	t.Setenv("XDG_DATA_HOME", "/home/rahul/.local/share")
-	t.Setenv("XDG_CACHE_HOME", "/home/rahul/.cache")
-	t.Setenv("XDG_STATE_HOME", "/home/rahul/.local/state")
-	if sandboxed() {
-		t.Fatal("real XDG roots accepted")
+	// MTM_SANDBOX=1 alone (roots unset, HOME real) refuses now.
+	home, err := user.Current()
+	if err != nil || home.HomeDir == "" {
+		t.Skip("no passwd home in this environment")
 	}
-	// Missing XDG roots refuse.
-	os.Unsetenv("XDG_CONFIG_HOME")
-	os.Unsetenv("XDG_DATA_HOME")
-	os.Unsetenv("XDG_CACHE_HOME")
-	os.Unsetenv("XDG_STATE_HOME")
-	if sandboxed() {
-		t.Fatal("missing XDG roots accepted")
+	t.Setenv("HOME", home.HomeDir)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("XDG_DATA_HOME", "")
+	t.Setenv("XDG_CACHE_HOME", "")
+	t.Setenv("XDG_STATE_HOME", "")
+	if err := paths.AdmitSandbox(); err == nil {
+		t.Fatal("MTM_SANDBOX=1 with real roots admitted")
 	}
 }
 

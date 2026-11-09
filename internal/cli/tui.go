@@ -2,38 +2,14 @@ package cli
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/paths"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 	"github.com/loharrahulofficial-crypto/mtm/internal/tui"
 )
-
-// sandboxGuard reports whether the environment is sandboxed for tests/dumps:
-// MTM_SANDBOX=1, or all four XDG roots pointing at temp dirs. Anything else
-// refuses to run — the dump command never touches real data or real config.
-func sandboxed() bool {
-	if os.Getenv("MTM_SANDBOX") == "1" {
-		return true
-	}
-	for _, key := range []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"} {
-		v := os.Getenv(key)
-		if v == "" {
-			return false
-		}
-		abs, err := filepath.Abs(v)
-		if err != nil {
-			return false
-		}
-		if !strings.HasPrefix(abs, os.TempDir()) && !strings.HasPrefix(abs, "/tmp") {
-			return false
-		}
-	}
-	return true
-}
 
 // parseSize parses "120x40" into (120, 40).
 func parseSize(s string) (int, int, error) {
@@ -60,8 +36,8 @@ func newTuiCmd() *cobra.Command {
 			}
 			// Hidden verification path: render one frame and print it. Refuses
 			// to run outside a sandbox — this never touches real data.
-			if !sandboxed() {
-				return fmt.Errorf("refusing to dump: not sandboxed (set MTM_SANDBOX=1 or point XDG_CONFIG_HOME/XDG_DATA_HOME/XDG_CACHE_HOME/XDG_STATE_HOME at temp dirs)")
+			if err := paths.AdmitSandbox(); err != nil {
+				return fmt.Errorf("refusing to dump: %v", err)
 			}
 			w, h, err := parseSize(size)
 			if err != nil {
@@ -84,7 +60,7 @@ func newTuiCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&dump, "dump", false, "render one frame to stdout (hidden; requires MTM_SANDBOX=1 or temp XDG roots)")
+	cmd.Flags().BoolVar(&dump, "dump", false, "render one frame to stdout (hidden; requires MTM_SANDBOX=1 and temp XDG roots)")
 	cmd.Flags().StringVar(&view, "view", "home", "view to dump: home|list|board|calendar|courses|focus|stats")
 	cmd.Flags().StringVar(&size, "size", "120x40", "frame size as WxH, e.g. 120x40")
 	cmd.Flags().BoolVar(&noColor, "no-color", false, "strip ANSI escape sequences")

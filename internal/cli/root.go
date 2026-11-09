@@ -77,6 +77,7 @@ func NewRootCmd() *cobra.Command {
 		newTimerCmd(),
 		newPomoCmd(),
 		newSyncCmd(),
+		newDoctorCmd(),
 		newSummaryCmd(),
 		newStatsCmd(),
 		newReviewCmd(),

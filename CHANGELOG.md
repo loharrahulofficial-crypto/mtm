@@ -39,6 +39,16 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   - `ui.density: comfortable|compact` for the board
   - `mtm version` (embedded version/commit/build date), `make man`
     (man pages via Cobra docs), `make install`
+  - **Safety — sandboxed seeding and repo markers**: `mtm demo-seed`
+    refuses to run unless `MTM_SANDBOX=1` *and* every mtm root plus the
+    target resolve under a temp dir (the same admission `tui --dump`
+    now uses); `mtm init` writes a `.mtm-data` marker (UUID, creation
+    date, `kind: real`) and the demo seeder writes `kind: demo`,
+    refusing to touch a `kind: real` repo or anything under the real
+    home; `mtm doctor` (`--json`) runs read-only health checks: git
+    repo, marker, remote, git identity, frontmatter on every task
+    file, demo-corpus task IDs/commit messages in a real repo,
+    paused/conflicted sync, stale or corrupt timer state
 
 ### Notes
 - The iCal export is local-naive by design: without `ical.timezone` set

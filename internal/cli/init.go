@@ -7,6 +7,7 @@ import (
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/marker"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 	"github.com/spf13/cobra"
@@ -86,6 +87,14 @@ func runInit(remote string) error {
 
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return err
+	}
+	// Repo marker: kind real, written once and never rewritten.
+	if mk, created, err := marker.Ensure(root, marker.KindReal); err != nil {
+		return fmt.Errorf("write %s: %w", filepath.Join(root, marker.Filename), err)
+	} else if created {
+		fmt.Printf("marker: wrote %s (kind: real)\n", filepath.Join(root, marker.Filename))
+	} else {
+		fmt.Printf("marker: existing %s (kind: %s) — left as-is\n", filepath.Join(root, marker.Filename), mk.Kind)
 	}
 	repo := sync.New(root)
 	already := repo.IsRepo()

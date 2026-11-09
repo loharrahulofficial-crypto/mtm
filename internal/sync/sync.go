@@ -91,6 +91,45 @@ func (r Repo) GitDir() (string, error) {
 	return r.git(ctx, "rev-parse", "--absolute-git-dir")
 }
 
+// ConfigGet returns the trimmed value of a git config key in this repo
+// (repo-local, with global/system fallback), or "" when unset. Read-only.
+func (r Repo) ConfigGet(key string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := r.git(ctx, "config", "--get", key)
+	if err != nil {
+		return ""
+	}
+	return out
+}
+
+// Remotes lists the configured remote names ("git remote"). Read-only.
+func (r Repo) Remotes() []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := r.git(ctx, "remote")
+	if err != nil || out == "" {
+		return nil
+	}
+	return strings.Split(out, "\n")
+}
+
+// LogSubjects returns every commit subject in the repo (newest first),
+// bounded at 1000 commits. Read-only.
+func (r Repo) LogSubjects() ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	out, err := r.git(ctx, "log", "--format=%s", "-n", "1000")
+	if err != nil {
+		// Unborn branch / no commits: not an error, just no subjects.
+		return nil, nil
+	}
+	if out == "" {
+		return nil, nil
+	}
+	return strings.Split(out, "\n"), nil
+}
+
 // Branch returns the current branch name (works on an unborn branch).
 func (r Repo) Branch() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

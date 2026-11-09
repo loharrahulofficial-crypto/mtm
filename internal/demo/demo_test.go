@@ -66,6 +66,9 @@ func TestSeedShiftsEverythingWithTheClock(t *testing.T) {
 			if err != nil || info.IsDir() {
 				return err
 			}
+			if info.Name() == ".mtm-data" {
+				return nil // the repo marker is expected to carry wall-clock dates
+			}
 			rel, _ := filepath.Rel(dir, path)
 			b, err := os.ReadFile(path)
 			if err != nil {

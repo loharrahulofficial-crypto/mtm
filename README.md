@@ -75,7 +75,8 @@ mtm review                                 # the weekly review ritual
 ### System
 `mtm remind` (one-shot reminder check; run it from a timer),
 `mtm systemd install|uninstall|status` (user sync + reminder timers),
-`mtm version`, `mtm sync`, `mtm tui`, `mtm demo` (throwaway demo sandbox)
+`mtm version`, `mtm sync`, `mtm tui`, `mtm demo` (throwaway demo sandbox),
+`mtm doctor` (read-only health checks, `--json` for scripting)
 
 Run `mtm <command> -h` for a command's own reference and examples.
 
@@ -277,6 +278,7 @@ reminders:
 ├── projects/<project>/<id>-<slug>.md
 ├── projects/<project>/project.yaml   # statuses, color, course block
 ├── archive/<project>/            # mtm archive moves done tasks here
+├── .mtm-data                     # repo marker: UUID, creation date, kind: real|demo
 └── .git/
 
 ~/.cache/mtm/index.json           # index; never committed; safe to delete
@@ -402,6 +404,16 @@ command — it reindexes from the files.
 files, `mtm sync --status` shows what's unmerged, then
 `mtm sync --continue` (or `--abort` to drop the pull and get writing again).
 Sync never auto-resolves.
+
+**Suspect demo/fixture data in the real repo, or something feels off.**
+Run `mtm doctor` — it checks the marker (`.mtm-data`), the git repo, the
+remote, your git identity, every task file's frontmatter, demo-corpus
+ids/commit messages (e.g. `dn0055`, `lt0001`, `od0001` — only flagged when
+the repo marker says `kind: real`), a paused/conflicted sync and stale
+timer state. `mtm doctor --json` for scripting; exits non-zero on any
+failure. `mtm demo-seed` itself only runs inside a sandbox
+(`MTM_SANDBOX=1` + temp dirs) and refuses repos whose marker says
+`kind: real`.
 
 **Waybar shows nothing.** Check `mtm waybar` by hand; it prints one JSON
 line or an error payload. The module needs `"custom/mtm"` in the waybar
