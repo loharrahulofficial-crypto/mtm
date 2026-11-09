@@ -19,36 +19,14 @@ import (
 // and refreshes the cached view the statusline and Focus mode render.
 type timerTickMsg struct{}
 
-// enterFocusTask enters full-screen focus mode pinned to t, starting or
-// attaching to the shared timer (pomodoro in Focus mode).
+// enterFocusTask enters full-screen focus mode pinned to t. Focus never
+// starts a timer by itself (spec 0.3): the ring renders paused at 00:00
+// and `space` starts a pomodoro. Entering and leaving Focus logs no time.
 func (m Model) enterFocusTask(t *core.Task) (Model, tea.Cmd) {
 	m.notesID = t.ID // reuse for identity of the focused task
 	m.mode = modeFocus
-	m.attachOrStartTimer(t)
-	return m, nil
-}
-
-// attachOrStartTimer starts a pomodoro for t when no timer is running,
-// attaches to the running one, and never starts a second session.
-func (m *Model) attachOrStartTimer(t *core.Task) {
-	v := actions.LoadTimerView(m.store)
-	switch {
-	case v.Phase == core.TimerPhaseIdle:
-		if _, err := actions.StartTimer(m.store, m.cfg, t.ID, core.TimerModePomodoro); err != nil {
-			m.statusMsg = err.Error()
-		} else {
-			m.statusMsg = "pomodoro started"
-		}
-	case v.TaskID == t.ID:
-		m.statusMsg = "attached to the running timer"
-	default:
-		title := v.TaskID
-		if other, err := m.store.Resolve(v.TaskID); err == nil {
-			title = other.Title
-		}
-		m.statusMsg = "timer already running on " + title
-	}
 	m.refreshTimer()
+	return m, nil
 }
 
 // refreshTimer re-reads the cached timer view the render path consumes.
@@ -191,7 +169,8 @@ func (m Model) renderFocus() string {
 	body = append(body, "")
 	body = append(body, "")
 	if idle {
-		body = append(body, strings.Repeat(" ", pad)+muted.Render("no timer running — press space to start a pomodoro"))
+		// Ring parked at 00:00 until space starts the pomodoro (spec 0.3).
+		body = append(body, strings.Repeat(" ", pad)+formatFocusDuration(0)+"  "+track+"  "+formatFocusDuration(0))
 	} else if openEnded {
 		// Plain stopwatch: big elapsed time, no phase bar.
 		big := formatFocusDuration(v.Accrued)
@@ -230,7 +209,11 @@ func (m Model) renderFocus() string {
 	for len(body) < m.height-1 {
 		body = append(body, "")
 	}
-	hint := muted.Render(" space pause/resume   x done   esc exit")
+	hintText := " space pause/resume   x done   esc exit"
+	if m.timer.Phase == core.TimerPhaseIdle {
+		hintText = " space start   x done   esc exit"
+	}
+	hint := muted.Render(hintText)
 	body = append(body, strings.Repeat(" ", pad)+hint)
 
 	return verticalCenter(body, m.height, w, base)

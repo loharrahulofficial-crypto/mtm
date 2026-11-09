@@ -5,8 +5,8 @@
     exam                                                                                                                
                                                                                                                         
                                                                                                                         
-    00:00  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  25:00                                                          
-    focusing… · pomodoro 1                                                                                              
+    00:00  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  00:00                                                          
+    space starts a pomodoro · esc exit                                                                                  
                                                                                                                         
     N   O   T   E   S                                                                                                   
     Syllabus: ch 1-6. Focus on normalization + transactions.                                                            
@@ -37,4 +37,4 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
-     space pause/resume   x done   esc exit                                                                             
+     space start   x done   esc exit                                                                                    

@@ -3,6 +3,7 @@ package tui
 import (
 	"testing"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 )
 
@@ -107,29 +108,50 @@ func TestPaletteCoursesEntry(t *testing.T) {
 	}
 }
 
-func TestFocusStartsTimerOnSpaceWhenIdle(t *testing.T) {
+func TestFocusStartsTimerOnlyOnSpaceWhenIdle(t *testing.T) {
 	m, s := newTestModel(t, []*core.Task{testTask("revise ch.6", core.KindStudy)})
 	m.view = viewList
 	m2, _ := m.enterFocusTask(s.Tasks()[0])
 	m = m2
-	if m.timer.Phase == core.TimerPhaseIdle {
-		t.Fatal("enterFocusTask did not attach/start a timer")
+	// Spec 0.3: entering Focus never starts the timer by itself.
+	if m.timer.Phase != core.TimerPhaseIdle {
+		t.Fatal("enterFocusTask started a timer — must show the ring paused at 00:00")
 	}
-	// Space in pomodoro work phase pauses; timer stays visible.
+	// Space starts the pomodoro.
 	updated, _ := m.updateFocusKey(keyMsg(" "))
 	m3 := updated.(Model)
-	if m3.timer.Running {
+	if m3.timer.Phase == core.TimerPhaseIdle || !m3.timer.Running {
+		t.Fatal("space did not start the focus pomodoro")
+	}
+	// Space pauses; the timer stays visible.
+	updated, _ = m3.updateFocusKey(keyMsg(" "))
+	m4 := updated.(Model)
+	if m4.timer.Running {
 		t.Fatal("space did not pause the focus timer")
 	}
-	// Esc leaves focus mode; the timer keeps running.
-	updated, _ = m3.updateFocusKey(keyMsg("esc"))
-	m4 := updated.(Model)
-	if m4.mode == modeFocus {
+	// Esc leaves focus mode; the timer keeps its accrued state.
+	updated, _ = m4.updateFocusKey(keyMsg("esc"))
+	m5 := updated.(Model)
+	if m5.mode != modeNormal {
 		t.Fatal("esc did not leave focus mode")
 	}
-	if m4.timer.Phase == core.TimerPhaseIdle {
-		t.Fatal("esc stopped the timer")
+}
+
+func TestFocusEnterLeaveLogsNoTime(t *testing.T) {
+	m, s := newTestModel(t, []*core.Task{testTask("revise ch.6", core.KindStudy)})
+	m.view = viewList
+	m2, _ := m.enterFocusTask(s.Tasks()[0])
+	m = m2
+	updated, _ := m.updateFocusKey(keyMsg("esc"))
+	m = updated.(Model)
+	got, err := s.Resolve(s.Tasks()[0].ID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	updated, _ = m4.execCommand("timer stop")
-	_ = updated
+	if got.TimeLoggedMinutes != 0 {
+		t.Fatalf("entering and leaving Focus logged %d minutes, want 0", got.TimeLoggedMinutes)
+	}
+	if v := actions.LoadTimerView(s); v.Phase != core.TimerPhaseIdle {
+		t.Fatalf("a timer session exists after enter+leave: %+v", v)
+	}
 }
