@@ -32,6 +32,7 @@ type Config struct {
 	Keys  map[string]string `yaml:"keys,omitempty"`
 	UI    UIConfig          `yaml:"ui"`
 	Stats StatsConfig       `yaml:"stats"`
+	ICal  ICalConfig        `yaml:"ical"`
 }
 
 type SyncConfig struct {
@@ -58,6 +59,13 @@ type StatsConfig struct {
 	// study streak alive (in addition to completing ≥1 task). Default 15;
 	// 0 disables minute-based activity.
 	StreakMinMinutes int `yaml:"streak_min_minutes"`
+}
+
+type ICalConfig struct {
+	// Timezone is an IANA name (e.g. "Europe/London") for DTSTART/DTEND
+	// parameters; empty means floating local times (no TZID). Times stored
+	// local-naive are never shifted.
+	Timezone string `yaml:"timezone,omitempty"`
 }
 
 type BoardConfig struct {
@@ -209,6 +217,12 @@ func Load() (Config, error) {
 	}
 	if cfg.Stats.StreakMinMinutes < 0 {
 		return cfg, fmt.Errorf("config %s: stats.streak_min_minutes must be >= 0 (0 disables minute-based activity), got %d", Path(), cfg.Stats.StreakMinMinutes)
+	}
+	if tz := strings.TrimSpace(cfg.ICal.Timezone); tz != "" {
+		if _, err := time.LoadLocation(tz); err != nil {
+			return cfg, fmt.Errorf("config %s: ical.timezone %q is not a valid IANA name: %v", Path(), tz, err)
+		}
+		cfg.ICal.Timezone = tz
 	}
 	cfg.DataRepo = ExpandPath(cfg.DataRepo)
 	paths.Guard(cfg.DataRepo)
