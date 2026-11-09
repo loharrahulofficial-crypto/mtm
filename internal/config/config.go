@@ -29,10 +29,11 @@ type Config struct {
 	Pomodoro   PomodoroConfig `yaml:"pomodoro"`
 	SavedViews []SavedView    `yaml:"saved_views"`
 	// Keys overrides TUI key bindings: action name -> key(s), space-separated.
-	Keys  map[string]string `yaml:"keys,omitempty"`
-	UI    UIConfig          `yaml:"ui"`
-	Stats StatsConfig       `yaml:"stats"`
-	ICal  ICalConfig        `yaml:"ical"`
+	Keys      map[string]string `yaml:"keys,omitempty"`
+	UI        UIConfig          `yaml:"ui"`
+	Stats     StatsConfig       `yaml:"stats"`
+	ICal      ICalConfig        `yaml:"ical"`
+	Reminders RemindersConfig   `yaml:"reminders"`
 }
 
 type SyncConfig struct {
@@ -59,6 +60,17 @@ type StatsConfig struct {
 	// study streak alive (in addition to completing ≥1 task). Default 15;
 	// 0 disables minute-based activity.
 	StreakMinMinutes int `yaml:"streak_min_minutes"`
+}
+
+type RemindersConfig struct {
+	// DueSoonMinutes, when > 0, fires a notification for open tasks whose
+	// due time is within this many minutes. 0 disables due-soon alerts
+	// (only explicit task reminders fire).
+	DueSoonMinutes int `yaml:"due_soon_minutes"`
+	// QuietHours suppresses all reminder notifications inside the window,
+	// e.g. "22:00-07:00" (local time; windows may span midnight). Empty
+	// — or "00:00-00:00" — disables quiet hours.
+	QuietHours string `yaml:"quiet_hours,omitempty"`
 }
 
 type ICalConfig struct {
@@ -122,6 +134,10 @@ func Default() Config {
 		SavedViews: []SavedView{},
 		Stats: StatsConfig{
 			StreakMinMinutes: 15,
+		},
+		Reminders: RemindersConfig{
+			DueSoonMinutes: 0,
+			QuietHours:     "",
 		},
 		UI: UIConfig{
 			Animations:    true,
@@ -223,6 +239,12 @@ func Load() (Config, error) {
 			return cfg, fmt.Errorf("config %s: ical.timezone %q is not a valid IANA name: %v", Path(), tz, err)
 		}
 		cfg.ICal.Timezone = tz
+	}
+	if cfg.Reminders.DueSoonMinutes < 0 {
+		return cfg, fmt.Errorf("config %s: reminders.due_soon_minutes must be >= 0, got %d", Path(), cfg.Reminders.DueSoonMinutes)
+	}
+	if _, err := ParseQuietHours(cfg.Reminders.QuietHours); err != nil {
+		return cfg, fmt.Errorf("config %s: reminders.quiet_hours: %v", Path(), err)
 	}
 	cfg.DataRepo = ExpandPath(cfg.DataRepo)
 	paths.Guard(cfg.DataRepo)

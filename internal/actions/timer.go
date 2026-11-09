@@ -275,12 +275,18 @@ func TogglePauseTimer(s *store.Store) (core.TimerView, error) {
 // Notify sends a desktop notification via notify-send; if it is missing we
 // print a line instead. Best effort, never fatal.
 func Notify(title, body string) {
+	_ = NotifyErr(title, body)
+}
+
+// NotifyErr is Notify with an error return: it reports delivery failure so
+// callers that retry (reminders) can skip marking a send as done.
+func NotifyErr(title, body string) error {
 	bin, err := exec.LookPath("notify-send")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", title, body)
-		return
+		return fmt.Errorf("notify-send not found in PATH")
 	}
-	_ = exec.Command(bin, title, body).Run()
+	return exec.Command(bin, title, body).Run()
 }
 
 func shortRef(id string) string {
