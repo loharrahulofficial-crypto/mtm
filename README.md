@@ -221,8 +221,63 @@ It reads the cached index (`~/.cache/mtm/index.json`) and is fast: ~25ms with
 ```sh
 # .bashrc or .zshrc
 mtm summary 2>/dev/null || true
+```
 
-Every task file looks like:
+### Waybar module
+
+`mtm waybar` prints one JSON line for a Waybar `custom/` module. Text is
+bar-sized: today's open task count, plus an exam chip (`✦<days>`) when the
+nearest open exam is within 30 days and an active-timer chip. Class follows
+fixed priority: `overdue` > `exam` (≤3 days) > `timer` > `normal`. It reads
+the cached index and runs in ~16ms warm — safe to poll every few seconds.
+
+`~/.config/waybar/config.jsonc` (Omarchy's Waybar config):
+
+```jsonc
+"custom/mtm": {
+  "exec": "mtm waybar",
+  "return-type": "json",
+  "interval": 30,
+  "format": "{}",
+  "tooltip": true
+}
+```
+
+and a block is added to the `modules-right` list. `style.css`:
+
+```css
+#custom-mtm.overdue { color: @red; }
+#custom-mtm.exam { color: @yellow; }
+#custom-mtm.timer { color: @blue; }
+#custom-mtm.normal { color: @foreground; }
+```
+
+### Hyprland keybind: floating quick-add
+
+A one-shot terminal for `mtm add`, sized small and focused, closes itself
+on save:
+
+```ini
+# ~/.config/hypr/hyprland.conf
+bind = $mainMod, T, exec, hyprctl dispatch exec [float;size 800 400;center] "alacritty --class mtm-quick -e mtm add"
+windowrulev2 = float, class:^(mtm-quick)$
+windowrulev2 = size 800 400, class:^(mtm-quick)$
+windowrulev2 = center, class:^(mtm-quick)$
+```
+
+(Omarchy ships alacritty; swap in foot if you use it. `mtm add` asks
+questions interactively; add flags like `--due` to skip them.)
+
+### Shell completions
+
+```sh
+mtm completion bash > ~/.local/share/bash-completion/completions/mtm
+mtm completion zsh  > "${fpath[1]}/_mtm"
+mtm completion fish > ~/.config/fish/completions/mtm.fish
+# zsh: then autoload -U compinit && compinit
+```
+
+### Every task file looks like:
 
 ```markdown
 ---

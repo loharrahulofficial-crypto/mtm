@@ -67,6 +67,8 @@ func Execute() error {
 		newIcalCmd(),
 		newRemindCmd(),
 		newSystemdCmd(),
+		newWaybarCmd(),
+		newCompletionCmd(root),
 		newTuiCmd(),
 		newDemoSeedCmd(),
 	)
