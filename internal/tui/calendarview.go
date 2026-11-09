@@ -450,15 +450,8 @@ func renderCalendarBody(m Model, w, h int) []string {
 	}
 	const gap = 1
 
-	// Title: month year · right-aligned ‹ › hints.
-	title := strings.ToUpper(m.calMonth.Format("January 2006"))
-	hints := m.icon("chev_left") + " " + m.icon("chev_right")
-	hintW := lipglossWidth(hints)
-	titleW := w - hintW - 2
-	cap_ := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(bgSurface).Bold(true).Render(title)
-	titleLine := " " + cap_ + strings.Repeat(" ", max(0, titleW-lipglossWidth(cap_))) + " " + muted.Render(hints)
-	lines := []string{padToWidth(titleLine, w, bgSurface)}
-
+	// No in-body month heading — the panel title carries the month
+	// ("C A L E N D A R · Nov 2026"); this row is the weekday header.
 	colWidths, cellH, weeks, gridStart := calendarLayout(m, w, h)
 	_ = cellH
 	baseGutter := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base)).Render(strings.Repeat(" ", gap))
@@ -479,7 +472,7 @@ func renderCalendarBody(m Model, w, h int) []string {
 	for i, name := range weekNames {
 		headCells = append(headCells, muted.Width(colWidths[i]).Render(" "+name))
 	}
-	lines = append(lines, joinGridRow(baseBGcolor, baseGutter, headCells, w))
+	lines := []string{joinGridRow(baseBGcolor, baseGutter, headCells, w)}
 
 	// Grid: cellH rows per week, gaps showing base.
 	for week := 0; week < weeks; week++ {
@@ -602,7 +595,7 @@ func (m *Model) clickCalendar(x, y int) {
 	colWidths, cellH, weeks, gridStart := calendarLayout(*m, innerW, contentH)
 	_ = gridStart
 	const padTop = 1
-	gridTop := 2
+	gridTop := 1 // weekday header occupies the first content row
 
 	gy := y - padTop - gridTop
 	week := gy / cellH

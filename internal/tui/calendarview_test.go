@@ -98,7 +98,7 @@ func TestCalendarWeekdayHeadersLeftAligned(t *testing.T) {
 	if len(body) < 2 {
 		t.Fatal("no body rows")
 	}
-	head := StripANSI(body[1])
+	head := StripANSI(body[0])
 	if got := cellIndex(head, "MON"); got != 1 {
 		t.Errorf("MON starts at cell %d, want 1 (left-aligned with day numbers); header %q", got, head)
 	}

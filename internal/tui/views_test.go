@@ -51,8 +51,13 @@ func TestCalendarCursorStartsToday(t *testing.T) {
 	}
 	m = press(t, m, "3")
 	cal := strings.Join(renderCalendarBody(m, m.width-2, m.height-3), "\n")
-	if !strings.Contains(cal, strings.ToUpper(calendarMonthTitle(m))) {
-		t.Fatalf("calendar title missing: %q", firstLines(cal, 2))
+	// Spec 0b.3: the month heading lives only in the panel title; the
+	// body's first row is the weekday header.
+	if strings.Contains(cal, strings.ToUpper(calendarMonthTitle(m))) {
+		t.Fatalf("in-body month heading is still rendered:\n%s", firstLines(cal, 3))
+	}
+	if !strings.Contains(cal, "MON") {
+		t.Fatalf("weekday header missing from the body:\n%s", firstLines(cal, 3))
 	}
 }
 
