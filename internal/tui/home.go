@@ -283,7 +283,7 @@ func buildHomeData(m Model) homeData {
 		}
 	}
 
-	// Up next: the six most imminent open tasks, due first then priority.
+	// Up next: the eight most imminent open tasks, due first then priority.
 	var open []*core.Task
 	for _, t := range m.store.Tasks() {
 		if isDone(t.Project, t.Status) {
@@ -292,8 +292,8 @@ func buildHomeData(m Model) homeData {
 		open = append(open, t)
 	}
 	core.SortTasks(open, []string{core.SortDue, core.SortPriority, core.SortTitle}, isDone)
-	if len(open) > 6 {
-		open = open[:6]
+	if len(open) > 8 {
+		open = open[:8]
 	}
 	d.upNext = open
 
