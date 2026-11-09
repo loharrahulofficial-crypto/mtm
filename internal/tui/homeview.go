@@ -325,6 +325,10 @@ func homeGreetingLine(m Model, d homeData, width int) string {
 			examBit = fmt.Sprintf(" · next exam in %d days", d.nextExamDays)
 		}
 	}
+	streakBit := ""
+	if d.streak > 0 {
+		streakBit = strings.TrimSpace(m.icon("flame") + " " + fmt.Sprintf("streak %dd", d.streak))
+	}
 
 	build := func(includeExam, compact bool) string {
 		line := " " + muted.Render(greet+", ") + bright.Render(d.user+".") + "  "
@@ -335,6 +339,9 @@ func homeGreetingLine(m Model, d homeData, width int) string {
 		}
 		line += hot.Render(fmt.Sprintf("%d due today", d.dueToday)) + muted.Render(" · ")
 		line += danger.Render(fmt.Sprintf("%d overdue", d.overdue))
+		if streakBit != "" {
+			line += muted.Render(" · ") + accent.Render(streakBit)
+		}
 		if includeExam {
 			line += accent.Render(examBit)
 		}

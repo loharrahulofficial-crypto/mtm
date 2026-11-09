@@ -29,8 +29,9 @@ type Config struct {
 	Pomodoro   PomodoroConfig `yaml:"pomodoro"`
 	SavedViews []SavedView    `yaml:"saved_views"`
 	// Keys overrides TUI key bindings: action name -> key(s), space-separated.
-	Keys map[string]string `yaml:"keys,omitempty"`
-	UI   UIConfig          `yaml:"ui"`
+	Keys  map[string]string `yaml:"keys,omitempty"`
+	UI    UIConfig          `yaml:"ui"`
+	Stats StatsConfig       `yaml:"stats"`
 }
 
 type SyncConfig struct {
@@ -52,6 +53,13 @@ type SavedView struct {
 }
 
 // BoardConfig carries the "board:" block (board view behavior).
+type StatsConfig struct {
+	// StreakMinMinutes is the per-day minimum of logged time that keeps a
+	// study streak alive (in addition to completing ≥1 task). Default 15;
+	// 0 disables minute-based activity.
+	StreakMinMinutes int `yaml:"streak_min_minutes"`
+}
+
 type BoardConfig struct {
 	// DoneDays limits the board's Done column to items completed within
 	// the last N days. Default 14; 0 or negative shows everything.
@@ -104,6 +112,9 @@ func Default() Config {
 			LongEvery:         4,
 		},
 		SavedViews: []SavedView{},
+		Stats: StatsConfig{
+			StreakMinMinutes: 15,
+		},
 		UI: UIConfig{
 			Animations:    true,
 			Icons:         "nerd",
@@ -195,6 +206,9 @@ func Load() (Config, error) {
 	}
 	if cfg.Heatmap.Weeks > 52 {
 		cfg.Heatmap.Weeks = 52
+	}
+	if cfg.Stats.StreakMinMinutes < 0 {
+		return cfg, fmt.Errorf("config %s: stats.streak_min_minutes must be >= 0 (0 disables minute-based activity), got %d", Path(), cfg.Stats.StreakMinMinutes)
 	}
 	cfg.DataRepo = ExpandPath(cfg.DataRepo)
 	paths.Guard(cfg.DataRepo)

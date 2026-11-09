@@ -28,6 +28,7 @@ func (m Model) buildPaletteItems() []paletteItem {
 		{id: "view:board", label: "Go to Board", hint: m.keymap.Seq(aViewBoard), group: "Commands"},
 		{id: "view:calendar", label: "Go to Calendar", hint: m.keymap.Seq(aViewCalendar), group: "Commands"},
 		{id: "view:courses", label: "Go to Courses", hint: m.keymap.Seq(aViewCourses), group: "Commands"},
+		{id: "view:stats", label: "Go to Stats", hint: m.keymap.Seq(aViewStats), group: "Commands"},
 		{id: "focus", label: "Focus current task", hint: m.keymap.Seq(aFocus), group: "Commands"},
 		{id: "toggle:sidebar", label: "Toggle sidebar", hint: m.keymap.Seq(aSidebar), group: "Commands"},
 		{id: "toggle:detail", label: "Toggle detail pane", hint: m.keymap.Seq(aDetail), group: "Commands"},
@@ -356,6 +357,10 @@ func (m Model) executePaletteAction(id string) (Model, tea.Cmd) {
 		m.view = viewCalendar
 	case "view:courses":
 		m.view = viewCourses
+		m.coursesScroll = 0
+	case "view:stats":
+		m.view = viewStats
+		m.statsScroll = 0
 	case "timer:toggle":
 		return quickTimerToggle(m)
 	case "pomo:start":

@@ -309,7 +309,7 @@ func renderFixture(t *testing.T, view, size, state string) string {
 }
 
 func TestDumpGolden(t *testing.T) {
-	views := []string{"home", "list", "board", "calendar", "courses", "focus"}
+	views := []string{"home", "list", "board", "calendar", "courses", "focus", "stats"}
 	sizes := []string{"80x24", "120x40", "200x50"}
 	states := []string{"empty", "populated"}
 

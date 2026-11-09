@@ -257,6 +257,7 @@ func (m Model) execCommand(value string) (tea.Model, tea.Cmd) {
 		return m.commandPomo(arg)
 	case "courses", "view4":
 		m.view = viewCourses
+		m.coursesScroll = 0
 		return m, nil
 	case "subtask":
 		if arg == "" {
@@ -345,6 +346,10 @@ func (m Model) execCommand(value string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "calendar", "cal", "view3":
 		m.view = viewCalendar
+		return m, nil
+	case "stats", "view5":
+		m.view = viewStats
+		m.statsScroll = 0
 		return m, nil
 	case "quit", "q":
 		return m.quitWithFlush()

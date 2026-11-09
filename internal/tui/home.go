@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/dates"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
@@ -29,10 +30,12 @@ type homeData struct {
 
 	upNext []*core.Task // next open tasks by due date + priority
 
-	heatmap   [7 * 52]int
-	dayCounts [52 * 7]int // completions per day, index 0 = today (same buckets the grid uses)
-	weekHours [7]float64
-	weekTotal float64
+	heatmap    [7 * 52]int
+	dayCounts  [52 * 7]int // completions per day, index 0 = today (same buckets the grid uses)
+	weekHours  [7]float64
+	weekTotal  float64
+	streak     int // current active-day streak (completion or minutes)
+	streakBest int // longest active-day streak ever
 }
 
 type examCard struct {
@@ -169,6 +172,11 @@ func buildHomeData(m Model) homeData {
 			}
 		}
 	}
+	// Streaks (current and longest active-day runs) feed the greeting line
+	// and the Stats view.
+	st := actions.Streaks(m.store, m.cfg.Stats.StreakMinMinutes, now)
+	d.streak = st.Current
+	d.streakBest = st.Longest
 
 	// Today timeline: tasks due today; untimed first, timed sorted.
 	for _, t := range m.store.Tasks() {

@@ -31,6 +31,7 @@ const (
 	viewBoard
 	viewCalendar
 	viewCourses
+	viewStats
 )
 
 type focusID int
@@ -197,6 +198,10 @@ type Model struct {
 	coursesDrillIn   string
 	coursesDrillFrom int // course list index to restore on esc
 	coursesScroll    int // detail-pane scroll (ctrl+d/ctrl+u, pgup/pgdn, wheel)
+
+	// stats view (master-detail like courses; the detail pane scrolls)
+	statsSel    int
+	statsScroll int
 
 	// command palette
 	paletteQuery  string

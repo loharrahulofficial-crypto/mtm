@@ -188,8 +188,12 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		m.view = viewCourses
 		m.coursesScroll = 0
 		return m, nil
+	case aViewStats:
+		m.view = viewStats
+		m.statsScroll = 0
+		return m, nil
 	case aCycleView:
-		m.view = (m.view + 1) % 5
+		m.view = (m.view + 1) % 6
 		return m, nil
 	case aFocus:
 		if t := m.selectedTask(); t != nil {
@@ -239,6 +243,8 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		return m.updateHomeKey(act)
 	case viewCourses:
 		return m.updateCoursesKey(act)
+	case viewStats:
+		return m.updateStatsKey(act)
 	}
 	return m, nil
 }
@@ -349,6 +355,10 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.coursesScroll = clampInt(m.coursesScroll-3, 0, m.coursesScrollBounds())
 			return m, nil
 		}
+		if m.view == viewStats && m.focus != focusSidebar {
+			m.statsScroll = clampInt(m.statsScroll-3, 0, m.statsScrollBounds())
+			return m, nil
+		}
 		if m.view == viewBoard && y == 1 && m.focus != focusSidebar {
 			// Hovering the header: the wheel slides the column window.
 			m.boardCol = clampInt(m.boardCol-1, 0, len(m.boardStatuses())-1)
@@ -365,6 +375,10 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.view == viewCourses && m.focus != focusSidebar {
 			m.coursesScroll = clampInt(m.coursesScroll+3, 0, m.coursesScrollBounds())
+			return m, nil
+		}
+		if m.view == viewStats && m.focus != focusSidebar {
+			m.statsScroll = clampInt(m.statsScroll+3, 0, m.statsScrollBounds())
 			return m, nil
 		}
 		if m.view == viewBoard && y == 1 && m.focus != focusSidebar {

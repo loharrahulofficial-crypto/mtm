@@ -30,6 +30,7 @@ var iconDefs = []struct {
 	{"dot", "\uf111", "•"},
 	{"due", "\uf133", "◑"},
 	{"course", "\uf02d", "▮"},
+	{"stats", "\uf080", "▤"},
 }
 
 // buildIcons resolves the icon table for a ui.icons mode.

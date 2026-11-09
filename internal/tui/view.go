@@ -30,6 +30,9 @@ func (m Model) View() string {
 	if m.view == viewCourses {
 		detailW = 0 // course dashboard is read-only; no detail pane
 	}
+	if m.view == viewStats {
+		detailW = 0 // stats view is read-only; no detail pane
+	}
 	mainW, _ := mainPaneSize(m)
 
 	main := m.renderMain(mainW, contentH)
@@ -80,6 +83,8 @@ func (m Model) renderMain(w, h int) string {
 	case viewCourses:
 		// Borderless slab like Home; the dashboard is read-only with scroll.
 		return renderCoursesBody(m, w, h)
+	case viewStats:
+		return renderStatsBody(m, w, h)
 	case viewBoard:
 		return panel("board", renderBoardBody(m, w-2, h-2))
 	case viewCalendar:

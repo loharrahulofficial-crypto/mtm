@@ -61,6 +61,8 @@ func Execute() error {
 		newPomoCmd(),
 		newSyncCmd(),
 		newSummaryCmd(),
+		newStatsCmd(),
+		newReviewCmd(),
 		newTuiCmd(),
 		newDemoSeedCmd(),
 	)

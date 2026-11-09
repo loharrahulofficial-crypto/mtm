@@ -26,7 +26,7 @@ var DumpFixedTime = time.Date(2026, 11, 7, 14, 32, 0, 0, time.UTC)
 // blank-ratio test) renders: fixed clock, fixed default theme, nerd icons
 // unless cfg says otherwise, focus pinned to the first row.
 //
-// view: home|list|board|calendar|courses|focus
+// view: home|list|board|calendar|courses|focus|stats
 func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, t time.Time) Model {
 	s.Clock = clock.Fixed(t)
 
@@ -44,6 +44,8 @@ func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view stri
 		m.view = viewCalendar
 	case "courses":
 		m.view = viewCourses
+	case "stats":
+		m.view = viewStats
 	case "focus":
 		m.view = viewList
 		if task := m.selectedTask(); task != nil {
@@ -66,9 +68,9 @@ func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view stri
 // RenderDump renders exactly one deterministic frame of the requested view.
 func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, noColor bool, t time.Time) (string, error) {
 	switch view {
-	case "home", "list", "board", "calendar", "courses", "focus":
+	case "home", "list", "board", "calendar", "courses", "focus", "stats":
 	default:
-		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|courses|focus)", view)
+		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|courses|focus|stats)", view)
 	}
 	m := BuildDumpModel(cfg, s, repo, view, w, h, t)
 	frame := m.View()
