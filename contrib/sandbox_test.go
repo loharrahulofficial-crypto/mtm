@@ -37,9 +37,17 @@ func firstCommandWord(line string) string {
 func launchesMtm(line string) bool {
 	fw := firstCommandWord(line)
 	for _, ref := range launchRefs {
-		if fw == ref {
-			return true
+		if fw != ref {
+			continue
 		}
+		args := strings.Fields(line)
+		if len(args) >= 2 && args[1] == "completion" {
+			// `mtm completion <shell>` prints a static script; it opens no
+			// repo, config or cache, so running it during `make install`
+			// is safe on the real machine.
+			return false
+		}
+		return true
 	}
 	return false
 }

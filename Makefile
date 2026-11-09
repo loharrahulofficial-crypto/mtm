@@ -2,14 +2,20 @@ BINARY := mtm
 MODULE := github.com/loharrahulofficial-crypto/mtm
 PREFIX ?= $(HOME)/.local
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -s -w -X $(MODULE)/internal/cli.version=$(VERSION)
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -s -w -X $(MODULE)/internal/cli.version=$(VERSION) -X $(MODULE)/internal/cli.commit=$(COMMIT) -X $(MODULE)/internal/cli.buildDate=$(DATE)
 
-.PHONY: build install uninstall test vet fmt check smoke demo clean
+.PHONY: build install uninstall test vet fmt man demo smoke check clean
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/mtm
 
-# Launch the TUI against a throwaway copy of the demo dataset (73 tasks).
+man: build
+	@mkdir -p man
+	go run ./cmd/gendocs $(CURDIR)/man
+
+# Launch the TUI against a throwaway copy of the demo dataset.
 # Your real data is never touched; the sandbox is deleted on exit.
 demo: build
 	@sh contrib/demo.sh bin/$(BINARY)
@@ -19,11 +25,16 @@ demo: build
 smoke: build
 	@sh contrib/smoke.sh bin/$(BINARY)
 
-install: build
+install: build man
 	install -Dm755 bin/$(BINARY) $(PREFIX)/bin/$(BINARY)
-
-uninstall:
-	rm -f $(PREFIX)/bin/$(BINARY)
+	mkdir -p $(PREFIX)/share/man/man1
+	install -Dm644 man/*.1 $(PREFIX)/share/man/man1/
+	mkdir -p $(PREFIX)/share/bash-completion/completions
+	bin/$(BINARY) completion bash > $(PREFIX)/share/bash-completion/completions/mtm
+	mkdir -p $(PREFIX)/share/zsh/site-functions
+	bin/$(BINARY) completion zsh > $(PREFIX)/share/zsh/site-functions/_mtm
+	mkdir -p $(PREFIX)/share/fish/vendor_completions.d
+	bin/$(BINARY) completion fish > $(PREFIX)/share/fish/vendor_completions.d/mtm.fish
 
 test:
 	go test ./...
@@ -36,5 +47,12 @@ fmt:
 
 check: fmt vet test
 
+uninstall:
+	rm -f $(PREFIX)/bin/$(BINARY)
+	rm -f $(PREFIX)/share/man/man1/mtm.1 $(PREFIX)/share/man/man1/mtm-*.1
+	rm -f $(PREFIX)/share/bash-completion/completions/mtm
+	rm -f $(PREFIX)/share/zsh/site-functions/_mtm
+	rm -f $(PREFIX)/share/fish/vendor_completions.d/mtm.fish
+
 clean:
-	rm -rf bin
+	rm -rf bin man

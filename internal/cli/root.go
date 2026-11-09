@@ -13,11 +13,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// version is overridden at build time via -ldflags "-X .../cli.version=x.y.z".
+// version is overridden at build time via -ldflags "-X .../cli.version=x.y.z"
 var version = "dev"
+
+// commit is overridden at build time via -ldflags "-X .../cli.commit=<hash>".
+var commit = "unknown"
+
+// buildDate is overridden at build time via -ldflags "-X .../cli.buildDate=<UTC stamp>".
+var buildDate = "unknown"
 
 // Execute runs the root command and returns the process exit error.
 func Execute() error {
+	root := NewRootCmd()
+	if err := root.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", appname.BinName, err)
+		return err
+	}
+	return nil
+}
+
+// NewRootCmd builds the full command tree. It is shared by Execute and by
+// the man-page generator.
+func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           appname.BinName,
 		Short:         appname.LongName + " — terminal task manager",
@@ -71,10 +88,7 @@ func Execute() error {
 		newCompletionCmd(root),
 		newTuiCmd(),
 		newDemoSeedCmd(),
+		newVersionCmd(),
 	)
-	if err := root.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %v\n", appname.BinName, err)
-		return err
-	}
-	return nil
+	return root
 }
