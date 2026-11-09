@@ -72,6 +72,11 @@ type UIConfig struct {
 	Animations bool `yaml:"animations"`
 	// Icons selects the glyph set: nerd (Nerd Font, default) | unicode | none.
 	Icons string `yaml:"icons"`
+	// Density controls board card spacing: comfortable (default) keeps the
+	// 5-row card (title lines always padded to two rows); compact drops the
+	// blank line between a card's title and its badge row when the title
+	// fits on one line.
+	Density string `yaml:"density,omitempty"`
 	// SemesterStart anchors the brand header's "Week N of M". Empty hides it.
 	SemesterStart string `yaml:"semester_start,omitempty"` // 2006-01-02
 	SemesterWeeks int    `yaml:"semester_weeks,omitempty"` // default 16
@@ -102,6 +107,7 @@ func Default() Config {
 		UI: UIConfig{
 			Animations:    true,
 			Icons:         "nerd",
+			Density:       "comfortable",
 			SemesterWeeks: 16,
 		},
 	}
@@ -164,6 +170,14 @@ func Load() (Config, error) {
 		cfg.UI.Icons = "nerd"
 	default:
 		return cfg, fmt.Errorf("config %s: ui.icons must be nerd|unicode|none, got %q", Path(), cfg.UI.Icons)
+	}
+	switch density := strings.ToLower(strings.TrimSpace(cfg.UI.Density)); density {
+	case "comfortable", "compact":
+		cfg.UI.Density = density
+	case "":
+		cfg.UI.Density = "comfortable"
+	default:
+		return cfg, fmt.Errorf("config %s: ui.density must be comfortable|compact, got %q", Path(), cfg.UI.Density)
 	}
 	if cfg.UI.SemesterStart != "" {
 		if _, err := time.Parse("2006-01-02", cfg.UI.SemesterStart); err != nil {

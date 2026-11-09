@@ -184,6 +184,26 @@ func TestUIConfigParsingAndValidation(t *testing.T) {
 	if _, err := Load(); err == nil {
 		t.Fatal("invalid semester_start accepted")
 	}
+	write("ui:\n  density: bogus\n")
+	if _, err := Load(); err == nil {
+		t.Fatal("invalid density accepted")
+	}
+	write("ui:\n  density: COMPACT\n")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.Density != "compact" {
+		t.Fatalf("density not normalized: %q", cfg.UI.Density)
+	}
+	write("ui:\n  density: comfortable\n")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.Density != "comfortable" {
+		t.Fatalf("density = %q, want comfortable", cfg.UI.Density)
+	}
 }
 
 func TestBoardDoneDaysDefaultAndOverride(t *testing.T) {

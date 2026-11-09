@@ -280,6 +280,33 @@ func padRight(s string, w int) string {
 
 const boardCardH = 5
 
+// boardBaseH is the minimum slot height: comfortable keeps the classic
+// 5-row card; compact drops the empty title line, so a one-line-title,
+// one-line-badge card is 4 rows.
+func boardBaseH(m Model) int {
+	if strings.EqualFold(strings.TrimSpace(m.cfg.UI.Density), "compact") {
+		return 4
+	}
+	return boardCardH
+}
+
+// cardLineCount reports the rendered height of one card at width w —
+// exactly what renderCard emits — so boardSlotHeights and the hit test
+// stay in step with the pixels.
+func cardLineCount(m Model, t *core.Task, w int, now time.Time, head map[string][2]int) int {
+	compact := strings.EqualFold(strings.TrimSpace(m.cfg.UI.Density), "compact")
+	const chrome = 2 // leading + trailing blank rows
+	titleLines := 1
+	if _, cut2 := wrapTitle(t.Title, w-3); cut2 != "" || !compact {
+		titleLines = 2
+	}
+	metaLines := 1
+	if !cardMetaFits(m, t, w, now, head) {
+		metaLines = 2
+	}
+	return chrome + titleLines + metaLines
+}
+
 // boardLayout computes the visible column window and column width so mouse
 // hit-testing matches the render exactly.
 func boardLayout(m Model, w int) (winStart, visCols, colW int) {
@@ -314,8 +341,8 @@ func boardLayout(m Model, w int) (winStart, visCols, colW int) {
 // inner panel height minus the two header rows.
 func contentHForClick(m Model) int {
 	bodyH := m.height - 4 // panel pad+border (2) + header rows (2)
-	if bodyH < boardCardH {
-		bodyH = boardCardH
+	if bodyH < boardBaseH(m) {
+		bodyH = boardBaseH(m)
 	}
 	return bodyH
 }
@@ -407,7 +434,7 @@ func renderBoardBody(m Model, w, h int) []string {
 	// stay aligned. If the panel is too short for another slot, the
 	// overflow is summarized in ONE combined footer cell inside the
 	// column ("+N more · +N older · D shows all").
-	maxFitPreview := (h - 2) / boardCardH
+	maxFitPreview := (h - 2) / boardBaseH(m)
 	reserve := 0
 	for i := winStart; i < view; i++ {
 		if len(cols[i]) > maxFitPreview {
@@ -422,8 +449,8 @@ func renderBoardBody(m Model, w, h int) []string {
 		}
 	}
 	bodyH := h - 2 - reserve
-	if bodyH < boardCardH {
-		bodyH = boardCardH
+	if bodyH < boardBaseH(m) {
+		bodyH = boardBaseH(m)
 	}
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
 	head := subtaskCounts(m.store.Tasks(), isDone)
@@ -436,12 +463,12 @@ func renderBoardBody(m Model, w, h int) []string {
 				sel := i == m.boardCol && r == m.boardRow && m.focus != focusSidebar
 				cardLines = append(cardLines, renderCard(m, cols[i][r], colW, sel, now, head))
 			} else if r == 0 {
-				cardLines = append(cardLines, cardPlaceholder(m, colW, boardCardH))
+				cardLines = append(cardLines, cardPlaceholder(m, colW, boardBaseH(m)))
 			} else {
-				cardLines = append(cardLines, blankCard(m, colW, boardCardH))
+				cardLines = append(cardLines, blankCard(m, colW, boardBaseH(m)))
 			}
 		}
-		slotH := boardCardH
+		slotH := boardBaseH(m)
 		for _, cl := range cardLines {
 			if len(cl) > slotH {
 				slotH = len(cl)
@@ -710,11 +737,12 @@ func boardSlotHeights(m Model, cols [][]*core.Task, w, bodyH int) [][2]int {
 	slots := [][2]int{}
 	y := 0
 	for r := 0; ; r++ {
-		h := boardCardH
+		h := boardBaseH(m)
 		for i := winStart; i < view; i++ {
-			if r < len(cols[i]) && !cardMetaFits(m, cols[i][r], colW, now, head) {
-				h = boardCardH + 1
-				break
+			if r < len(cols[i]) {
+				if ch := cardLineCount(m, cols[i][r], colW, now, head); ch > h {
+					h = ch
+				}
 			}
 		}
 		if y+h > bodyH {
@@ -825,7 +853,12 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 		metaLines = append(metaLines, padRightCard(meta, w, cardBg))
 	}
 
-	lines := append([]string{line1, line2}, metaLines...)
+	compact := strings.EqualFold(strings.TrimSpace(m.cfg.UI.Density), "compact")
+	titleLines := []string{line1}
+	if cut2 != "" || !compact {
+		titleLines = append(titleLines, line2)
+	}
+	lines := append(titleLines, metaLines...)
 
 	if selected {
 		top := border.Render("╭" + strings.Repeat("─", w-2) + "╮")
