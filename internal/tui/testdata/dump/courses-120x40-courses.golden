@@ -1,35 +1,35 @@
                            ╭─ C O U R S E S ───────────────────────────────────────────────────────────────── 3 active ╮
-  mtm · study desk         │ ▌ DBMS   ▄▄▄▄▄▄▄▄  67% ✦6d                                                                │
-                           │ ▌ MAM    ▄▄▄▄▄▄▄▄  67% ✦19d                                                               │
-  V I E W S ────────────   │ ▌ OS     ▄▄▄▄▄▄▄▄  67% ✦13d                                                               │
-   Home                   │ ▌ DBMS — Database Systems                                                                 │
-   All                18  │   2026-odd · 4 cr · target A (90%)                                                        │
-   Today               2  │ grade  ▄▄▄▄▄▄▄▄▄▄▄│  45.0%  ▏ target                                                      │
-   Week                3  │        ▏ target 90%                                                                       │
-   Overdue             3  │  need 90.0% on remaining 30                                                               │
-  C O U R S E S ────────   │ GRADED ITEMS ──────────────────────────────────────────────────────────────────────────── │
-  ▌ dbms ▄▄▄▄           2  │ ITEM                                                               WEIGHT     SCORE   CONT│
-  ▌ maths ▄▄▄▄          2  │ Read ch.4 — storage models                                             30     27/30   27.0│
-  ▌ os ▄▄▄▄             2  │ ✦ DBMS midterm — relational algebra + SQL                              30         —      —│
-  ▌ inbox ▄▄▄▄             │───────────────────────────────────────────────────────────────────────────────────────────│
-                           │ TOTAL                                                                  60             27.0│
-                           │ HOURS ─────────────────────────────────────────────────────────────────────────────────── │
+  mtm · study desk         │ ▌ dbms     45% ✦6d                                                                        │
+                           │ ▌ maths    39% ✦19d                                                                       │
+  V I E W S ────────────   │ ▌ os       27% ✦13d                                                                       │
+   Home                   │  ▌ DBMS — Database Systems                                                                │
+   All                18  │    2026-odd · 4 cr · target A (90%)                                                       │
+   Today               2  │  grade  ▄▄▄▄▄▄▄▄▄▄▄│  45.0%                                                               │
+   Week                3  │         target 90% · need 90.0% on remaining 30                                           │
+   Overdue             3  │  GRADED ITEMS ──────────────────────────────────────────────────────────────────────────  │
+  C O U R S E S ────────   │  ITEM                                                             WEIGHT     SCORE    PTS │
+  ▌ dbms ▄▄▄▄           2  │  Read ch.4 — storage models                                           30     27/30   27.0 │
+  ▌ maths ▄▄▄▄          2  │  ✦ DBMS midterm — relational algebra + SQL                            30         —      — │
+  ▌ os ▄▄▄▄             2  │ ───────────────────────────────────────────────────────────────────────────────────────── │
+  ▌ inbox ▄▄▄▄             │  TOTAL                                                                60             27.0 │
+                           │  HOURS ─────────────────────────────────────────────────────────────────────────────────  │
                            │                            1.5h   0    0  1.2h   0    0   1h                              │
                            │                             ██             ▄▄                                             │
                            │                             ██             ██             ██                              │
                            │                             ██   ▁▁   ▁▁   ██   ▁▁   ▁▁   ██                              │
                            │                              S    M    T    W    T    F    S                              │
-                           │ 3.8 h · last 7 days                                                                       │
-                           │ total 5h 30m logged · est ~3h                                                             │
-                           │ EXAMS ─────────────────────────────────────────────────────────────────────────────────── │
-                           │ ✦ DBMS midterm — relational algebra + SQL                                                 │
-                           │   Fri 13 Nov · weight 30%                                                                 │
-                           │  █▀▀▀       █  Fri 13 Nov                                                                 │
-                           │  █▀▀▀█  ▄▀▀▄█  in 6 days                                                                  │
-                           │  ▀▄▄▄▀  ▀▄▄▀█                                                                             │
-                           │   topics not set                                                                          │
-                           │ NEXT TASKS ────────────────────────────────────────────────────────────────────────────── │
-                           │ ▌ Read ch.4 — storage models                                                        today │
+                           │  3.8 h · last 7 days                                                                      │
+                           │  total 5h 30m logged · est ~3h                                                            │
+                           │  EXAMS ─────────────────────────────────────────────────────────────────────────────────  │
+                           │  ✦ DBMS midterm — relational algebra + SQL · Fri 13 Nov                                   │
+                           │    weight 30%                                                                             │
+                           │   █▀▀▀       █  in 6 days                                                                 │
+                           │   █▀▀▀█  ▄▀▀▄█                                                                            │
+                           │   ▀▄▄▄▀  ▀▄▄▀█                                                                            │
+                           │    topics not set                                                                         │
+                           │  NEXT TASKS ────────────────────────────────────────────────────────────────────────────  │
+                           │  ▌ Read ch.4 — storage models                                                      today  │
+                           │                                                                                           │
                            │                                                                                           │
                            │                                                                                           │
                            │                                                                                           │

@@ -14,6 +14,7 @@ var iconDefs = []struct {
 	{"calendar", "\uf073", "▦"},
 	{"focus", "\uf06e", "◎"},
 	{"check", "\uf046", "✓"},
+	{"circle", "\uf10c", "○"},
 	{"warning", "\uf071", "⚠"},
 	{"exam", "\uf19d", "✎"},
 	{"clock", "\uf017", "◷"},

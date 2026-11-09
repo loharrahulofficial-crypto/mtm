@@ -24,6 +24,13 @@ import (
 
 func renderCourseDetail(m Model, c courseCard, w, h int) []string {
 	bg := lipgloss.Color(m.palette.Surface)
+	// One cell of padding on each side of the pane so no text touches
+	// the border; content rows stay padded to the reduced width and the
+	// final lines are wrapped in 1-cell surface gutters.
+	w -= 2
+	if w < 1 {
+		w = 1
+	}
 	bright := func(s string) string {
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(bg).Bold(true).Render(s)
 	}
@@ -68,6 +75,10 @@ func renderCourseDetail(m Model, c courseCard, w, h int) []string {
 	}
 	lines = append(lines, courseTasksSection(m, c, w, pad, accent)...)
 	_ = h
+	gutterCell := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface)).Render(" ")
+	for i, l := range lines {
+		lines[i] = gutterCell + clipStyled(l, w) + gutterCell
+	}
 	return lines
 }
 
@@ -129,7 +140,10 @@ func detailSection(m Model, w int, text string) string {
 }
 
 // courseGradeSection: thin-glyph gauge with a bright tick glyph for the
-// target, a legend line, then the status line (wording unchanged).
+// target, then a single legend line beneath it ("target 90% · need 90.0%
+// on remaining 40") that merges the target with the grade status wording
+// from Phase 4 (that wording is unchanged). No duplicate target labels,
+// no connector glyphs.
 func courseGradeSection(m Model, c courseCard, w int, color string, pad func(string) string, bright, muted, subtle func(string) string) []string {
 	bg := lipgloss.Color(m.palette.Surface)
 	g := c.grades
@@ -170,37 +184,43 @@ func courseGradeSection(m Model, c courseCard, w int, color string, pad func(str
 		standing = g.UnweightedPct
 	}
 	pct := fmt.Sprintf("%5.1f%%", clampFloat(standing, 0, 100))
-	glow := " " + bright(pct) + "  " + subtle("▏ target")
-	if g.Unweighted || !g.HasTarget || g.TargetPct <= 0 {
-		bar := strings.Join(barCells, "")
-		legend := "        " + subtle("no target set — mtm course edit")
-		if g.Unweighted {
-			legend = "        " + subtle("no weights set — plain average")
-		}
-		return []string{
-			pad(" " + muted("grade  ") + bar + glow + muted("  ")),
-			pad(legend),
-			pad("  " + muted(truncatePlain(gradeStatusLine(g), w-3))),
-		}
-	}
 	bar := strings.Join(barCells, "")
-	legend := "        " + subtle(fmt.Sprintf("▏ target %.0f%%", g.TargetPct))
+	status := gradeStatusLine(g)
+	if !g.Unweighted && g.HasTarget && g.TargetPct > 0 {
+		status = fmt.Sprintf("target %.0f%% · %s", g.TargetPct, status)
+	}
 	return []string{
-		pad(" " + muted("grade  ") + bar + glow),
-		pad(legend),
-		pad("  " + muted(truncatePlain(gradeStatusLine(g), w-3))),
+		pad(" " + muted("grade  ") + bar + " " + bright(pct)),
+		pad("        " + subtle(truncatePlain(status, w-8))),
 	}
 }
 
-// courseTableSection: assignment/exam · weight · score · contribution,
-// with a total row. Contribution is weight × score pct (points earned of
-// assigned weight).
+// courseTableSection: assignment/exam · weight · score · PTS, with a
+// total row. PTS is weight × score pct (points earned of assigned
+// weight). Only items carrying a weight are listed — unweighted tasks
+// live in the Next tasks section. When no weighted item exists, a muted
+// hint takes the table's place.
 func courseTableSection(m Model, c courseCard, w int, pad func(string) string, bright, muted, subtle func(string) string) []string {
 	g := c.grades
 	if g == nil || len(g.Items) == 0 {
 		return []string{pad(" " + muted("nothing graded yet"))}
 	}
-	nameW := w - 27 // ' ' + item + ' ' + weight(8) + ' ' + score(9) + ' ' + cont(6) == w
+	weighted := make([]core.GradeItem, 0, len(g.Items))
+	for _, it := range g.Items {
+		if it.HasWeight {
+			weighted = append(weighted, it)
+		}
+	}
+	if len(weighted) == 0 {
+		return []string{
+			detailSection(m, w, "Graded items"),
+			pad(" " + muted("No weighted items yet. Add one with: mtm grade or :exam")),
+		}
+	}
+	nameW := w - 27 // ' ' + item + ' ' + weight(8) + ' ' + score(9) + ' ' + pts(6) == w
+	if nameW < 4 {
+		nameW = 4
+	}
 	r := func(s string, width int) string {
 		width -= lipgloss.Width(s)
 		if width < 0 {
@@ -210,21 +230,19 @@ func courseTableSection(m Model, c courseCard, w int, pad func(string) string, b
 	}
 	l := func(s string, width int) string { return padRightPlain(s, width) }
 	lines := []string{detailSection(m, w, "Graded items")}
-	header := " " + muted(l("ITEM", nameW)) + " " + muted(r("WEIGHT", 8)) + " " + muted(r("SCORE", 9)) + " " + muted(r("CONT", 6))
+	header := " " + muted(l("ITEM", nameW)) + " " + muted(r("WEIGHT", 8)) + " " + muted(r("SCORE", 9)) + " " + muted(r("PTS", 6))
 	lines = append(lines, pad(header))
-	for _, it := range g.Items {
+	for _, it := range weighted {
 		kindMark := ""
 		if strings.EqualFold(it.Kind, core.KindExam) {
 			kindMark = "✦ "
 		}
 		name := truncatePlain(kindMark+it.Title, nameW)
 		wtxt, stxt, ctxt := "—", "—", "—"
-		if it.HasWeight {
-			wtxt = trimFloat(it.Weight)
-		}
+		wtxt = trimFloat(it.Weight)
 		if it.Scored {
 			stxt = fmt.Sprintf("%g/%g", it.Score, it.ScoreMax)
-			if it.HasWeight && it.ScoreMax > 0 {
+			if it.ScoreMax > 0 {
 				pct := it.Score / it.ScoreMax * 100
 				ctxt = fmt.Sprintf("%.1f", it.Weight*pct/100)
 			}
@@ -299,8 +317,11 @@ func courseHoursSection(m Model, c courseCard, w int, pad func(string) string, b
 	return lines
 }
 
-// courseExamSection: the nearest open exam — date, block-digit countdown,
-// weight, topics progress bar, per-topic checklist.
+// courseExamSection: the nearest open exam — header with the date,
+// block-digit countdown with "in N days" beside it, weight, topics
+// progress bar, per-topic checklist. The date renders once, in the
+// header line; topics are marked with Nerd Font check glyphs (Unicode
+// fallbacks), muted when done — no strikethrough.
 func courseExamSection(m Model, c courseCard, w int, pad func(string) string, bright, muted, subtle func(string) string, accent func(string) string, color string) []string {
 	bg := lipgloss.Color(m.palette.Surface)
 	subtleRow := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.SurfaceStrong)).Background(bg)
@@ -333,35 +354,45 @@ func courseExamSection(m Model, c courseCard, w int, pad func(string) string, br
 		weightTxt = fmt.Sprintf("weight %.0f%%", weight)
 	}
 	subDone, subTotal, _ := core.SubtaskProgress(m.store.Tasks(), task.ID, isDone)
-	meta := dateTxt
-	if weightTxt != "" {
-		if meta != "" {
-			meta += " · "
-		}
-		meta += weightTxt
-	}
+	meta := weightTxt
 	if subTotal > 0 {
 		if meta != "" {
 			meta += " · "
 		}
 		meta += fmt.Sprintf("topics %d/%d", subDone, subTotal)
 	}
-	lines = append(lines, pad(" "+accent("✦")+" "+bright(truncatePlain(task.Title, w-4))))
-	lines = append(lines, pad("   "+muted(meta)))
 
-	// Countdown digits beside the topics bar.
+	// Header line: the exam name and the date, exactly once.
+	header := " " + accent("✦") + " "
+	nameBudget := w - 4
+	if dateTxt != "" {
+		nameBudget -= lipgloss.Width(dateTxt) + 3 // " · " + date
+	}
+	if nameBudget < 8 {
+		nameBudget = 8
+	}
+	header += bright(truncatePlain(task.Title, nameBudget))
+	if dateTxt != "" {
+		header += muted(" · " + dateTxt)
+	}
+	lines = append(lines, pad(header))
+	if meta != "" {
+		lines = append(lines, pad("   "+muted(meta)))
+	}
+
+	// Countdown digits beside the in-N-days line.
 	digits := gauges.Digits(fmt.Sprintf("%dd", e.daysLeft))
 	topicsLine := ""
 	if subTotal > 0 {
 		fill, track := gauges.ThinBar(float64(subDone)/float64(subTotal), 10)
-		topicsLine = accent("✦ topics ") + colorRow.Render(fill) + subtleRow.Render(track) + muted(fmt.Sprintf(" %d/%d", subDone, subTotal))
+		topicsLine = muted("topics ") + colorRow.Render(fill) + subtleRow.Render(track) + muted(fmt.Sprintf(" %d/%d", subDone, subTotal))
 	} else {
 		topicsLine = muted("topics not set")
 	}
 	inStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true)
 	right := []string{
-		muted(dateTxt),
 		inStyle.Render(inTxt),
+		"",
 		"",
 	}
 	for row := 0; row < 3; row++ {
@@ -370,25 +401,34 @@ func courseExamSection(m Model, c courseCard, w int, pad func(string) string, br
 	}
 	lines = append(lines, pad("   "+topicsLine))
 
-	// Per-topic checklist.
+	// Per-topic checklist with Nerd Font check glyphs; done topics are
+	// muted, never struck through.
 	sub := examSubtasks(m, task.ID)
 	if len(sub) > 0 {
-		isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
 		shown := 0
 		maxChecklist := 4
 		if w < 100 {
 			maxChecklist = 2
 		}
+		openIcon := m.icon("circle")
+		doneIcon := m.icon("check")
+		iconCell := func(ic string) string {
+			if ic == "" {
+				return "   "
+			}
+			st := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg)
+			return st.Render(" " + ic + " ")
+		}
 		for _, st := range sub {
 			done := isDone(st.Project, st.Status)
-			mark := "[ ]"
-			title := truncatePlain(st.Title, w-9)
+			title := truncatePlain(st.Title, w-8)
+			cell := iconCell(openIcon)
 			text := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg).Render(title)
 			if done {
-				mark = "[x]"
-				text = strikeTitle(lipgloss.Color(m.palette.Muted), bg, title)
+				cell = iconCell(doneIcon)
+				text = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Render(title)
 			}
-			lines = append(lines, pad("   "+subtle(mark)+" "+text))
+			lines = append(lines, pad("   "+cell+text))
 			shown++
 			if shown >= maxChecklist {
 				break

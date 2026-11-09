@@ -4,7 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 )
 
@@ -109,10 +111,10 @@ func TestCoursesMasterDetailSideBySide(t *testing.T) {
 		t.Fatal(err)
 	}
 	plain := StripANSI(frame)
-	// List: all three course chips.
-	for _, code := range []string{"DBMS", "OS", "MAM"} {
-		if !strings.Contains(plain, code) {
-			t.Errorf("frame missing course %s in the list:\n%s", code, plain)
+	// List: all three course leaf names.
+	for _, leaf := range []string{"▌ dbms", "▌ os", "▌ maths"} {
+		if !strings.Contains(plain, leaf) {
+			t.Errorf("frame missing course %q in the list:\n%s", leaf, plain)
 		}
 	}
 	// Detail: the header line with the em-dash name.
@@ -145,7 +147,7 @@ func TestCoursesStackedBelow100(t *testing.T) {
 		t.Fatal(err)
 	}
 	plain := StripANSI(frame)
-	listIdx := strings.Index(plain, "▌ DBMS")
+	listIdx := strings.Index(plain, "▌ dbms")
 	detailIdx := strings.Index(plain, "DBMS — Database Systems")
 	if listIdx < 0 || detailIdx < 0 {
 		t.Fatalf("frame missing list or detail:\n%s", plain)
@@ -171,7 +173,7 @@ func TestCoursesDetailSections(t *testing.T) {
 	for _, want := range []string{
 		"DBMS — Database Systems",    // header
 		"2026-odd · 4 cr · target A", // meta (target grade verbatim)
-		"▏ target",                   // gauge tick legend
+		"target 90% · need",          // gauge tick on the bar + merged legend line
 		"need ",                      // status line
 		"GRADED ITEMS",               // table section
 		"Read ch.4 — storage models", // a graded item
@@ -354,9 +356,14 @@ func TestCoursesExamTopicsChecklist(t *testing.T) {
 	m.view = viewCourses
 	m.courseSel = 0 // DBMS (first course)
 	frame := StripANSI(m.View())
-	for _, want := range []string{"✦ topics", "4/6", "[x] Revise ch.4", "+2 more topics"} {
+	for _, want := range []string{"topics 4/6", "+2 more topics"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("exam section missing %q:\n%s", want, frame)
+		}
+	}
+	for _, banned := range []string{"[x]", "[ ]", "✦ topics"} {
+		if strings.Contains(frame, banned) {
+			t.Errorf("exam section still renders %q — want nerd-font check glyphs, no brackets or stray ✦:\n%s", banned, frame)
 		}
 	}
 }
@@ -388,5 +395,155 @@ func TestListBareGStaysPrefix(t *testing.T) {
 	}
 	if m3.pendingKey != "g" {
 		t.Fatalf("pendingKey = %q, want %q", m3.pendingKey, "g")
+	}
+}
+
+// TestCoursesTableListsOnlyWeightedItems pins the weighted-only rule:
+// the table shows weight-bearing items (with the PTS header) and never an
+// unweighted one — unweighted tasks live in Next tasks only.
+func TestCoursesTableListsOnlyWeightedItems(t *testing.T) {
+	s := fixtures["courses"](t)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	m.width, m.height = 200, 50
+	m.view = viewCourses
+	m.courseSel = 0 // DBMS
+	frame := StripANSI(m.View())
+	// The DBMS fixture's weighted items: Read ch.4 (30, scored) and the
+	// DBMS midterm (30, unscored).
+	if !strings.Contains(frame, "Read ch.4 — storage models") {
+		t.Errorf("weighted item Read ch.4 missing from the table:\n%s", frame)
+	}
+	// The unweighted completed items (e00010+) never appear in the table.
+	for _, banned := range []string{"completed item 0", "completed item 1"} {
+		if strings.Contains(frame, banned) {
+			t.Errorf("unweighted item %q leaked into the graded-items table:\n%s", banned, frame)
+		}
+	}
+	if strings.Contains(frame, "CONTRIBUTION") {
+		t.Error("table still uses the CONTRIBUTION header — want PTS")
+	}
+	if !strings.Contains(frame, "PTS") {
+		t.Error("table missing the PTS header")
+	}
+}
+
+// TestCoursesTableNoWeightedItemsHint pins the empty state: a course with
+// no weighted items shows the muted hint instead of a table.
+func TestCoursesTableNoWeightedItemsHint(t *testing.T) {
+	ts := DumpFixedTime
+	stamp := ts.Format(core.TimestampFormat)
+	s := fixtureStore(t, []fixtureTask{
+		{id: "n00001", title: "unweighted reading task", project: "college/dbms", status: "todo", priority: "medium", kind: "assignment", created: stamp, updated: stamp},
+	},
+		fixtureProject{name: "college/dbms", color: "blue", course: &core.Course{Code: "DBMS", Name: "Database Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "A"}},
+	)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	m.width, m.height = 200, 50
+	m.view = viewCourses
+	m.courseSel = 0
+	frame := StripANSI(m.View())
+	want := "No weighted items yet. Add one with: mtm grade or :exam"
+	if !strings.Contains(frame, want) {
+		t.Errorf("weighted-empty hint missing:\n%s", frame)
+	}
+}
+
+// TestCoursesRightPanePadding pins the 1-cell padding: no line of the
+// detail pane touches either edge of its cell.
+func TestCoursesRightPanePadding(t *testing.T) {
+	s := fixtures["courses"](t)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	cards, err := collectCourseCards(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range cards {
+		for _, line := range renderCourseDetail(m, cards[i], 90, 40) {
+			plain := StripANSI(line)
+			if !strings.HasPrefix(plain, " ") || !strings.HasSuffix(plain, " ") {
+				t.Errorf("detail line touches the edge: %q", plain)
+			}
+		}
+	}
+}
+
+// TestCoursesGaugeSingleLegendLine pins the gauge format: the target is a
+// tick on the bar, and exactly one legend line carries the target.
+func TestCoursesGaugeSingleLegendLine(t *testing.T) {
+	s := fixtures["courses"](t)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	m.width, m.height = 200, 50
+	m.view = viewCourses
+	frame := StripANSI(m.View())
+	legend := 0
+	for _, line := range strings.Split(frame, "\n") {
+		if strings.Contains(line, "target 90%") {
+			legend++
+		}
+		if strings.Contains(line, "▏") {
+			t.Errorf("stray connector glyph ▏ in the gauge: %q", line)
+		}
+	}
+	if legend != 1 {
+		t.Errorf("target legend appears on %d lines, want exactly 1:\n%s", legend, frame)
+	}
+	// The bar itself carries the tick.
+	if !strings.Contains(frame, "│") {
+		t.Error("gauge lost the target tick on the bar")
+	}
+}
+
+// TestCoursesListWidthAndContents pins the wider (~28 cell) left list:
+// lines pad to the list width, leaf names + grade % + exam chips are
+// shown, and the thin progress bar is gone.
+func TestCoursesListWidthAndContents(t *testing.T) {
+	s := fixtures["courses"](t)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	cards, err := collectCourseCards(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const w = 28
+	list := renderCourseList(m, cards, w, 10)
+	if len(list) == 0 {
+		t.Fatal("empty list")
+	}
+	for i, line := range list {
+		if got := lipgloss.Width(line); got != w {
+			t.Errorf("list line %d is %d cells wide, want exactly %d", i, got, w)
+		}
+		plain := StripANSI(line)
+		if strings.Contains(plain, "▄▄▄▄▄▄") {
+			t.Errorf("list line %d still carries the thin progress bar: %q", i, plain)
+		}
+	}
+	joined := StripANSI(strings.Join(list, "\n"))
+	for _, want := range []string{"dbms", "45%", "✦6d"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("list missing %q:\n%s", want, joined)
+		}
+	}
+}
+
+// TestCoursesTableHeaderNeverClipped pins the fixed PTS/WEIGHT/SCORE
+// columns at several widths.
+func TestCoursesTableHeaderNeverClipped(t *testing.T) {
+	s := fixtures["courses"](t)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	m.view = viewCourses
+	for _, size := range []struct{ w, h int }{{120, 40}, {100, 30}, {200, 50}} {
+		m.width, m.height = size.w, size.h
+		frame := StripANSI(m.View())
+		for _, want := range []string{"WEIGHT", "SCORE", "PTS"} {
+			if !strings.Contains(frame, want) {
+				t.Errorf("%dx%d: header cell %q clipped:\n%s", size.w, size.h, want, frame)
+			}
+		}
 	}
 }

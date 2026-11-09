@@ -11,7 +11,6 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/dates"
-	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
@@ -150,7 +149,13 @@ func renderCoursesBody(m Model, w, h int) string {
 	}
 	if w >= 100 {
 		inner := w - 2
-		listW := clampInt(inner*32/100, 30, 38)
+		listW := 28
+		if listW > inner-20 {
+			listW = inner - 20
+		}
+		if listW < 16 {
+			listW = 16
+		}
 		gutter := 1
 		rightW := inner - listW - gutter
 		listBody := renderCourseList(m, cards, listW, h-2)
@@ -192,13 +197,6 @@ func blankSurfaceLine(m Model, n int) string {
 	return lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface)).Render(strings.Repeat(" ", n))
 }
 
-func courseListName(p *core.Project) string {
-	if p.Course != nil && strings.TrimSpace(p.Course.Code) != "" {
-		return p.Course.Code
-	}
-	return leafName(p.Name)
-}
-
 // renderCourseList renders the compact course list: stripe, name, thin
 // bar, grade %, next-exam chip. The selected row sits on raised.
 func renderCourseList(m Model, cards []courseCard, w, h int) []string {
@@ -207,12 +205,11 @@ func renderCourseList(m Model, cards []courseCard, w, h int) []string {
 
 	nameW := 6
 	for _, c := range cards {
-		if n := lipgloss.Width(courseListName(c.project)); n > nameW {
+		if n := lipgloss.Width(leafName(c.project.Name)); n > nameW {
 			nameW = n
 		}
 	}
-	nameW = clampInt(nameW, 4, 12)
-	const barW = 8
+	nameW = clampInt(nameW, 4, 14)
 	lines := []string{}
 	for i, c := range cards {
 		if i >= h {
@@ -225,19 +222,20 @@ func renderCourseList(m Model, cards []courseCard, w, h int) []string {
 		}
 		color := theme.CourseColor(m.palette, c.project.Name, projectColorOverride(m, c.project.Name))
 		stripe := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bg).Render("▌")
-		name := padRightPlain(truncatePlain(courseListName(c.project), nameW), nameW)
+		name := padRightPlain(truncatePlain(leafName(c.project.Name), nameW), nameW)
 		nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg)
 		if selected {
 			nameStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(bg).Bold(true)
 		}
-		frac := 0.0
-		if c.stats != nil {
-			frac = c.stats.Overall.Fraction
+		pct := "   —"
+		if c.grades != nil && len(c.grades.Items) > 0 {
+			g := c.grades
+			standing := g.StandingPct
+			if g.Unweighted {
+				standing = g.UnweightedPct
+			}
+			pct = fmt.Sprintf("%4.0f%%", clampFloat(standing, 0, 100))
 		}
-		fill, track := gauges.ThinBar(easedFrac(m, frac), barW)
-		subtleRow := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.SurfaceStrong)).Background(bg)
-		bar := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bg).Render(fill) + subtleRow.Render(track)
-		pct := fmt.Sprintf("%3.0f%%", frac*100)
 		pctStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bg)
 		if selected {
 			pctStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(bg).Bold(true)
@@ -257,7 +255,7 @@ func renderCourseList(m Model, cards []courseCard, w, h int) []string {
 			}
 			chip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bg).Bold(true).Render(padRightPlain("✦"+t, 5))
 		}
-		line := " " + stripe + " " + nameStyle.Render(name) + " " + bar + " " + pctStyle.Render(pct) + " " + chip
+		line := " " + stripe + " " + nameStyle.Render(name) + " " + pctStyle.Render(pct) + " " + chip
 		lines = append(lines, padToWidth(line, w, bg))
 	}
 	if len(cards) > len(lines) {
