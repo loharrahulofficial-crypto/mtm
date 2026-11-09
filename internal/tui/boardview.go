@@ -405,23 +405,21 @@ func renderBoardBody(m Model, w, h int) []string {
 	// line when it doesn't fit (never clipped, never overlapping). Slot
 	// heights adapt per row across all visible columns, so card bottoms
 	// stay aligned. If the panel is too short for another slot, the
-	// overflow is summarized in a "+N more" cell inside the column.
-	// The footer rows ("+N more" and the done-recency "+N older") borrow
-	// up to two rows from the card area.
+	// overflow is summarized in ONE combined footer cell inside the
+	// column ("+N more · +N older · D shows all").
 	maxFitPreview := (h - 2) / boardCardH
 	reserve := 0
-	hiddenVisible := 0
 	for i := winStart; i < view; i++ {
 		if len(cols[i]) > maxFitPreview {
-			reserve++
+			reserve = 1
 			break
 		}
 	}
 	for i := winStart; i < view; i++ {
-		hiddenVisible += colsModel[i].hidden
-	}
-	if hiddenVisible > 0 {
-		reserve++
+		if colsModel[i].hidden > 0 {
+			reserve = 1
+			break
+		}
 	}
 	bodyH := h - 2 - reserve
 	if bodyH < boardCardH {
@@ -477,35 +475,39 @@ func renderBoardBody(m Model, w, h int) []string {
 			break
 		}
 	}
-	// Footer rows, rendered inside the columns. "+N more" when a column
-	// overflows the slot area; the done-recency footer when the done
-	// filter hid older completions.
-	overflow := false
+	// Footer: ONE left-aligned footer cell inside each column that has
+	// something to say — "+N more · +N older · D shows all", shortened to
+	// fit the column width, on the column's own background.
+	footerNeeded := false
 	for i := winStart; i < view; i++ {
-		if len(cols[i]) > slotsRendered {
-			overflow = true
+		if len(cols[i]) > slotsRendered || colsModel[i].hidden > 0 {
+			footerNeeded = true
 			break
 		}
 	}
-	if overflow {
+	if footerNeeded {
 		cells := make([]string, 0, visCols)
 		for i := winStart; i < view; i++ {
-			if len(cols[i]) > slotsRendered {
-				cells = append(cells, boardFooterCell(m, colW, fmt.Sprintf("+%d more", len(cols[i])-slotsRendered), true))
-			} else {
-				cells = append(cells, blankFooterCell(m, colW))
+			more := len(cols[i]) - slotsRendered
+			if more < 0 {
+				more = 0
 			}
+			older := colsModel[i].hidden
+			if more == 0 && older == 0 {
+				cells = append(cells, blankFooterCell(m, colW))
+				continue
+			}
+			cells = append(cells, boardFooterCell(m, colW, boardFooterText(more, older, colW)))
 		}
 		lines = append(lines, baseInsetRow(baseBG, gutter, baseBG.Render(" "), cells, w, ""))
 	}
-	if hiddenVisible > 0 {
+	// The columns extend to the panel's bottom edge: blank surface
+	// column cells pad any remaining rows, equal heights, no strip.
+	blankCell := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface)).Render(strings.Repeat(" ", colW))
+	for len(lines) < h {
 		cells := make([]string, 0, visCols)
 		for i := winStart; i < view; i++ {
-			if colsModel[i].hidden > 0 {
-				cells = append(cells, boardDoneFooterCell(m, colW, colsModel[i].hidden))
-			} else {
-				cells = append(cells, blankFooterCell(m, colW))
-			}
+			cells = append(cells, blankCell)
 		}
 		lines = append(lines, baseInsetRow(baseBG, gutter, baseBG.Render(" "), cells, w, ""))
 	}
@@ -517,43 +519,61 @@ func blankFooterCell(m Model, w int) string {
 	return lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface)).Render(strings.Repeat(" ", w))
 }
 
-// boardFooterCell renders a muted footer annotation centered in w cells.
-func boardFooterCell(m Model, w int, text string, center bool) string {
+// boardFooterCell renders the one combined column footer left-aligned on
+// the column's own background.
+func boardFooterCell(m Model, w int, text string) string {
 	surf := lipgloss.Color(m.palette.Surface)
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(surf)
-	t := truncatePlain(text, w)
-	pad := w - lipgloss.Width(t)
-	left := 0
-	if center && pad > 0 {
-		left = pad / 2
+	t := truncatePlain(text, w-1) // leading space
+	fill := w - 1 - lipgloss.Width(t)
+	if fill < 0 {
+		fill = 0
 	}
-	return lipgloss.NewStyle().Background(surf).Render(strings.Repeat(" ", left)+muted.Render(t)) +
-		lipgloss.NewStyle().Background(surf).Render(strings.Repeat(" ", max(0, pad-left)))
+	return lipgloss.NewStyle().Background(surf).Render(" ") + muted.Render(t) +
+		lipgloss.NewStyle().Background(surf).Render(strings.Repeat(" ", fill))
 }
 
-// boardDoneFooterCell renders the done-recency footer inside the Done
-// column, degrading the hint text as the column narrows.
-func boardDoneFooterCell(m Model, w int, hidden int) string {
-	surf := lipgloss.Color(m.palette.Surface)
-	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(surf)
-	text := boardDoneFooterText(hidden, w)
-	return lipgloss.NewStyle().Background(surf).Render(" ") + muted.Render(text) +
-		lipgloss.NewStyle().Background(surf).Render(strings.Repeat(" ", max(0, w-1-lipgloss.Width(text))))
-}
-
-// boardDoneFooterText picks the longest footer variant that fits w cells.
-func boardDoneFooterText(hidden, w int) string {
+// boardFooterText composes the overflow footer for one column:
+// "+N more · +N older · D shows all", shortening the hint text and then
+// the suffixes until it fits w cells (left-aligned, leading space).
+func boardFooterText(more, older, w int) string {
+	parts := []string{}
+	if more > 0 {
+		parts = append(parts, fmt.Sprintf("+%d more", more))
+	}
+	if older > 0 {
+		parts = append(parts, fmt.Sprintf("+%d older", older))
+	}
+	base := strings.Join(parts, " · ")
+	if older > 0 {
+		for _, cand := range []string{
+			base + " · D shows all",
+			base + " · D",
+			base,
+		} {
+			if lipgloss.Width(cand) <= w-1 {
+				return cand
+			}
+		}
+		for _, cand := range []string{
+			fmt.Sprintf("+%d older · D", older),
+			fmt.Sprintf("+%d older", older),
+		} {
+			if lipgloss.Width(cand) <= w-1 {
+				return cand
+			}
+		}
+		return truncatePlain(base, w-1)
+	}
 	for _, cand := range []string{
-		fmt.Sprintf("+%d older · press D to show all", hidden),
-		fmt.Sprintf("+%d older · D to show all", hidden),
-		fmt.Sprintf("+%d older · D shows all", hidden),
-		fmt.Sprintf("+%d older", hidden),
+		base,
+		fmt.Sprintf("+%d", more),
 	} {
-		if lipgloss.Width(cand) <= w-1 { // cell carries one leading space
+		if lipgloss.Width(cand) <= w-1 {
 			return cand
 		}
 	}
-	return truncatePlain(fmt.Sprintf("+%d older", hidden), w-1)
+	return truncatePlain(base, w-1)
 }
 
 func blankCard(m Model, w, n int) []string {

@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
+	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
 // TestBoardCardTagsBarGapAndWrap pins the tags+subtask-bar pack on a board
@@ -122,8 +124,11 @@ func TestBoardDoneDaysFilterAndToggle(t *testing.T) {
 	if strings.Contains(body, "older done item") || strings.Contains(body, "ancient done item") {
 		t.Errorf("stale done items visible while the filter is on:\n%s", body)
 	}
-	if !strings.Contains(body, "+2 older · press D to show all") {
+	if !strings.Contains(body, "+2 older") {
 		t.Errorf("done-days footer missing:\n%s", body)
+	}
+	if !strings.Contains(body, "D shows all") && !strings.Contains(body, "· D") {
+		t.Errorf("done-days footer lost the D hint:\n%s", body)
 	}
 
 	// D toggles: all three appear, newest first, footer disappears.
@@ -180,20 +185,26 @@ func TestBoardDoneDaysZeroShowsAll(t *testing.T) {
 // the narrow column still shows the toggle hint.
 func TestBoardDoneFooterTextDegradation(t *testing.T) {
 	cases := []struct {
-		hidden int
-		w      int
-		want   string
+		more, older int
+		w           int
+		want        string
 	}{
-		{2, 32, "+2 older · press D to show all"},
-		{2, 24, "+2 older · D shows all"},
-		{2, 22, "+2 older"},
-		{2, 12, "+2 older"},
-		{123, 32, "+123 older · D to show all"},
-		{2, 27, "+2 older · D to show all"},
+		{2, 13, 40, "+2 more · +13 older · D shows all"},
+		{2, 13, 30, "+2 more · +13 older · D"},
+		{2, 13, 26, "+2 more · +13 older · D"},
+		{2, 13, 24, "+2 more · +13 older · D"},
+		{2, 13, 23, "+2 more · +13 older"},
+		{0, 13, 22, "+13 older · D"},
+		{0, 17, 26, "+17 older · D shows all"},
+		{0, 13, 16, "+13 older · D"},
+		{0, 13, 10, "+13 older"},
+		{2, 0, 14, "+2 more"},
+		{123, 4, 40, "+123 more · +4 older · D shows all"},
+		{123, 0, 10, "+123 more"},
 	}
 	for _, tc := range cases {
-		if got := boardDoneFooterText(tc.hidden, tc.w); got != tc.want {
-			t.Errorf("w=%d: got %q, want %q", tc.w, got, tc.want)
+		if got := boardFooterText(tc.more, tc.older, tc.w); got != tc.want {
+			t.Errorf("w=%d more=%d older=%d: got %q, want %q", tc.w, tc.more, tc.older, got, tc.want)
 		}
 	}
 }
@@ -242,4 +253,76 @@ func TestBoardOverflowFooterStaysInsideColumn(t *testing.T) {
 		}(), "\n"))
 	}
 	_ = winStart
+}
+
+// TestBoardCombinedFooterInsideColumn pins the one-footer rule: the
+// overflow footer merges "+N more" and "+N older · D shows all" into a
+// single left-aligned cell inside the column, on the column's background.
+func TestBoardCombinedFooterInsideColumn(t *testing.T) {
+	s := manyTasksFixture(t)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	m.view = viewBoard
+	m.resetBoardCursor()
+	body := renderBoardBody(m, 118, 20)
+	found := ""
+	for _, line := range body {
+		plain := StripANSI(line)
+		if strings.Contains(plain, "more") {
+			found = plain
+			break
+		}
+	}
+	if found == "" {
+		t.Fatal("no overflow footer rendered")
+	}
+	// The footer starts at the column's first cell region (inset + one
+	// space): at w=118 with the default three columns, the first column
+	// begins at x=1; the footer's "+" must sit at x≈2 (left-aligned).
+	idx := strings.Index(found, "+")
+	if idx < 0 {
+		t.Fatalf("footer without +N more marker: %q", found)
+	}
+	// Left-aligned: after the 1-cell inset, the next glyphs are spaces
+	// then the footer — the '+' must not be centered past mid-column.
+	if idx > 60 {
+		t.Errorf("footer not left-aligned inside the column: %q", found)
+	}
+}
+
+// TestBoardColumnsExtendToBottomEdge pins the equal-height rule: after
+// the cards and any footer, the column cells (surface background) fill
+// the remaining rows so the panel has no bare strip below the columns.
+func TestBoardColumnsExtendToBottomEdge(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	s := manyTasksFixture(t)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	m.view = viewBoard
+	m.resetBoardCursor()
+	const w, h = 118, 27
+	body := renderBoardBody(m, w, h)
+	if len(body) > h {
+		t.Fatalf("board renders %d rows, want at most %d", len(body), h)
+	}
+	// The last two rows must carry column cells (surface bg), not a
+	// full-width blank strip — the columns reach the bottom edge.
+	surface := renderedBGProbe(theme.Defaults().Surface)
+	if surface == "" {
+		t.Fatal("could not probe the surface background")
+	}
+	grid := parseFrame(strings.Join(body, "\n"))
+	// Count how many of the last rows are fully blank on base/surface;
+	// the bottom edge rows must keep the column background pattern.
+	winStart, visCols, colW := boardLayout(m, w)
+	_ = winStart
+	for _, cl := range []int{0, visCols - 1} {
+		cellX := 1 + cl*(colW+1)
+		for r := len(body) - 2; r < len(body); r++ {
+			_, bg := grid.cell(r, cellX)
+			if bg != surface {
+				t.Errorf("bottom row %d, column %d: bg = %q, want the column's surface background", r, cl, bg)
+			}
+		}
+	}
 }
