@@ -95,7 +95,12 @@ def main():
     while True:
         now = time.monotonic()
         if not sent and now - start >= settle:
-            os.write(master, keys.encode())
+            # Send one byte at a time: bubbletea's key parser drops a whole
+            # multi-byte run written in a single write (e.g. "2D"), so a
+            # scripted sequence needs to look like a human typing.
+            for ch in keys:
+                os.write(master, ch.encode())
+                time.sleep(0.08)
             sent = True
         if now >= deadline:
             os.kill(pid, signal.SIGKILL)
