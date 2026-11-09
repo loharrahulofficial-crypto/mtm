@@ -100,6 +100,13 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	s := msg.String()
 
+	// Page Down/Up mirror the ctrl+d/ctrl+u page bindings everywhere.
+	if s == "pgdown" {
+		s = m.keymap.Seq(aPageDown)
+	} else if s == "pgup" {
+		s = m.keymap.Seq(aPageUp)
+	}
+
 	// Courses view: a bare g records a grade (gg's top-of-list binding is
 	// sacrificed there; the rest of the board keeps gg).
 	if s == "g" && m.view == viewCourses && m.mode == modeNormal {
@@ -129,6 +136,7 @@ func (m Model) updateNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.coursesDrillIn != "" {
 			m.coursesDrillIn = ""
 			m.view = viewCourses
+			m.coursesScroll = 0
 			if m.coursesDrillFrom < 0 {
 				m.coursesDrillFrom = 0
 			}
@@ -176,6 +184,7 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case aViewCourses:
 		m.view = viewCourses
+		m.coursesScroll = 0
 		return m, nil
 	case aCycleView:
 		m.view = (m.view + 1) % 5
@@ -322,12 +331,20 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.detailScroll = clampInt(m.detailScroll-3, 0, 1<<30)
 			return m, nil
 		}
+		if m.view == viewCourses && m.focus != focusSidebar {
+			m.coursesScroll = clampInt(m.coursesScroll-3, 0, m.coursesScrollBounds())
+			return m, nil
+		}
 		m.moveSelection(-3)
 		return m, nil
 	case tea.MouseWheelDown:
 		m.focusTo(x, sidebarW, mainW, detailW)
 		if m.focus == focusDetail {
 			m.detailScroll = clampInt(m.detailScroll+3, 0, 1<<30)
+			return m, nil
+		}
+		if m.view == viewCourses && m.focus != focusSidebar {
+			m.coursesScroll = clampInt(m.coursesScroll+3, 0, m.coursesScrollBounds())
 			return m, nil
 		}
 		m.moveSelection(+3)

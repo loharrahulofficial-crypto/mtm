@@ -154,6 +154,77 @@ func sortExamsByDays(exams []courseExam) {
 	}
 }
 
+// mainPaneSize computes the main pane's outer width/height as View()
+// arranges it: full width minus the sidebar (and detail pane), footer
+// excluded. Shared by the render path and key handlers so scroll bounds
+// are measured on the same geometry.
+func mainPaneSize(m Model) (w, h int) {
+	sidebarW := sideWidth(m.width, m.sidebarHidden)
+	detailW := detailWidth(m.width, m.detailOn)
+	if m.view == viewCourses {
+		detailW = 0 // course dashboard is read-only; no detail pane
+	}
+	gutters := 0
+	if sidebarW > 0 {
+		gutters++
+	}
+	if detailW > 0 {
+		gutters++
+	}
+	w = m.width - sidebarW - detailW - gutters
+	if w < 20 {
+		w = 20
+	}
+	return w, m.height - 1 // footer
+}
+
+// coursesDetailFor measures the dashboard detail pane — width, visible
+// height and the fully rendered body — on the same numbers the renderer
+// uses, so key handlers can clamp the scroll without duplicating layout.
+func coursesDetailFor(m Model, w, h int) (body []string, visible int) {
+	cards, err := collectCourseCards(m)
+	if err != nil || len(cards) == 0 {
+		visible = h - 2
+		if visible < 1 {
+			visible = 1
+		}
+		return nil, visible
+	}
+	sel := m.courseSel
+	if sel < 0 {
+		sel = 0
+	}
+	if sel >= len(cards) {
+		sel = len(cards) - 1
+	}
+	if w >= 100 {
+		inner := w - 2
+		listW := 28
+		if listW > inner-20 {
+			listW = inner - 20
+		}
+		if listW < 16 {
+			listW = 16
+		}
+		gutter := 1
+		visible = h - 2
+		if visible < 1 {
+			visible = 1
+		}
+		return renderCourseDetail(m, cards[sel], inner-listW-gutter, h-2), visible
+	}
+	listW := w - 2
+	listH := len(cards) + 1
+	if listH > 9 {
+		listH = 9
+	}
+	rest := h - 2 - listH - 1
+	if rest < 6 {
+		rest = 6
+	}
+	return renderCourseDetail(m, cards[sel], listW, rest), rest
+}
+
 // renderCoursesBody renders the courses panel at exactly w×h.
 func renderCoursesBody(m Model, w, h int) string {
 	cards, err := collectCourseCards(m)
@@ -161,20 +232,46 @@ func renderCoursesBody(m Model, w, h int) string {
 	if err == nil {
 		hint = fmt.Sprintf("%d active", len(cards))
 	}
-	panel := func(body []string) string {
-		return renderPanel(m, "COURSES", w, h, m.focus == focusMain, body, hint)
-	}
 	if err != nil {
-		return panel([]string{"", " " + m.styles.muted.Render("courses: "+err.Error())})
+		return renderPanelBottom(m, "COURSES", w, h, m.focus == focusMain,
+			[]string{"", " " + m.styles.muted.Render("courses: "+err.Error())}, "", "", hint)
 	}
 	if len(cards) == 0 {
-		return panel([]string{"", " " + m.styles.muted.Render("no courses yet — see `mtm course add -h`")})
+		return renderPanelBottom(m, "COURSES", w, h, m.focus == focusMain,
+			[]string{"", " " + m.styles.muted.Render("no courses yet — see `mtm course add -h`")}, "", "", hint)
 	}
 	if m.courseSel < 0 {
 		m.courseSel = 0
 	}
 	if m.courseSel >= len(cards) {
 		m.courseSel = len(cards) - 1
+	}
+	dashBody, dashVisible := coursesDetailFor(m, w, h)
+	maxScroll := len(dashBody) - dashVisible
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	scroll := m.coursesScroll
+	if scroll < 0 {
+		scroll = 0
+	}
+	if scroll > maxScroll {
+		scroll = maxScroll
+	}
+	end := scroll + dashVisible
+	if end > len(dashBody) {
+		end = len(dashBody)
+	}
+	dashWindow := dashBody[scroll:end]
+	centerHint, bottomHint := "", ""
+	if scroll > 0 {
+		centerHint = "▲ more"
+	}
+	if scroll+dashVisible < len(dashBody) {
+		bottomHint = "▼ more"
+	}
+	panel := func(body []string) string {
+		return renderPanelBottom(m, "COURSES", w, h, m.focus == focusMain, body, centerHint, bottomHint, hint)
 	}
 	if w >= 100 {
 		inner := w - 2
@@ -188,15 +285,14 @@ func renderCoursesBody(m Model, w, h int) string {
 		gutter := 1
 		rightW := inner - listW - gutter
 		listBody := renderCourseList(m, cards, listW, h-2)
-		dashBody := renderCourseDetail(m, cards[m.courseSel], rightW, h-2)
 		lines := []string{}
-		for i := 0; i < maxInt(len(listBody), len(dashBody)); i++ {
+		for i := 0; i < maxInt(len(listBody), len(dashWindow)); i++ {
 			l, r := blankSurfaceLine(m, listW), blankSurfaceLine(m, rightW)
 			if i < len(listBody) {
 				l = listBody[i]
 			}
-			if i < len(dashBody) {
-				r = dashBody[i]
+			if i < len(dashWindow) {
+				r = dashWindow[i]
 			}
 			lines = append(lines, l+blankSurfaceLine(m, gutter)+r)
 		}
@@ -209,12 +305,7 @@ func renderCoursesBody(m Model, w, h int) string {
 		listH = 9
 	}
 	listBody := renderCourseList(m, cards, listW, listH)
-	rest := h - 2 - len(listBody) - 1
-	if rest < 6 {
-		rest = 6
-	}
-	dashBody := renderCourseDetail(m, cards[m.courseSel], listW, rest)
-	body := append(listBody, dashBody...)
+	body := append(listBody, dashWindow...)
 	return panel(body)
 }
 
@@ -344,15 +435,42 @@ func trimFloat(f float64) string {
 
 var _ = dates.HumanDay
 
+// coursesScrollBounds measures the detail pane and returns the maximum
+// scroll offset (0 when the content fits).
+func (m Model) coursesScrollBounds() int {
+	w, h := mainPaneSize(m)
+	body, visible := coursesDetailFor(m, w, h)
+	maxScroll := len(body) - visible
+	if maxScroll < 0 {
+		return 0
+	}
+	return maxScroll
+}
+
+// coursesPageStep is a half-pane scroll step (at least 3 lines).
+func (m Model) coursesPageStep() int {
+	w, h := mainPaneSize(m)
+	_, visible := coursesDetailFor(m, w, h)
+	step := visible / 2
+	if step < 3 {
+		step = 3
+	}
+	return step
+}
+
 // updateCoursesKey moves the course selection with j/k, opens the
 // selected course's task list with enter, adds an exam with e and records
-// a grade with g (both prefill the palette), and returns nothing else.
+// a grade with g (both prefill the palette), and scrolls the detail pane
+// with ctrl+d/ctrl+u (half page), PgDn/PgUp (half page via normalization
+// in updateNormalKey) and the mouse wheel. The section order never
+// changes; only the window shifts.
 func (m Model) updateCoursesKey(act string) (tea.Model, tea.Cmd) {
 	cards, err := collectCourseCards(m)
 	n := 0
 	if err == nil {
 		n = len(cards)
 	}
+	prevSel := m.courseSel
 	switch act {
 	case aUp:
 		m.courseSel -= 1
@@ -362,6 +480,12 @@ func (m Model) updateCoursesKey(act string) (tea.Model, tea.Cmd) {
 		m.courseSel = 0
 	case aBottom:
 		m.courseSel = n - 1
+	case aPageDown:
+		m.coursesScroll = clampInt(m.coursesScroll+m.coursesPageStep(), 0, m.coursesScrollBounds())
+		return m, nil
+	case aPageUp:
+		m.coursesScroll = clampInt(m.coursesScroll-m.coursesPageStep(), 0, m.coursesScrollBounds())
+		return m, nil
 	case aTitle: // "e" — add an exam to the selected course
 		return m.openExamPalette(cards, err)
 	case aEnter:
@@ -372,6 +496,9 @@ func (m Model) updateCoursesKey(act string) (tea.Model, tea.Cmd) {
 	}
 	if m.courseSel >= n && n > 0 {
 		m.courseSel = n - 1
+	}
+	if m.courseSel != prevSel {
+		m.coursesScroll = 0
 	}
 	return m, nil
 }

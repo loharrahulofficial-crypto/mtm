@@ -30,17 +30,7 @@ func (m Model) View() string {
 	if m.view == viewCourses {
 		detailW = 0 // course dashboard is read-only; no detail pane
 	}
-	gutters := 0
-	if sidebarW > 0 {
-		gutters++
-	}
-	if detailW > 0 {
-		gutters++
-	}
-	mainW := m.width - sidebarW - detailW - gutters
-	if mainW < 20 {
-		mainW = 20
-	}
+	mainW, _ := mainPaneSize(m)
 
 	main := m.renderMain(mainW, contentH)
 

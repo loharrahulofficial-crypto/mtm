@@ -193,10 +193,11 @@ type Model struct {
 	// active timer (state file outside the repo; see internal/actions/timer.go)
 	timer core.TimerView
 
-	// course dashboard scroll offset (lines)
+	// course dashboard scroll offset (lines of the detail pane)
 	courseSel        int
 	coursesDrillIn   string
 	coursesDrillFrom int // course list index to restore on esc
+	coursesScroll    int // detail-pane scroll (ctrl+d/ctrl+u, pgup/pgdn, wheel)
 
 	// command palette
 	paletteQuery  string

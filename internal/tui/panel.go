@@ -58,7 +58,14 @@ func renderPanelBorderless(m Model, w, h int, body []string) string {
 // line is clipped/padded to the content width. focused draws the accent
 // rounded border; title (optional, uppercase caps) sits in the top edge.
 // hint (optional, e.g. "3 active") is right-aligned in the title row / edge.
+// bottomHint (optional) is centered on the bottom edge (e.g. "▼ more").
 func renderPanel(m Model, title string, w, h int, focused bool, body []string, hint ...string) string {
+	return renderPanelBottom(m, title, w, h, focused, body, "", "", hint...)
+}
+
+// renderPanelBottom is renderPanel with a muted centered indicator on the
+// top and bottom edges. Used by panes whose content scrolls.
+func renderPanelBottom(m Model, title string, w, h int, focused bool, body []string, centerHint, bottomHint string, hint ...string) string {
 	surface := m.styles.surface
 	border := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(lipgloss.Color(m.palette.Surface))
 
@@ -97,26 +104,70 @@ func renderPanel(m Model, title string, w, h int, focused bool, body []string, h
 		chipsText = hint[1]
 	}
 	if focused {
-		lines = append(lines, panelEdge(m, w, true, title, border, surface, hintText, chipsText))
+		lines = append(lines, panelEdgeCentered(m, w, true, title, border, surface, hintText, centerHint, chipsText))
 		for _, row := range grid {
 			lines = append(lines, border.Render("│")+row+border.Render("│"))
 		}
-		lines = append(lines, panelEdge(m, w, false, "", border, surface, ""))
+		lines = append(lines, panelEdgeBottom(m, w, title, border, surface, bottomHint))
 	} else {
-		cap := panelTitleRow(m, title, w, surface, hintText, chipsText)
+		cap := panelTitleRowCentered(m, title, w, surface, centerHint, hintText, chipsText)
 		lines = append(lines, cap)
 		for _, row := range grid {
 			lines = append(lines, surface.Render(" ")+row+surface.Render(" "))
 		}
-		lines = append(lines, surface.Render(strings.Repeat(" ", w)))
+		lines = append(lines, panelBottomRow(m, w, surface, bottomHint))
 	}
 	return paint(strings.Join(lines, "\n"), w, h, lipgloss.Color(m.palette.Surface))
+}
+
+// panelEdgeBottom renders the bottom edge of a focused panel, embedding a
+// centered muted hint (e.g. "▼ more") when set.
+func panelEdgeBottom(m Model, w int, title string, border, surface lipgloss.Style, hint string) string {
+	if hint == "" || w < 12 {
+		return panelEdge(m, w, false, "", border, surface, "")
+	}
+	edge := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Surface)).Render(" " + hint + " ")
+	edgeW := lipgloss.Width(edge)
+	rest := w - 2 - edgeW
+	if rest < 0 {
+		return panelEdge(m, w, false, "", border, surface, "")
+	}
+	left := rest / 2
+	fill := strings.Repeat("─", rest-left)
+	out := border.Render("╰") + border.Render(strings.Repeat("─", left)) + edge + border.Render(fill) + border.Render("╯")
+	return out
+}
+
+// panelBottomRow renders the last row of an unfocused panel: plain surface
+// silence with the centered muted hint when set.
+func panelBottomRow(m Model, w int, surface lipgloss.Style, hint string) string {
+	if hint == "" {
+		return surface.Render(strings.Repeat(" ", w))
+	}
+	fill := lipgloss.Color(m.palette.Surface)
+	edge := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(fill).Render(" " + hint + " ")
+	edgeW := lipgloss.Width(edge)
+	left := (w - edgeW) / 2
+	if left < 0 {
+		left = 0
+	}
+	right := w - left - edgeW
+	if right < 0 {
+		right = 0
+	}
+	return surface.Render(strings.Repeat(" ", left)) + edge + surface.Render(strings.Repeat(" ", right))
 }
 
 // panelTitleRow renders the inner title line of an unfocused panel:
 // letterspaced caps section label + hairline rule, with an optional
 // right-aligned hint ("3 active") after the rule.
 func panelTitleRow(m Model, title string, w int, surface lipgloss.Style, hint ...string) string {
+	return panelTitleRowCentered(m, title, w, surface, "", hint...)
+}
+
+// panelTitleRowCentered is panelTitleRow with a muted centered chip (e.g.
+// "▲ more") embedded in the rule; the rule splits around the chip.
+func panelTitleRowCentered(m Model, title string, w int, surface lipgloss.Style, centerHint string, hint ...string) string {
 	if strings.TrimSpace(title) == "" {
 		return surface.Render(strings.Repeat(" ", w))
 	}
@@ -139,15 +190,30 @@ func panelTitleRow(m Model, title string, w int, surface lipgloss.Style, hint ..
 			chipsW = lipgloss.Width(chipsStr) + 1
 		}
 	}
-	ruleLen := w - lead - textW - 2 - hintW - chipsW
+	centerStr := ""
+	centerW := 0
+	if centerHint != "" {
+		centerStr = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Surface)).Render(" " + centerHint + " ")
+		centerW = lipgloss.Width(centerStr) + 2
+	}
+	ruleLen := w - lead - textW - 2 - hintW - chipsW - centerW
 	if ruleLen < 1 {
 		ruleLen = 1
 	}
+	leftrule := ruleLen
+	if centerStr != "" {
+		leftrule = ruleLen / 2
+	}
+	rightrule := ruleLen - leftrule
 	line := surface.Render(strings.Repeat(" ", lead)) + text
 	if chipsStr != "" {
 		line += surface.Render(" ") + chipsStr
 	}
-	line += surface.Render(" " + strings.Repeat("─", ruleLen) + " ")
+	line += surface.Render(" " + strings.Repeat("─", leftrule) + " ")
+	if centerStr != "" {
+		line += surface.Render("") + centerStr + surface.Render(" ")
+	}
+	line += surface.Render(strings.Repeat("─", rightrule) + " ")
 	if hintStr != "" {
 		line += surface.Render(hintStr + " ")
 	}
@@ -161,6 +227,12 @@ func panelTitleRow(m Model, title string, w int, surface lipgloss.Style, hint ..
 // corner breaks the frame's vertical rhythm. Optional hint sits at the
 // right end of the top edge.
 func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style, hint ...string) string {
+	return titledBorderCentered(m, title, w, top, edge, "", hint...)
+}
+
+// titledBorderCentered is titledBorder with a muted centered chip (e.g.
+// "▲ more") embedded in the top edge.
+func titledBorderCentered(m Model, title string, w int, top bool, edge lipgloss.Style, centerHint string, hint ...string) string {
 	cornerL, cornerR, fill := "╭", "╮", "─"
 	if !top {
 		cornerL, cornerR = "╰", "╯"
@@ -188,9 +260,15 @@ func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style, h
 			chipsW = lipgloss.Width(chipsStr) + 1
 		}
 	}
-	// ╭─ TITLE chips ─── hint ╮
+	centerStr := ""
+	centerW := 0
+	if centerHint != "" {
+		centerStr = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Surface)).Render(" " + centerHint + " ")
+		centerW = lipgloss.Width(centerStr) + 2
+	}
+	// ╭─ TITLE chips ─── centerHint ─── hint ╮
 	const pre, tail = 3, 2 // "╭─ " and " "+cornerR
-	inner := w - pre - tail - hintW - chipsW
+	inner := w - pre - tail - hintW - chipsW - centerW
 	if lipgloss.Width(cap) > inner {
 		cap = clipStyled(cap, inner)
 	}
@@ -202,7 +280,13 @@ func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style, h
 	if chipsStr != "" {
 		out += edge.Render(" ") + chipsStr
 	}
-	out += edge.Render(" " + strings.Repeat(fill, fillN))
+	if centerStr != "" {
+		leftrule := fillN / 2
+		rightrule := fillN - leftrule
+		out += edge.Render(" "+strings.Repeat(fill, leftrule)+" ") + centerStr + edge.Render(strings.Repeat(fill, rightrule))
+	} else {
+		out += edge.Render(" " + strings.Repeat(fill, fillN))
+	}
 	if hintStr != "" {
 		out += edge.Render(" " + hintStr + " ")
 	}
@@ -214,6 +298,11 @@ func titledBorder(m Model, title string, w int, top bool, edge lipgloss.Style, h
 // optional letterspaced title in the top edge. The hint (optional) is
 // right-aligned in the top edge.
 func panelEdge(m Model, w int, top bool, title string, border, surface lipgloss.Style, hint string, chips ...string) string {
+	return panelEdgeCentered(m, w, top, title, border, surface, hint, "", chips...)
+}
+
+// panelEdgeCentered is panelEdge with a muted centered chip on the top edge.
+func panelEdgeCentered(m Model, w int, top bool, title string, border, surface lipgloss.Style, hint string, centerHint string, chips ...string) string {
 	if w < 2 {
 		return border.Render("│")
 	}
@@ -221,10 +310,10 @@ func panelEdge(m Model, w int, top bool, title string, border, surface lipgloss.
 	if len(chips) > 0 {
 		chipsText = chips[0]
 	}
-	if hint == "" && chipsText == "" {
-		return titledBorder(m, title, w, top, border)
+	if hint == "" && chipsText == "" && centerHint == "" {
+		return titledBorderCentered(m, title, w, top, border, centerHint)
 	}
-	return titledBorder(m, title, w, top, border, hint, chipsText)
+	return titledBorderCentered(m, title, w, top, border, centerHint, hint, chipsText)
 }
 
 // clipStyled truncates a line that may contain ANSI escape sequences to
