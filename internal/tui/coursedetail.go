@@ -265,7 +265,8 @@ func courseTableSection(m Model, c courseCard, w int, pad func(string) string, b
 }
 
 // courseHoursSection: the shared bar chart of the last 7 days, plus total
-// logged vs summed estimates ("est ~").
+// logged vs the estimate accuracy rollup ("N of M tasks estimated"; the
+// percentage only with at least 3 estimated tasks).
 func courseHoursSection(m Model, c courseCard, w int, pad func(string) string, bright, muted, subtle func(string) string, accent func(string) string) []string {
 	bg := lipgloss.Color(m.palette.Surface)
 	now := m.clock.Now()
@@ -310,8 +311,11 @@ func courseHoursSection(m Model, c courseCard, w int, pad func(string) string, b
 		lines = append(lines, pad(l))
 	}
 	total := fmt.Sprintf("total %s logged", actions.FormatMinutes(c.hours.LoggedMinutes))
-	if c.hours.EstimateMinutes > 0 {
-		total += fmt.Sprintf(" · est ~%s", actions.FormatMinutes(c.hours.EstimateMinutes))
+	if c.hours.Accuracy.Total > 0 {
+		total += fmt.Sprintf(" · %s", c.hours.Accuracy.Label())
+		if c.hours.Accuracy.Enough {
+			total += fmt.Sprintf(" (%.0f%% of estimate)", c.hours.Accuracy.Pct())
+		}
 	}
 	lines = append(lines, pad(" "+muted(total)))
 	return lines

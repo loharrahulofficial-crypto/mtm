@@ -19,6 +19,10 @@ type HoursRollup struct {
 	// as the Home weekly chart: completed day, or updated day for done tasks
 	// without a completion stamp).
 	WeekMinutes int
+	// Accuracy is the logged-vs-estimate rollup over the course's tasks
+	// (spec 0.2): only estimated tasks enter the percentage; enough =
+	// at least 3 estimated tasks.
+	Accuracy core.EstimateAccuracy
 	// Tasks carries the tasks that have time logged, most minutes first.
 	Tasks []*core.Task
 }
@@ -61,7 +65,8 @@ func CollectHours(s *store.Store, now time.Time) (*HoursReport, error) {
 	for _, c := range courses {
 		courseNames[c.Name] = true
 		r := HoursRollup{Course: c.Name}
-		for _, t := range CourseTasks(s, c.Name) {
+		courseTasks := CourseTasks(s, c.Name)
+		for _, t := range courseTasks {
 			r.LoggedMinutes += t.TimeLoggedMinutes
 			r.EstimateMinutes += t.EstimateMinutes
 			if attribute(t) {
@@ -71,6 +76,7 @@ func CollectHours(s *store.Store, now time.Time) (*HoursReport, error) {
 				r.Tasks = append(r.Tasks, t)
 			}
 		}
+		r.Accuracy = core.EstimateAccuracyOf(courseTasks)
 		sort.Slice(r.Tasks, func(i, j int) bool { return r.Tasks[i].TimeLoggedMinutes > r.Tasks[j].TimeLoggedMinutes })
 		rep.Courses = append(rep.Courses, r)
 	}

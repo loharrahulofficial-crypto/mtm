@@ -117,11 +117,14 @@ func printHoursCourse(r actions.HoursRollup, week bool) {
 		fmt.Printf(" (all time: %s)\n", actions.FormatMinutes(r.LoggedMinutes))
 		return
 	}
+	a := r.Accuracy
 	fmt.Printf("%s — %s logged", r.Course, actions.FormatMinutes(r.LoggedMinutes))
-	fmt.Printf("  est %s", actions.FormatMinutes(r.EstimateMinutes))
-	if r.EstimateMinutes > 0 {
-		pct := float64(r.LoggedMinutes) / float64(r.EstimateMinutes) * 100
-		fmt.Printf(" (%.0f%% of estimate)", pct)
+	if a.Estimated > 0 {
+		fmt.Printf("  est %s", actions.FormatMinutes(r.EstimateMinutes))
+	}
+	fmt.Printf("  %s", a.Label())
+	if a.Enough {
+		fmt.Printf(" (%.0f%% of estimate)", a.Pct())
 	}
 	fmt.Println()
 }
