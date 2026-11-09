@@ -247,9 +247,21 @@ func repeatStr(s string, n int) []string {
 }
 
 // sectionLabelText renders the shared letterspaced caps section label
-// (styled); every panel, border and sidebar section label flows through here.
+// (styled); every panel, border and sidebar section label flows through
+// here. Letterspacing applies to the label word only — anything after a
+// "·" separator (view names, counts, filters) renders as normal-case
+// text, never letterspaced or uppercased: "T A S K S · All".
 func sectionLabelText(m Model, label string) string {
-	return m.styles.sectionLabel.Render(letterspace(strings.ToUpper(label)))
+	base, rest := label, ""
+	if i := strings.Index(label, "·"); i >= 0 {
+		base = strings.TrimSpace(label[:i])
+		rest = strings.TrimSpace(label[i+len("·"):])
+	}
+	out := m.styles.sectionLabel.Render(letterspace(strings.ToUpper(base)))
+	if rest != "" {
+		out += m.styles.sectionLabel.Render(" · " + rest)
+	}
+	return out
 }
 
 // sectionLabel renders a quiet caps label with a trailing hairline rule,

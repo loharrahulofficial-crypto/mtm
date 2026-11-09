@@ -59,7 +59,7 @@ func listModelWithQuery(t *testing.T, query string) Model {
 func TestListPanelRendersChipsAndTitle(t *testing.T) {
 	m := listModelWithQuery(t, "priority:high")
 	frame := strings.ReplaceAll(StripANSI(m.View()), "\u2009", " ")
-	for _, want := range []string{"priority:high", "T A S K S", "A L L"} {
+	for _, want := range []string{"priority:high", "T A S K S", "All"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("frame missing %q:\n%s", want, frame)
 		}

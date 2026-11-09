@@ -93,7 +93,9 @@ func (m Model) renderMain(w, h int) string {
 	case viewBoard:
 		return panel("board", renderBoardBody(m, w-2, h-2))
 	case viewCalendar:
-		return panel("CALENDAR", renderCalendarBody(m, w-2, h-2))
+		// The panel title carries the visible month (letterspaced
+		// "CALENDAR" + normal-case month).
+		return panel("CALENDAR · "+m.calMonth.Format("Jan 2006"), renderCalendarBody(m, w-2, h-2))
 	default:
 		body := renderListBody(m, w-2, h-2)
 		chips := filterChipsText(m, (w*45)/100)

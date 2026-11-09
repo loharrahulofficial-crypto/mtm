@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 )
 
 func stripANSI(s string) string {
@@ -350,3 +351,67 @@ func TestListNoDueHasNoStrayDash(t *testing.T) {
 }
 
 func renderContents(m Model) string { return m.View() }
+
+// TestSectionLabelTextLetterspacesLabelWordOnly pins polish 4 item 6:
+// letter-spacing applies to the label word only; anything after a "·"
+// separator renders as normal-case text.
+func TestSectionLabelTextLetterspacesLabelWordOnly(t *testing.T) {
+	s := emptyFixture(t)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	for _, tc := range []struct{ label, wantBase, wantRest string }{
+		{"TASKS · All", "TASKS", "All"},
+		{"CALENDAR · Nov 2026", "CALENDAR", "Nov 2026"},
+		{"BOARD", "BOARD", ""},
+		{"TASKS · All · extra", "TASKS", "All · extra"},
+		{"THIS WEEK", "THIS WEEK", ""},
+	} {
+		got := sectionLabelText(m, tc.label)
+		base := m.styles.sectionLabel.Render(letterspace(strings.ToUpper(tc.wantBase)))
+		want := base
+		if tc.wantRest != "" {
+			want += m.styles.sectionLabel.Render(" · " + tc.wantRest)
+		}
+		if got != want {
+			t.Errorf("label %q:\n got %q\nwant %q", tc.label, got, want)
+		}
+		// The remainder must not carry thin spaces between its letters.
+		if strings.Contains(StripANSI(got), letterspace("All")) {
+			t.Errorf("remainder %q got letterspaced: %q", tc.wantRest, StripANSI(got))
+		}
+	}
+}
+
+// TestCalendarFrameShowsMonthSuffix pins the calendar panel title:
+// "C A L E N D A R · Nov 2026" — letterspaced label, normal-case month.
+func TestCalendarFrameShowsMonthSuffix(t *testing.T) {
+	s := fixtures["populated"](t)
+	defer func() { _ = s.Close() }()
+	frame, err := RenderDump(dumpConfig(), s, sync.New(s.Root), "calendar", 120, 40, true, DumpFixedTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := StripANSI(frame)
+	want := letterspace("CALENDAR") + " · Nov 2026"
+	if !strings.Contains(plain, want) {
+		t.Errorf("calendar title missing %q:\n%s", want, plain)
+	}
+	if strings.Contains(plain, "N O V") {
+		t.Error("the month got letterspaced — must stay normal case")
+	}
+}
+
+// TestListFrameShowsAllSuffix pins the list title: "T A S K S · All".
+func TestListFrameShowsAllSuffix(t *testing.T) {
+	s := fixtures["populated"](t)
+	defer func() { _ = s.Close() }()
+	frame, err := RenderDump(dumpConfig(), s, sync.New(s.Root), "list", 120, 40, true, DumpFixedTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := StripANSI(frame)
+	want := letterspace("TASKS") + " · All"
+	if !strings.Contains(plain, want) {
+		t.Errorf("list title missing %q:\n%s", want, plain)
+	}
+}

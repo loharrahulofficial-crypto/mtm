@@ -98,24 +98,25 @@ func filterChipsText(m Model, maxW int) string {
 }
 
 // listPanelTitle builds the list panel title from the active view:
-// "TASKS · <view>" with the saved view / project / smart view name.
+// "TASKS · <view>" with the saved view / project / smart view name in
+// its natural case (letterspacing applies to TASKS only).
 func listPanelTitle(m Model) string {
 	sel := m.sidebarSelection()
-	label := "ALL"
+	label := "All"
 	if sel != nil {
 		switch sel.Kind {
 		case "smart":
-			label = strings.ToUpper(sel.Key)
+			label = sel.Name
 		case "view":
-			label = strings.ToUpper(sel.Key)
+			label = sel.Name
 		case "project":
-			label = strings.ToUpper(leafName(sel.Key))
+			label = leafName(sel.Key)
 		case "home":
-			label = "ALL"
+			label = "All"
 		}
 	}
 	if label == "" {
-		label = "ALL"
+		label = "All"
 	}
 	return "TASKS · " + label
 }
