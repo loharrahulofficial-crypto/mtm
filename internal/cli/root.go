@@ -63,6 +63,7 @@ func Execute() error {
 		newSummaryCmd(),
 		newStatsCmd(),
 		newReviewCmd(),
+		newExportCmd(),
 		newTuiCmd(),
 		newDemoSeedCmd(),
 	)
