@@ -15,12 +15,13 @@ import (
 )
 
 type Config struct {
-	DataRepo       string      `yaml:"data_repo"`
-	DefaultProject string      `yaml:"default_project"`
-	Editor         string      `yaml:"editor"`
-	DateFormat     string      `yaml:"date_format"`
-	WeekStart      string      `yaml:"week_start"`
-	Board          BoardConfig `yaml:"board"`
+	DataRepo       string        `yaml:"data_repo"`
+	DefaultProject string        `yaml:"default_project"`
+	Editor         string        `yaml:"editor"`
+	DateFormat     string        `yaml:"date_format"`
+	WeekStart      string        `yaml:"week_start"`
+	Board          BoardConfig   `yaml:"board"`
+	Heatmap        HeatmapConfig `yaml:"heatmap"`
 	// Sort is the task-list sort order: done|due|priority|title, applied in
 	// order. Empty means the built-in default (not-done, due, priority, title).
 	Sort       []string       `yaml:"sort"`
@@ -57,6 +58,13 @@ type BoardConfig struct {
 	DoneDays int `yaml:"done_days"`
 }
 
+// HeatmapConfig carries the "heatmap:" block (the completion heatmap).
+type HeatmapConfig struct {
+	// Weeks is how many weeks of history the heatmap shows, counting back
+	// from the current week. Default 26; clamped to [4, 52].
+	Weeks int `yaml:"weeks"`
+}
+
 // UIConfig carries the "ui:" presentation block (Study Desk design language).
 type UIConfig struct {
 	// Animations caps every animation at 400ms and honors reduce-motion
@@ -77,6 +85,7 @@ func Default() Config {
 		DateFormat:     "2006-01-02",
 		WeekStart:      "monday",
 		Board:          BoardConfig{DoneDays: 14},
+		Heatmap:        HeatmapConfig{Weeks: 26},
 		Sort:           append([]string(nil), core.DefaultSortKeys...),
 		Sync: SyncConfig{
 			Auto:            true,
@@ -163,6 +172,15 @@ func Load() (Config, error) {
 	}
 	if cfg.UI.SemesterWeeks < 0 {
 		return cfg, fmt.Errorf("config %s: ui.semester_weeks must be >= 0, got %d", Path(), cfg.UI.SemesterWeeks)
+	}
+	if cfg.Heatmap.Weeks < 0 {
+		return cfg, fmt.Errorf("config %s: heatmap.weeks must be >= 0, got %d", Path(), cfg.Heatmap.Weeks)
+	}
+	if cfg.Heatmap.Weeks == 0 {
+		cfg.Heatmap.Weeks = 26
+	}
+	if cfg.Heatmap.Weeks > 52 {
+		cfg.Heatmap.Weeks = 52
 	}
 	cfg.DataRepo = ExpandPath(cfg.DataRepo)
 	paths.Guard(cfg.DataRepo)

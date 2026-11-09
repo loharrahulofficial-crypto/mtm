@@ -210,3 +210,44 @@ func TestBoardDoneDaysDefaultAndOverride(t *testing.T) {
 		t.Fatalf("board.done_days = %d, want 30", cfg.Board.DoneDays)
 	}
 }
+
+func TestHeatmapWeeksDefaultOverrideAndClamp(t *testing.T) {
+	fixedXDG(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Heatmap.Weeks != 26 {
+		t.Fatalf("default heatmap.weeks = %d, want 26", cfg.Heatmap.Weeks)
+	}
+	write := func(content string) {
+		t.Helper()
+		dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("heatmap:\n    weeks: 52\n")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Heatmap.Weeks != 52 {
+		t.Fatalf("heatmap.weeks = %d, want 52", cfg.Heatmap.Weeks)
+	}
+	write("heatmap:\n    weeks: 80\n")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Heatmap.Weeks != 52 {
+		t.Fatalf("heatmap.weeks = %d, want clamped 52", cfg.Heatmap.Weeks)
+	}
+	write("heatmap:\n    weeks: -1\n")
+	if _, err := Load(); err == nil {
+		t.Fatal("negative heatmap.weeks accepted")
+	}
+}

@@ -32,9 +32,14 @@ func mainPaneGeometry(m Model) (x0, mainW int) {
 	return x0, mainW
 }
 
+// headerRows is the number of lines renderHomeBody emits before the
+// bands (date line + blank line + greeting). Band rects are relative to
+// the bands, so the grid must be sampled 3 rows lower.
+const headerRows = 3
+
 // TestHomeNoPanelExceedsBlankRatio parses the rendered frame with the
-// cell-grid parser and asserts that no Home panel wastes more than ~40% of
-// its interior on blank rows (surface fill). Panels that cannot fill their
+// cell-grid parser and asserts that no Home panel wastes more than ~35% of
+// its rows on blank rows (surface fill). Panels that cannot fill their
 // band are structurally absent instead (UP NEXT drops out).
 func TestHomeNoPanelExceedsBlankRatio(t *testing.T) {
 	sizes := []struct{ w, h int }{{120, 40}, {200, 50}}
@@ -57,7 +62,7 @@ func TestHomeNoPanelExceedsBlankRatio(t *testing.T) {
 			for _, band := range homeLayout(m, mainW, mainH) {
 				for _, r := range band {
 					blank := 0
-					for row := r.y; row < r.y+r.h; row++ {
+					for row := r.y + headerRows; row < r.y+r.h+headerRows; row++ {
 						rowBlank := true
 						for col := r.x; col < r.x+r.w; col++ {
 							ch, bg := grid.cell(row, x0+col)
@@ -72,8 +77,8 @@ func TestHomeNoPanelExceedsBlankRatio(t *testing.T) {
 					}
 					ratio := float64(blank) / float64(r.h)
 					t.Logf("panel %-10s x=%d y=%d w=%d h=%d blank=%d ratio=%.2f", r.title, r.x, r.y, r.w, r.h, blank, ratio)
-					if ratio > 0.40 {
-						t.Errorf("%s panel: blank interior ratio %.2f (> 0.40) — %d of %d rows are empty", r.title, ratio, blank, r.h)
+					if ratio > 0.35 {
+						t.Errorf("%s panel: blank interior ratio %.2f (> 0.35) — %d of %d rows are empty", r.title, ratio, blank, r.h)
 					}
 				}
 			}

@@ -7,34 +7,34 @@
    Today               2  │       ▌✔ completed item 0                            │   DUE       today                   
    Week                3  │───────────────────────── now ────────────────────────│   ESTIMATE  60m                     
    Overdue             3  ╰──────────────────────────────────────────────────────╯   CREATED   Sat 7 Nov, 14:32        
-  C O U R S E S ────────     C O U R S E S ───────────────────────────────────────    UPDATED   Sat 7 Nov, 14:32        
-  ▌ dbms ▄▄▄▄           2    ▌ dbms   ▄▄▄▄▄▄▄▄  67% ✦6d   3.8h                                                          
-  ▌ maths ▄▄▄▄          2    ▌ maths  ▄▄▄▄▄▄▄▄  67% ✦19d  2.6h                        N   O   T   E   S                 
-  ▌ os ▄▄▄▄             2    ▌ os     ▄▄▄▄▄▄▄▄  67% ✦13d  2.4h                        No notes yet. Press m to write.   
-  ▌ inbox ▄▄▄▄                                                                                                          
-                             U P   N E X T ───────────────────────────────────────                                      
-                             ▌ Maths revision — integration by parts   overdue 1d                                       
-                             ▌ Read ch.4 — storage models                   today                                       
-                             +4 more                                                                                    
+  C O U R S E S ────────     E X A M S ───────────────────────────────────────────    UPDATED   Sat 7 Nov, 14:32        
+  ▌ dbms ▄▄▄▄           2    ▌ DBMS midterm — relational algebra + S… — in 6 days                                       
+  ▌ maths ▄▄▄▄          2      weight 30%                                             N   O   T   E   S                 
+  ▌ os ▄▄▄▄             2    ▌ OS final — scheduling + deadlocks — in 13 days         No notes yet. Press m to write.   
+  ▌ inbox ▄▄▄▄                 weight 40%                                                                               
+                             +1 more                                                                                    
                                                                                                                         
-                             E X A M S ───────────────────────────────────────────                                      
-                             ▌ DBMS midterm — relational algebra + S… — in 6 days                                       
-                               weight 30%                                                                               
-                             +2 more                                                                                    
+                             C O U R S E S ───────────────────────────────────────                                      
+                             ▌ dbms   ▄▄▄▄▄▄▄▄  67% ✦6d   3.8h                                                          
+                             ▌ maths  ▄▄▄▄▄▄▄▄  67% ✦19d  2.6h                                                          
+                             ▌ os     ▄▄▄▄▄▄▄▄  67% ✦13d  2.4h                                                          
+                                                                                                                        
                                                                                                                         
                              T H I S   W E E K ───────────────────────────────────                                      
                                   1.5h  1.4h  1.3h  1.2h  1.2h  1.1h   1h                                               
-                                   ███   ▇▇▇   ▆▆▆   ▅▅▅   ▄▄▄   ▄▄▄   ▃▃▃                                              
-                                   ███   ███   ███   ███   ███   ███   ███                                              
+                                   ███   ███   ▇▇▇   ▇▇▇   ▆▆▆   ▆▆▆   ▅▅▅                                              
                                     S     M     T     W     T     F     S                                               
                              8.8 h · last 7 days · avg 1.2h                                                             
                                                                                                                         
                              H E A T M A P ───────────────────────────────────────                                      
-                             Mon  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
-                                  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
-                             Wed  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
-                                  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
-                             Fri  ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
-  ✦  Nov 13 · DBMS…               ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀ ▀▀                                       
+                                 May   Jun       Jul     Aug       Sep     Oct                                          
+                            Mon  ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄                                      
+                                 ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄                                      
+                            Wed  ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄                                      
+                                 ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄                                      
+                            Fri  ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄                                      
+                                 ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄                                      
+                            Sun  ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄ ▄                                      
+  ✦  Nov 13 · DBMS…              less ▪ ▪ ▪ ▪ more                                                                      
                                                                                                                         
   0 Home   1 List   2 Board   3 Calendar   4 Courses                   local repo                    14:32  ? help 
