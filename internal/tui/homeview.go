@@ -677,13 +677,13 @@ func singleExamCard(m Model, e examCard, w int, bgSurface lipgloss.Color) []stri
 		meta += fmt.Sprintf("topics %d/%d", e.subDone, e.subTotal)
 	}
 	if meta != "" {
-		lines = append(lines, muted.Render(" "+meta))
+		lines = append(lines, muted.Render("  "+meta))
 	}
 	if e.subTotal > 0 {
 		fill, track := gauges.Bar(float64(e.subDone)/float64(e.subTotal), clampInt(w/3, 8, 12))
 		bar := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(bgSurface).Render(fill) +
 			muted.Render(track)
-		lines = append(lines, " "+bar)
+		lines = append(lines, "  "+bar)
 	}
 	for i, l := range lines {
 		if pad := w - lipgloss.Width(l); pad > 0 {
