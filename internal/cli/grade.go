@@ -184,28 +184,19 @@ func printCourseGrades(name string, p *core.Project, g *core.CourseGrades) {
 	}
 	fmt.Printf("  assigned %g · graded %g · remaining %g\n", g.TotalWeight, g.EarnedWeight, g.RemainingWeight)
 	fmt.Printf("  current %.1f%% on graded work · standing %.1f%% of assigned weight\n", g.CurrentPct, g.StandingPct)
-	switch {
-	case g.HasTarget && g.RemainingWeight == 0:
-		if g.StandingPct >= g.TargetPct {
-			fmt.Printf("  all weight graded — target met (%.1f%% ≥ %.0f%%)\n", g.StandingPct, g.TargetPct)
-		} else {
-			fmt.Printf("  all weight graded — final %.1f%%, target %.0f%% not met\n", g.StandingPct, g.TargetPct)
-		}
-	case g.HasTarget:
-		switch {
-		case g.NeededSecured:
-			fmt.Printf("  to reach target: already secured — remaining work can't pull you below %.0f%%\n", g.TargetPct)
-		case g.NeededFeasible:
-			fmt.Printf("  to reach target (%.0f%%): need %.1f%% average on the remaining %g\n", g.TargetPct, g.NeededOnRemaining, g.RemainingWeight)
-		default:
-			best := 0.0
-			if g.TotalWeight > 0 {
-				best = (g.StandingPct*g.TotalWeight + 100*g.RemainingWeight) / g.TotalWeight
-			}
-			fmt.Printf("  to reach target (%.0f%%): out of reach — even 100%% on the remaining yields %.1f%%\n", g.TargetPct, best)
-		}
+	switch g.TargetOutcome() {
+	case core.TargetOutcomeFinalMet:
+		fmt.Printf("  all weight graded — target met (%.1f%% ≥ %.0f%%)\n", g.StandingPct, g.TargetPct)
+	case core.TargetOutcomeFinalMiss:
+		fmt.Printf("  all weight graded — final %.1f%%, target %.0f%% not met\n", g.StandingPct, g.TargetPct)
+	case core.TargetOutcomeSecured:
+		fmt.Printf("  to reach target: already secured — ungraded work can't pull you below %.0f%%\n", g.TargetPct)
+	case core.TargetOutcomeOnTrack:
+		fmt.Printf("  on track — need %.1f%% average on the %g of ungraded weight (%.1f%% margin)\n", g.NeededOnUngraded, g.UngradedWeight, g.MarginPct)
+	case core.TargetOutcomeOutOfReach:
+		fmt.Printf("  to reach target (%.0f%%): out of reach — even 100%% on the ungraded weight yields %.1f%%\n", g.TargetPct, g.BestCasePct())
 	default:
-		fmt.Printf("  to hit a target grade: none set — add target_grade to the course or pass --target A\n")
+		fmt.Println("  to hit a target grade: none set — add target_grade to the course or pass --target A")
 	}
 	if g.TotalWeightOff {
 		fmt.Printf("  ! assigned weights total %g, not 100 — the needed average assumes only assigned work counts\n", g.TotalWeight)

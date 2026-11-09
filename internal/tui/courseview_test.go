@@ -173,8 +173,8 @@ func TestCoursesDetailSections(t *testing.T) {
 	for _, want := range []string{
 		"DBMS — Database Systems",    // header
 		"2026-odd · 4 cr · target A", // meta (target grade verbatim)
-		"target 90% · need",          // gauge tick on the bar + merged legend line
-		"need ",                      // status line
+		"target 90% · on track — need", // gauge tick on the bar + merged legend line
+		"on track",                    // status line
 		"GRADED ITEMS",               // table section
 		"Read ch.4 — storage models", // a graded item
 		"TOTAL",                      // table total row

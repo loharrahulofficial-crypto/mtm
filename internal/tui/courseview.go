@@ -293,24 +293,19 @@ func gradeStatusLine(g *core.CourseGrades) string {
 	if g.Unweighted {
 		return fmt.Sprintf("avg %.1f%% · no weights set", g.UnweightedPct)
 	}
-	switch {
-	case !g.HasTarget:
+	switch g.TargetOutcome() {
+	case core.TargetOutcomeNoTarget:
 		return "no target grade — set one with `mtm course edit`"
-	case g.RemainingWeight == 0:
-		if g.StandingPct >= g.TargetPct {
-			return fmt.Sprintf("done — target met (%.1f%%)", g.StandingPct)
-		}
+	case core.TargetOutcomeFinalMet:
+		return fmt.Sprintf("done — target met (%.1f%%)", g.StandingPct)
+	case core.TargetOutcomeFinalMiss:
 		return fmt.Sprintf("done — final %.1f%%, target %.0f%% not met", g.StandingPct, g.TargetPct)
-	case g.NeededSecured:
+	case core.TargetOutcomeSecured:
 		return "target secured — nothing more required"
-	case g.NeededFeasible:
-		return fmt.Sprintf("need %.1f%% on remaining %s", g.NeededOnRemaining, trimFloat(g.RemainingWeight))
+	case core.TargetOutcomeOnTrack:
+		return fmt.Sprintf("on track — need %.1f%% on %s ungraded (%.1f%% margin)", g.NeededOnUngraded, trimFloat(g.UngradedWeight), g.MarginPct)
 	default:
-		best := 0.0
-		if g.TotalWeight > 0 {
-			best = (g.StandingPct*g.TotalWeight + 100*g.RemainingWeight) / g.TotalWeight
-		}
-		return fmt.Sprintf("out of reach — even 100%% on the rest yields %.1f%%", best)
+		return fmt.Sprintf("out of reach — even 100%% on the rest yields %.1f%%", g.BestCasePct())
 	}
 }
 

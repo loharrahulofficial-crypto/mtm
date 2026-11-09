@@ -45,14 +45,29 @@ type CourseGrades struct {
 	// Counts ungraded weight as unearned; equals the grade if no more
 	// work is ever scored.
 	StandingPct float64
-	// NeededOnRemaining is the average percentage required on the
-	// remaining weight to reach TargetPct of the assigned weight.
-	NeededOnRemaining float64
-	// NeededFeasible reports whether NeededOnRemaining ≤ 100.
+	// NeededOnUngraded is the average percentage required on ALL ungraded
+	// weight — assigned-but-ungraded plus unassigned weight (treated as up
+	// to 100, i.e. unknown weight is ungraded) — to reach TargetPct.
+	NeededOnUngraded float64
+	// NeededFeasible reports whether NeededOnUngraded ≤ 100.
 	NeededFeasible bool
 	// NeededSecured reports whether even scoring 0 on the remaining
-	// weight keeps the target (NeededOnRemaining ≤ 0).
+	// ungraded weight (incl. unassigned) keeps the target.
 	NeededSecured bool
+	// UngradedWeight is RemainingWeight + UnknownWeight: every point of
+	// weight on which the target is not yet mathematically known.
+	UngradedWeight float64
+	// UnknownWeight is max(0, 100 − TotalWeight) — weight no item was
+	// assigned. It counts as ungraded for target math (spec: treat
+	// unknown weight up to 100 as ungraded).
+	UnknownWeight float64
+	// WorstPct is the final grade if every ungraded weight scores 0:
+	// Σ(w·pct)/100. The target is "met" only at or above this point or
+	// later finals.
+	WorstPct float64
+	// MarginPct is 100 − NeededOnUngraded: the headroom on the rest.
+	// Negative when the target is out of reach.
+	MarginPct float64
 	// TargetPct is the target used for the needed-on-remaining math.
 	// 0 means no target was set; the needed-* fields are then meaningless.
 	TargetPct float64
@@ -105,17 +120,72 @@ func ComputeCourseGrades(items []GradeItem, targetPct float64, hasTarget bool) C
 		g.StandingPct = sum / g.TotalWeight
 	}
 	g.TotalWeightOff = g.TotalWeight > 0 && g.TotalWeight != 100
-	if hasTarget && g.RemainingWeight > 0 && g.TotalWeight > 0 {
-		needed := (targetPct*g.TotalWeight - sum) / g.RemainingWeight
-		g.NeededOnRemaining = needed
+	g.UnknownWeight = 100 - g.TotalWeight
+	if g.UnknownWeight < 0 {
+		g.UnknownWeight = 0
+	}
+	g.UngradedWeight = g.RemainingWeight + g.UnknownWeight
+	if g.TotalWeight > 0 {
+		g.WorstPct = sum / 100
+	}
+	switch {
+	case hasTarget && g.UngradedWeight > 0 && g.TotalWeight > 0:
+		needed := (targetPct*100 - sum) / g.UngradedWeight
+		g.NeededOnUngraded = needed
+		g.MarginPct = 100 - needed
 		g.NeededFeasible = needed <= 100
 		g.NeededSecured = needed <= 0
-	} else if hasTarget && g.RemainingWeight <= 0 && g.TotalWeight > 0 {
+	case hasTarget && g.UngradedWeight <= 0 && g.TotalWeight > 0:
+		// Everything is graded: the final grade is fixed.
 		g.NeededFeasible = true
 		g.NeededSecured = sum/g.TotalWeight >= targetPct
 	}
 	return g
 }
+
+// TargetOutcome is the target-grade verdict shared by the CLI and the TUI,
+// so both render the same "met / on track / out of reach" rule.
+type TargetOutcome int
+
+const (
+	TargetOutcomeNoTarget   TargetOutcome = iota // no target set
+	TargetOutcomeFinalMet                        // all weight graded, final meets target
+	TargetOutcomeFinalMiss                       // all weight graded, final misses target
+	TargetOutcomeSecured                         // not final, but even 0 on the ungraded weight keeps target
+	TargetOutcomeOnTrack                         // feasible: target reachable with the right work
+	TargetOutcomeOutOfReach                      // not feasible: even 100 on the rest misses
+	TargetOutcomeWeightless                      // no weighted items at all (unweighted average path)
+)
+
+// TargetOutcome maps the rollup to the shared verdict. "Met" is only ever
+// returned when the outcome is FinalMet or Secured — i.e. the target is
+// mathematically secured given the remaining (ungraded + unassigned) weight.
+func (g CourseGrades) TargetOutcome() TargetOutcome {
+	if g.Unweighted || g.TotalWeight == 0 {
+		return TargetOutcomeWeightless
+	}
+	if !g.HasTarget {
+		return TargetOutcomeNoTarget
+	}
+	if g.UngradedWeight <= 0 {
+		if g.StandingPct >= g.TargetPct {
+			return TargetOutcomeFinalMet
+		}
+		return TargetOutcomeFinalMiss
+	}
+	switch {
+	case g.NeededSecured:
+		return TargetOutcomeSecured
+	case g.NeededFeasible:
+		return TargetOutcomeOnTrack
+	default:
+		return TargetOutcomeOutOfReach
+	}
+}
+
+// BestCasePct is the final grade if everything ungraded scores 100:
+// Σ(w·pct)/100 + UngradedWeight. Used by the out-of-reach wording.
+func (g CourseGrades) BestCasePct() float64 { return g.WorstPct + g.UngradedWeight }
 
 // FormatSummary renders the one-line rollup used in `mtm grades` output and
 // in the TUI course dashboard.
