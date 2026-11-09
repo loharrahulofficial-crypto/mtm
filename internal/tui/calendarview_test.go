@@ -6,10 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
+	"github.com/muesli/termenv"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
+	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
 func calModel(t *testing.T) Model {
@@ -102,12 +105,13 @@ func TestCalendarWeekdayHeadersLeftAligned(t *testing.T) {
 }
 
 // TestCalendarGridFillsExactWidth asserts grid lines sum to w cells with
-// the gutters (no leftover strip). Regression for "grid did not fill the
-// width".
+// the gutters: six internal 1-cell gutters plus the trailing right gutter
+// (no Sunday-to-border contact), no leftover strip. Regression for "grid
+// did not fill the width" and for the missing right gutter.
 func TestCalendarGridFillsExactWidth(t *testing.T) {
 	for _, w := range []int{60, 98, 133, 190} {
 		cols := calendarColWidths(w)
-		sum := 6
+		sum := 7 // six internal gaps + one right gutter
 		for _, c := range cols {
 			sum += c
 		}
@@ -183,16 +187,20 @@ func TestCalendarCellMostlyEmptyKeepsSubtleEdge(t *testing.T) {
 }
 
 // TestCalendarLayoutReservesAgendaMinimum pins the agenda's 5-row minimum
-// and the 6-row cell cap: the grid yields the leftover to the agenda.
+// and the 8-row cell cap: the grid yields the leftover to the agenda.
 func TestCalendarLayoutReservesAgendaMinimum(t *testing.T) {
 	m := calModel(t)
+	// Point the calendar at a month whose grid takes only 5 rows
+	// (February 2026) so the 8-row cell cap is the binding constraint.
+	m.calMonth = time.Date(2026, 2, 1, 0, 0, 0, 0, m.calDay.Location())
+	m.calDay = time.Date(2026, 2, 10, 0, 0, 0, 0, m.calDay.Location())
 	_, cellH, _, _ := calendarLayout(m, 118, 50)
-	if cellH != 6 {
-		t.Fatalf("tall calendar: cellH = %d, want 6 (cap)", cellH)
+	if cellH != 8 {
+		t.Fatalf("tall calendar: cellH = %d, want 8 (cap)", cellH)
 	}
 	_, cellH, _, _ = calendarLayout(m, 118, 40)
-	if cellH > 6 {
-		t.Fatalf("cellH = %d, want ≤ 6", cellH)
+	if cellH > 8 {
+		t.Fatalf("cellH = %d, want ≤ 8", cellH)
 	}
 	if cellH < 2 {
 		t.Fatalf("cellH = %d, want ≥ 2", cellH)
@@ -267,5 +275,123 @@ func TestCalendarAgendaOverflowOnlyBeyondMin(t *testing.T) {
 	body := StripANSI(strings.Join(renderCalendarBody(m, 118, 37), "\n"))
 	if !strings.Contains(body, "+") {
 		t.Fatalf("overflowing agenda shows no +N more:\n%s", body)
+	}
+}
+
+// TestCalendarRightGutter pins the 1-cell right gutter: Sunday's column
+// never touches the panel border; every grid row ends on the base gutter
+// (same 1-cell base fill used between all columns).
+func TestCalendarRightGutter(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	m := calModel(t)
+	for _, w := range []int{60, 98, 133, 190} {
+		body := renderCalendarBody(m, w, 40)
+		grid := parseFrame(strings.Join(body, "\n"))
+		base := renderedBGProbe(theme.Defaults().Base)
+		if base == "" {
+			t.Fatal("could not probe the base background")
+		}
+		// Row 0 is the month title; row 1 the weekday header; grid rows
+		// follow. All of them end on the base gutter.
+		for r := 1; ; r++ {
+			if r >= len(grid.ch) {
+				break
+			}
+			// Grid + header rows end with the base gutter; agenda rows
+			// end on surface. The agenda starts with the blank row after
+			// the grid: stop at the first row whose final cell is not on
+			// base after the grid ends.
+			_, bg := grid.cell(r, w-1)
+			if bg == base {
+				continue
+			}
+			break
+		}
+		// The Sunday cell itself must not reach the border: the panel
+		// border lives at x=0/w-1 of the full frame; the grid's last cell
+		// ends at w-2 (the gutter sits at w-1).
+		for r := 2; r < 2+8*6 && r < len(grid.ch); r++ {
+			ch, _ := grid.cell(r, w-1)
+			if ch != " " {
+				t.Errorf("w=%d row %d: right gutter cell = %q, want blank base gutter", w, r, ch)
+				break
+			}
+		}
+	}
+}
+
+// TestCalendarAgendaCapEightEntries pins the agenda's 8-entry cap: ten
+// tasks due today render at most eight entries plus one "+2 more" row.
+func TestCalendarAgendaCapEightEntries(t *testing.T) {
+	ts := DumpFixedTime
+	stamp := ts.Format(core.TimestampFormat)
+	today := ts.Format("2006-01-02")
+	tasks := []fixtureTask{}
+	for i := 0; i < 10; i++ {
+		tasks = append(tasks, fixtureTask{
+			id:       fmt.Sprintf("e%05d", i),
+			title:    fmt.Sprintf("agenda cap task number %02d with a long descriptive title", i),
+			project:  "inbox",
+			status:   "todo",
+			priority: "medium",
+			kind:     "task",
+			due:      today + "T10:00",
+			created:  stamp,
+			updated:  stamp,
+		})
+	}
+	s := fixtureStore(t, tasks)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	m.calDay = dayStartT(m.clock.Now())
+	m.calMonth = time.Date(m.calDay.Year(), m.calDay.Month(), 1, 0, 0, 0, 0, m.calDay.Location())
+	m.view = viewCalendar
+	body := StripANSI(strings.Join(renderCalendarBody(m, 118, 37), "\n"))
+	// Exactly eight entry lines (titled rows before the "+N more" hint).
+	shown := strings.Count(body, "agenda cap task number")
+	if shown != 8 {
+		t.Errorf("agenda shows %d entries, want exactly 8:\n%s", shown, body)
+	}
+	if !strings.Contains(body, "+2 more") {
+		t.Errorf("agenda hides 2 entries without the +N more hint:\n%s", body)
+	}
+	if strings.Count(body, "+2 more") > 1 {
+		t.Errorf("+N more appears more than once:\n%s", body)
+	}
+}
+
+// TestCalendarCellShowsTimePrefixForTimedTasks pins the time prefix in
+// day cells: a timed task renders "16:00 <title>", an untimed task has no
+// prefix, and the title still ends (truncated) inside the cell.
+func TestCalendarCellShowsTimePrefixForTimedTasks(t *testing.T) {
+	ts := DumpFixedTime
+	stamp := ts.Format(core.TimestampFormat)
+	today := ts.Format("2006-01-02")
+	s := fixtureStore(t, []fixtureTask{
+		{id: "p00001", title: "Normalize the orders table", project: "inbox", status: "todo", priority: "high", kind: "task", due: today + "T16:00", created: stamp, updated: stamp},
+		{id: "p00002", title: "Untimed background task", project: "inbox", status: "todo", priority: "low", kind: "task", due: today, created: stamp, updated: stamp},
+	})
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	m.calDay = dayStartT(m.clock.Now())
+	m.calMonth = time.Date(m.calDay.Year(), m.calDay.Month(), 1, 0, 0, 0, 0, m.calDay.Location())
+	m.view = viewCalendar
+	day := dayStartT(m.clock.Now())
+	cell := calendarCell(m, day, 24, 7, dayStartT(m.clock.Now()))
+	plain := StripANSI(strings.Join(cell, "\n"))
+	if !strings.Contains(plain, "16:00") {
+		t.Errorf("timed task carries no time prefix in its cell:\n%s", plain)
+	}
+	if strings.Count(plain, "16:00") != 1 {
+		t.Errorf("time prefix rendered %d times in the cell, want 1:\n%s", strings.Count(plain, "16:00"), plain)
+	}
+	// The untimed title has no HH:MM prefix.
+	for _, line := range strings.Split(plain, "\n") {
+		if strings.Contains(line, "Untimed") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "16:00") || strings.HasPrefix(trimmed, "09:00") {
+				t.Errorf("untimed task picked up a time prefix: %q", trimmed)
+			}
+		}
 	}
 }

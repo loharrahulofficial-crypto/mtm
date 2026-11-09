@@ -201,12 +201,34 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 			t := tasks[i]
 			done := m.store.IsDoneStatus(t.Project, t.Status)
 			ts := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg)
-			title := truncatePlain(t.Title, cw-2)
+			timePrefix := ""
+			if len(t.Due) > len("2006-01-02") {
+				timeStr := t.Due[len("2006-01-02")+1:]
+				if len(timeStr) > 5 {
+					timeStr = timeStr[:5]
+				}
+				timePrefix = timeStr
+			}
+			prefixW := 0
+			if timePrefix != "" {
+				prefixW = 6 // "16:00" + one space
+			}
+			title := truncatePlain(t.Title, cw-2-prefixW)
 			if done {
-				out[1+i] = gitRun(fill.Render(" ") + strikeTitle(lipgloss.Color(m.palette.Muted), bg, title))
+				text := fill.Render(" ")
+				if timePrefix != "" {
+					text += subtleTimePrefix(m, bg, timePrefix) + " "
+				}
+				text += strikeTitle(lipgloss.Color(m.palette.Muted), bg, title)
+				out[1+i] = gitRun(text)
 				continue
 			}
-			out[1+i] = gitRun(fill.Render(" ") + ts.Render(title))
+			text := fill.Render(" ")
+			if timePrefix != "" {
+				text += subtleTimePrefix(m, bg, timePrefix) + " "
+			}
+			text += ts.Render(title)
+			out[1+i] = gitRun(text)
 		}
 		if overflow > 0 {
 			more := fmt.Sprintf(" +%d more", overflow)
@@ -250,6 +272,12 @@ func tasksDueOn(m Model, day time.Time) []*core.Task {
 		}
 	}
 	return kept
+}
+
+// subtleTimePrefix renders a "16:00" cell prefix for timed tasks, muted
+// against the cell background.
+func subtleTimePrefix(m Model, bg lipgloss.Color, timeStr string) string {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Render(timeStr)
 }
 
 // calendarCellStyle picks the base style for one day's number. Today keeps
@@ -353,16 +381,19 @@ func calendarGrid(m Model) (gridStart time.Time, weeks int) {
 }
 
 // calendarColWidths distributes w cells across the 7 columns plus six
-// 1-cell gutters, so the grid fills the panel exactly (no leftover
-// strip). The first columns absorb the remainder.
+// 1-cell internal gutters and one trailing 1-cell right gutter, so the
+// Sunday column never touches the panel border and every column shares
+// the same gap. The first columns absorb the remainder.
 func calendarColWidths(w int) []int {
 	const gap = 1
-	base := (w - 6*gap) / 7
+	const nCols = 7
+	inner := w - (nCols-1+1)*gap // six internal gaps + one right gutter
+	base := inner / nCols
 	if base < 2 {
 		base = 2
 	}
-	rem := (w - 6*gap) - base*7
-	cols := make([]int, 7)
+	rem := inner - base*nCols
+	cols := make([]int, nCols)
 	for i := range cols {
 		cols[i] = base
 		if i < rem {
@@ -375,15 +406,16 @@ func calendarColWidths(w int) []int {
 // calendarLayout computes the per-column widths and grid height for the
 // current content box: colWidths[i] is the width of column i (shared by
 // weekday headers and day cells); cells are separated by 1-cell base
-// gutters. The agenda always keeps a 5-row minimum (title line + 4
-// entries), cells cap at 6 rows, and whatever the grid cannot use goes to
-// the agenda.
+// gutters, with a matching 1-cell gutter at the right edge. The agenda
+// always keeps a 5-row minimum (title line + 4 entries), cells may grow
+// to 8 rows and absorb leftover height before the agenda area expands;
+// the agenda shows up to 8 entries of the selected day.
 func calendarLayout(m Model, w, h int) (colWidths []int, cellH, weeks int, gridStart time.Time) {
 	colWidths = calendarColWidths(w)
 	gridStart, weeks = calendarGrid(m)
 
 	const minAgenda = 5 // title line + 4 entries
-	const maxCellH = 6
+	const maxCellH = 8
 	maxGrid := h - 3 - minAgenda // title + weekday header + blank + agenda
 	cellH = maxGrid / weeks
 	if cellH > maxCellH {
@@ -481,9 +513,14 @@ func renderCalendarBody(m Model, w, h int) []string {
 	if agendaH < 1 {
 		agendaH = 1
 	}
+	const maxAgendaEntries = 8
+	agendaCap := agendaH
+	if agendaCap > maxAgendaEntries {
+		agendaCap = maxAgendaEntries
+	}
 	bgRaised := lipgloss.Color(m.palette.SurfaceRaised)
 	for i, t := range agenda {
-		if i >= agendaH {
+		if i >= agendaCap {
 			lines = append(lines, s.muted.Render(fmt.Sprintf("  +%d more", len(agenda)-i)))
 			break
 		}
