@@ -412,7 +412,6 @@ func TestCalendarNarrowCellCountChip(t *testing.T) {
 	m.calDay = DumpFixedTime
 
 	cellH := 4
-	fmt.Sprintf("day: %v", m.calDay.Format("2006-01-02"))
 	day := DumpFixedTime
 
 	narrow := calendarCell(m, day, 9, cellH, day)

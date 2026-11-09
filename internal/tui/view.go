@@ -14,7 +14,7 @@ func (m Model) View() string {
 	}
 	baseColor := lipgloss.Color(m.palette.Base)
 	if m.width < minUsableWidth || m.height < minUsableHeight {
-		return tooSmallView(m.width, m.height, baseColor)
+		return tooSmallView(m.width, m.height, baseColor, m.keymap.Seq(aQuit))
 	}
 	if m.mode == modeConflict {
 		return m.renderConflictScreen()

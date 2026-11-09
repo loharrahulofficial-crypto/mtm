@@ -29,7 +29,6 @@ const (
 	aSearch             = "search"
 	aSearchNext         = "search_next"
 	aSearchPrev         = "search_prev"
-	aCommand            = "command"
 	aAdd                = "add"
 	aAddSubtask         = "subtask"
 	aToggleDone         = "toggle_done"
@@ -54,18 +53,21 @@ const (
 	aFocusRight         = "focus_right"
 	aJumpLeft           = "jump_left"
 	aJumpRight          = "jump_right"
+	aMonthPrev          = "month_prev"
+	aMonthNext          = "month_next"
+	aGrade              = "grade"
 )
 
 var actionOrder = []string{
 	aQuit, aViewHome, aViewList, aViewBoard, aViewCalendar, aViewCourses, aCycleView, aFocus, aPalette,
 	aUp, aDown, aLeft, aRight, aTop, aBottom, aPageDown, aPageUp,
-	aSearch, aSearchNext, aSearchPrev, aCommand,
+	aSearch, aSearchNext, aSearchPrev, aPaletteColon,
 	aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle,
 	aNotes, aNotesEditor, aEditFile, aArchive, aSync,
 	aDetail, aSidebar, aFocusLeft, aFocusRight, aConflicts, aHelp,
 	aToggleCalendarDone,
 	aEnter,
-	aJumpLeft, aJumpRight,
+	aJumpLeft, aJumpRight, aMonthPrev, aMonthNext, aGrade,
 }
 
 var actionDescriptions = map[string]string{
@@ -89,14 +91,14 @@ var actionDescriptions = map[string]string{
 	aSearch:             "search / filter",
 	aSearchNext:         "next match",
 	aSearchPrev:         "previous match",
-	aCommand:            "command line",
+	aPaletteColon:       "command palette",
 	aAdd:                "add task (quick-add)",
 	aAddSubtask:         "add subtask of selected",
 	aToggleDone:         "mark done / un-done",
 	aDelete:             "delete (asks first)",
 	aStatus:             "change status",
 	aPriority:           "change priority",
-	aDue:                "change due date",
+	aDue:                "change due date (board: toggle Done filter)",
 	aTags:               "change tags",
 	aTitle:              "edit title",
 	aNotes:              "notes (built-in editor)",
@@ -110,8 +112,11 @@ var actionDescriptions = map[string]string{
 	aFocusRight:         "focus pane right",
 	aConflicts:          "open conflict screen",
 	aHelp:               "toggle this help",
-	aJumpLeft:           "board: move card left · calendar: prev month",
-	aJumpRight:          "board: move card right · calendar: next month",
+	aJumpLeft:           "board: move card left",
+	aJumpRight:          "board: move card right",
+	aMonthPrev:          "prev month (calendar)",
+	aMonthNext:          "next month (calendar)",
+	aGrade:              "record a grade (courses)",
 	aEnter:              "open the selected course's tasks",
 	aToggleCalendarDone: "calendar: show/hide completed tasks",
 }
@@ -172,6 +177,9 @@ func DefaultKeyMap() KeyMap {
 		aHelp:               "?",
 		aJumpLeft:           "H",
 		aJumpRight:          "L",
+		aMonthPrev:          "J",
+		aMonthNext:          "K",
+		aGrade:              "g",
 	}}
 }
 

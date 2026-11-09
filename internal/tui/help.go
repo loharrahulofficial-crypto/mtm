@@ -14,13 +14,13 @@ func renderHelpBox(km KeyMap, s styles, width int) string {
 		actions []string
 	}
 	groups := []group{
-		{"view", []string{aViewHome, aViewList, aViewBoard, aViewCalendar, aCycleView, aFocus, aEnter}},
-		{"move", []string{aUp, aDown, aLeft, aRight, aJumpLeft, aJumpRight, aTop, aBottom, aPageDown, aPageUp, aFocusLeft, aFocusRight, aSidebar}},
+		{"view", []string{aViewHome, aViewList, aViewBoard, aViewCalendar, aViewCourses, aCycleView, aFocus, aEnter}},
+		{"move", []string{aUp, aDown, aLeft, aRight, aJumpLeft, aJumpRight, aMonthPrev, aMonthNext, aTop, aBottom, aPageDown, aPageUp, aFocusLeft, aFocusRight, aSidebar}},
 		{"filter", []string{aSearch, aSearchNext, aSearchPrev, aPalette}},
-		{"task", []string{aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle, aArchive, aToggleCalendarDone}},
+		{"task", []string{aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle, aArchive, aToggleCalendarDone, aGrade}},
 		{"notes", []string{aNotes, aNotesEditor, aEditFile, aDetail}},
 		{"sync", []string{aSync, aConflicts}},
-		{"meta", []string{aHelp, aQuit, aCommand}},
+		{"meta", []string{aHelp, aQuit, aPaletteColon}},
 	}
 	entries := map[string][3]string{}
 	for _, e := range HelpEntries(km) {

@@ -107,9 +107,11 @@ func (m Model) updateNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		s = m.keymap.Seq(aPageUp)
 	}
 
-	// Courses view: a bare g records a grade (gg's top-of-list binding is
-	// sacrificed there; the rest of the board keeps gg).
-	if s == "g" && m.view == viewCourses && m.mode == modeNormal {
+	// Courses view: a bare grade key records a grade (gg's top-of-list
+	// binding is sacrificed there; the rest of the board keeps gg). The
+	// prefix check must not swallow it, so it runs before the multi-key
+	// buffer. aGrade exists in the keymap so help renders it.
+	if s == m.keymap.Seq(aGrade) && m.view == viewCourses && m.mode == modeNormal {
 		return m.openGradePalette()
 	}
 

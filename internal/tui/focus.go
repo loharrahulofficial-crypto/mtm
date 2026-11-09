@@ -125,7 +125,7 @@ func (m Model) renderFocus() string {
 	if t == nil {
 		body = append(body, "")
 		body = append(body, strings.Repeat(" ", pad)+bright.Render("Nothing to focus on."))
-		body = append(body, strings.Repeat(" ", pad)+muted.Render("Esc to leave — pick a task and press F."))
+		body = append(body, strings.Repeat(" ", pad)+muted.Render("Esc to leave — pick a task and press "+m.keymap.Seq(aFocus)+"."))
 		return verticalCenter(body, m.height, w, base)
 	}
 
@@ -209,9 +209,9 @@ func (m Model) renderFocus() string {
 	for len(body) < m.height-1 {
 		body = append(body, "")
 	}
-	hintText := " space pause/resume   x done   esc exit"
+	hintText := " space pause/resume   " + m.keymap.Seq(aToggleDone) + " done   esc exit"
 	if m.timer.Phase == core.TimerPhaseIdle {
-		hintText = " space start   x done   esc exit"
+		hintText = " space start   " + m.keymap.Seq(aToggleDone) + " done   esc exit"
 	}
 	hint := muted.Render(hintText)
 	body = append(body, strings.Repeat(" ", pad)+hint)

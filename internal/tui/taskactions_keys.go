@@ -74,9 +74,6 @@ func (m Model) updateSimpleTaskAction(act string) (tea.Model, tea.Cmd, bool) {
 		return m.jumpMatch(+1), nil, true
 	case aSearchPrev:
 		return m.jumpMatch(-1), nil, true
-	case aCommand:
-		m.openInput(inputCommand, ": ", "")
-		return m, nil, true
 	}
 	return m, nil, false
 }

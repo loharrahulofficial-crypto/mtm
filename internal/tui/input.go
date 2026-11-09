@@ -120,10 +120,6 @@ func (m Model) submitInput() (tea.Model, tea.Cmd) {
 		}
 		m.statusMsg = "title updated " + t.ID
 		return m, m.afterChange("edit: " + t.Title)
-	case inputCommand:
-		m.mode = modeNormal
-		m.input.Blur()
-		return m.execCommand(value)
 	}
 	m.mode = modeNormal
 	return m, nil

@@ -25,10 +25,10 @@ func (m Model) updateCalendarKey(act string) (tea.Model, tea.Cmd) {
 		m.moveCalDay(-1)
 	case aRight:
 		m.moveCalDay(+1)
-	case aJumpLeft:
+	case aMonthPrev:
 		m.calMonth = m.calMonth.AddDate(0, -1, 0)
 		m.calDay = clampCalDay(m.calMonth, m.calDay)
-	case aJumpRight:
+	case aMonthNext:
 		m.calMonth = m.calMonth.AddDate(0, +1, 0)
 		m.calDay = clampCalDay(m.calMonth, m.calDay)
 	case aTop:

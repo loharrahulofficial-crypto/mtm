@@ -65,7 +65,6 @@ const (
 	inputDue
 	inputTags
 	inputTitle
-	inputCommand
 )
 
 type pickerKind int

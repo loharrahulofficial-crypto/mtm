@@ -497,7 +497,7 @@ func renderBoardBody(m Model, w, h int) []string {
 				cells = append(cells, blankFooterCell(m, colW))
 				continue
 			}
-			cells = append(cells, boardFooterCell(m, colW, boardFooterText(more, older, colW)))
+			cells = append(cells, boardFooterCell(m, colW, boardFooterText(more, older, colW, m.keymap.Seq(aDue))))
 		}
 		lines = append(lines, baseInsetRow(baseBG, gutter, baseBG.Render(" "), cells, w, ""))
 	}
@@ -534,9 +534,11 @@ func boardFooterCell(m Model, w int, text string) string {
 }
 
 // boardFooterText composes the overflow footer for one column:
-// "+N more · +N older · D shows all", shortening the hint text and then
-// the suffixes until it fits w cells (left-aligned, leading space).
-func boardFooterText(more, older, w int) string {
+// "+N more · +N older · <doneKey> shows all", shortening the hint text and
+// then the suffixes until it fits w cells (left-aligned, leading space).
+// doneKey is the board's Done-filter key (the due-date binding, whose
+// board-specific meaning is "toggle the Done filter").
+func boardFooterText(more, older, w int, doneKey string) string {
 	parts := []string{}
 	if more > 0 {
 		parts = append(parts, fmt.Sprintf("+%d more", more))
@@ -545,10 +547,12 @@ func boardFooterText(more, older, w int) string {
 		parts = append(parts, fmt.Sprintf("+%d older", older))
 	}
 	base := strings.Join(parts, " · ")
+	full := " · " + doneKey + " shows all"
+	short := " · " + doneKey
 	if older > 0 {
 		for _, cand := range []string{
-			base + " · D shows all",
-			base + " · D",
+			base + full,
+			base + short,
 			base,
 		} {
 			if lipgloss.Width(cand) <= w-1 {
@@ -556,7 +560,7 @@ func boardFooterText(more, older, w int) string {
 			}
 		}
 		for _, cand := range []string{
-			fmt.Sprintf("+%d older · D", older),
+			fmt.Sprintf("+%d older%s", older, short),
 			fmt.Sprintf("+%d older", older),
 		} {
 			if lipgloss.Width(cand) <= w-1 {

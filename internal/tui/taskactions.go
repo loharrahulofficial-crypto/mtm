@@ -331,7 +331,7 @@ func (m *Model) archiveSelectedAction() (tea.Cmd, string) {
 		return nil, err.Error()
 	}
 	if !p.IsDoneStatus(t.Status) {
-		return nil, "only done tasks can be archived (press x to mark done)"
+		return nil, "only done tasks can be archived (press " + m.keymap.Seq(aToggleDone) + " to mark done)"
 	}
 	if err := m.store.ArchiveTask(t); err != nil {
 		return nil, err.Error()

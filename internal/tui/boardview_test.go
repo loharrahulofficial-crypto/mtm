@@ -203,7 +203,7 @@ func TestBoardDoneFooterTextDegradation(t *testing.T) {
 		{123, 0, 10, "+123 more"},
 	}
 	for _, tc := range cases {
-		if got := boardFooterText(tc.more, tc.older, tc.w); got != tc.want {
+		if got := boardFooterText(tc.more, tc.older, tc.w, "D"); got != tc.want {
 			t.Errorf("w=%d more=%d older=%d: got %q, want %q", tc.w, tc.more, tc.older, got, tc.want)
 		}
 	}

@@ -381,7 +381,7 @@ const (
 )
 
 // tooSmallView renders the single-purpose "terminal too small" screen.
-func tooSmallView(w, h int, bg lipgloss.Color) string {
+func tooSmallView(w, h int, bg lipgloss.Color, quitKey string) string {
 	if w < 1 {
 		w = 1
 	}
@@ -392,7 +392,7 @@ func tooSmallView(w, h int, bg lipgloss.Color) string {
 	box := []string{
 		"mtm needs a bigger terminal",
 		fmt.Sprintf("currently %d×%d — need at least %d×%d", w, h, minUsableWidth, minUsableHeight),
-		"q quits",
+		quitKey + " quits",
 	}
 	contentW := 0
 	for _, l := range box {
@@ -406,7 +406,7 @@ func tooSmallView(w, h int, bg lipgloss.Color) string {
 		for _, l := range []string{
 			"mtm needs a", "bigger terminal",
 			fmt.Sprintf("need %d×%d", minUsableWidth, minUsableHeight),
-			"q quits",
+			quitKey + " quits",
 		} {
 			box = append(box, l)
 		}

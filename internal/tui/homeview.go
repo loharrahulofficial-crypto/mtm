@@ -202,6 +202,13 @@ func homeLayout(m Model, w, h int) [][]homeRect {
 	return b
 }
 
+// sparseHint is the dense-key hint line shown under Home on tiny datasets;
+// keys are looked up in the keymap so config overrides stay accurate.
+func sparseHint(m Model) string {
+	return fmt.Sprintf(" %s add · %s focus · %s palette · %s help",
+		m.keymap.Seq(aAdd), m.keymap.Seq(aFocus), m.keymap.Seq(aPalette), m.keymap.Seq(aHelp))
+}
+
 // renderHomeBody renders the Home dashboard (inner width × inner height).
 func renderHomeBody(m Model, w, h int) []string {
 	d := m.homeDataCached()
@@ -221,7 +228,7 @@ func renderHomeBody(m Model, w, h int) []string {
 	lines = append(lines, homeGreetingLine(m, d, w))
 	if h-len(lines)-stripRows < 8 {
 		if sparse {
-			lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgBase).Render(" a add · F focus · ctrl+p palette · ? help"))
+			lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgBase).Render(sparseHint(m)))
 		}
 		return lines
 	}
@@ -255,7 +262,7 @@ func renderHomeBody(m Model, w, h int) []string {
 		lines = append(lines, bandLines...)
 	}
 	if sparse {
-		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgBase).Render(" a add · F focus · ctrl+p palette · ? help"))
+		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgBase).Render(sparseHint(m)))
 	}
 	return lines
 }
@@ -379,7 +386,7 @@ func todayBody(m Model, w, h int, d homeData) []string {
 		return []string{
 			"",
 			muted.Render(" ✦ nothing due today — a clear day"),
-			muted.Render("   press a to add something for later"),
+			muted.Render(fmt.Sprintf("   press %s to add something for later", m.keymap.Seq(aAdd))),
 		}
 	}
 

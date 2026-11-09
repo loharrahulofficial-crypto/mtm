@@ -70,11 +70,11 @@ func (m Model) footerPillSegments(width int) []pillSeg {
 		icon  string
 		view  viewID
 	}{
-		{"0", "Home", m.icon("home"), viewHome},
-		{"1", "List", m.icon("list"), viewList},
-		{"2", "Board", m.icon("board"), viewBoard},
-		{"3", "Calendar", m.icon("calendar"), viewCalendar},
-		{"4", "Courses", m.icon("course"), viewCourses},
+		{m.keymap.Seq(aViewHome), "Home", m.icon("home"), viewHome},
+		{m.keymap.Seq(aViewList), "List", m.icon("list"), viewList},
+		{m.keymap.Seq(aViewBoard), "Board", m.icon("board"), viewBoard},
+		{m.keymap.Seq(aViewCalendar), "Calendar", m.icon("calendar"), viewCalendar},
+		{m.keymap.Seq(aViewCourses), "Courses", m.icon("course"), viewCourses},
 	}
 	compact := width < 90
 	activeOnly := width < 72 // 5 pills + clock + help don't fit below this
