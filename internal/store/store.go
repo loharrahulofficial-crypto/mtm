@@ -16,6 +16,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/paths"
 	"gopkg.in/yaml.v3"
+	"sync/atomic"
 )
 
 type Store struct {
@@ -28,7 +29,16 @@ type Store struct {
 	// Clock stamps created/updated (local-naive, D-004/D-011). Zero value
 	// means the real system clock.
 	Clock clock.Clock
+	// gen bumps on every mutation; the TUI keys its read-model caches on
+	// (id, gen) so a single render can reuse them across a frame.
+	gen uint64
+	// id uniquely identifies this store instance (pointer reuse is not
+	// a safe key: a store can be closed and another opened at the same
+	// address).
+	id uint64
 }
+
+var storeIDs atomic.Uint64
 
 type cacheFile struct {
 	Version int          `json:"version"`
@@ -78,6 +88,7 @@ func Open(root, cachePath string, includeArchived ...bool) (*Store, error) {
 		cachePath: cachePath,
 		paths:     map[string]string{},
 		projects:  map[string]*core.Project{},
+		id:        storeIDs.Add(1),
 	}
 	cache := s.loadCache()
 	walk := func(base string, archived bool) {
@@ -230,6 +241,7 @@ func (s *Store) ArchiveDone(now time.Time, olderThan time.Duration, isDone func(
 		moved++
 	}
 	if moved > 0 {
+		s.gen++
 		if err := s.saveCache(); err != nil {
 			return moved, err
 		}
@@ -279,11 +291,20 @@ func (s *Store) ArchiveTask(t *core.Task) error {
 	if _, err := s.archiveOne(rel); err != nil {
 		return err
 	}
+	s.gen++
 	return s.saveCache()
 }
 
 // Diagnostics lists files that could not be read/parsed during indexing.
 func (s *Store) Diagnostics() []string { return s.diagnostics }
+
+// Generation returns the store's mutation counter. Caches keyed on it
+// (plus ID) invalidate on any write — create, update, remove, archive,
+// project metadata changes.
+func (s *Store) Generation() uint64 { return s.gen }
+
+// ID returns a process-unique id for this store instance.
+func (s *Store) ID() uint64 { return s.id }
 
 // Tasks returns all indexed tasks (order: filesystem walk order).
 func (s *Store) Tasks() []*core.Task { return s.tasks }
@@ -360,6 +381,7 @@ func (s *Store) Create(t *core.Task) error {
 		return err
 	}
 	s.register(t, rel)
+	s.gen++
 	return s.saveCache()
 }
 
@@ -382,6 +404,7 @@ func (s *Store) Update(t *core.Task) error {
 			s.tasks[i] = t
 		}
 	}
+	s.gen++
 	return s.saveCache()
 }
 
@@ -401,6 +424,7 @@ func (s *Store) Remove(t *core.Task) error {
 			break
 		}
 	}
+	s.gen++
 	return s.saveCache()
 }
 
@@ -419,6 +443,7 @@ func (s *Store) Reparse(t *core.Task) error {
 		return err
 	}
 	*t = *parsed
+	s.gen++
 	return nil
 }
 
@@ -494,6 +519,7 @@ func (s *Store) SaveProject(p *core.Project) error {
 		return err
 	}
 	s.projects[p.Name] = p
+	s.gen++
 	return nil
 }
 
@@ -502,6 +528,7 @@ func (s *Store) SaveProject(p *core.Project) error {
 func (s *Store) ReloadProject(name string) error {
 	delete(s.projects, name)
 	_, err := s.GetProject(name)
+	s.gen++
 	return err
 }
 
@@ -554,7 +581,11 @@ func (s *Store) RemoveProject(name string) error {
 		return err
 	}
 	dir := filepath.Join(s.Root, "projects", filepath.FromSlash(name))
-	return os.RemoveAll(dir)
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	s.gen++
+	return nil
 }
 
 // IsDoneStatus reports whether status is done in project, falling back to

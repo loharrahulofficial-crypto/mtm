@@ -171,22 +171,22 @@ func TestCoursesDetailSections(t *testing.T) {
 	m.focus = focusMain
 	frame := StripANSI(m.View())
 	for _, want := range []string{
-		"DBMS — Database Systems",    // header
-		"2026-odd · 4 cr · target A", // meta (target grade verbatim)
+		"DBMS — Database Systems",      // header
+		"2026-odd · 4 cr · target A",   // meta (target grade verbatim)
 		"target 90% · on track — need", // gauge tick on the bar + merged legend line
-		"on track",                    // status line
-		"GRADED ITEMS",               // table section
-		"Read ch.4 — storage models", // a graded item
-		"TOTAL",                      // table total row
-		"HOURS",                      // hours section
-		"last 7 days",                // the shared chart's totals line
-		"total ",                     // total vs estimate line
-		"EXAMS",                      // exams section
-		"DBMS midterm",               // next exam name
-		"Fri 13 Nov",                 // exam date
-		"in 6 days",                  // countdown
-		"topics not set",             // (courses fixture exam has no topic subtasks)
-		"NEXT TASKS",                 // next tasks section
+		"on track",                     // status line
+		"GRADED ITEMS",                 // table section
+		"Read ch.4 — storage models",   // a graded item
+		"TOTAL",                        // table total row
+		"HOURS",                        // hours section
+		"last 7 days",                  // the shared chart's totals line
+		"total ",                       // total vs estimate line
+		"EXAMS",                        // exams section
+		"DBMS midterm",                 // next exam name
+		"Fri 13 Nov",                   // exam date
+		"in 6 days",                    // countdown
+		"topics not set",               // (courses fixture exam has no topic subtasks)
+		"NEXT TASKS",                   // next tasks section
 	} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("detail missing %q:\n%s", want, frame)

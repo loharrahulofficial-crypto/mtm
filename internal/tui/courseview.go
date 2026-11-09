@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -36,7 +37,35 @@ type courseExam struct {
 	daysLeft int
 }
 
+// courseCardsCache memoizes the course read model across renders (spec
+// 0.4). The key is (store id, store generation): any store mutation
+// invalidates it, so a frame never renders stale stats, and repeated
+// renders in one mutation epoch cost no recompute.
+var courseCardsCache struct {
+	mu    sync.Mutex
+	id    uint64
+	gen   uint64
+	cards []courseCard
+	err   error
+	ok    bool
+}
+
 func collectCourseCards(m Model) ([]courseCard, error) {
+	s := m.store
+	id, gen := s.ID(), s.Generation()
+	courseCardsCache.mu.Lock()
+	defer courseCardsCache.mu.Unlock()
+	if courseCardsCache.ok && courseCardsCache.id == id && courseCardsCache.gen == gen {
+		return courseCardsCache.cards, courseCardsCache.err
+	}
+	cards, err := computeCourseCards(m)
+	courseCardsCache.id, courseCardsCache.gen = id, gen
+	courseCardsCache.cards, courseCardsCache.err = cards, err
+	courseCardsCache.ok = true
+	return cards, err
+}
+
+func computeCourseCards(m Model) ([]courseCard, error) {
 	courses, err := actions.ListCourses(m.store)
 	if err != nil {
 		return nil, err
