@@ -38,7 +38,7 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	// The clearing is signalled by the fog thinning and the drops easing.
 
 	// Fog wisps: sparse noise dots drifting sideways
-	fog := newPerlin(state.Seed, 211)
+	fog := cachedPerlin(state.Seed, 211)
 	for y := sh(b) * 40 / 100; y < sh(b)*72/100; y++ {
 		fx := float64(y) / float64(sh(b))
 		for x := 0; x < sw(b); x += 2 {
@@ -104,7 +104,7 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	}
 
 	// Pines: two parallax depths along the ground
-	pine := newPerlin(state.Seed, 311)
+	pine := cachedPerlin(state.Seed, 311)
 	ground := sh(b) * 80 / 100
 	for x := 0; x < sw(b); x++ {
 		gy := ground + int(pine.At(float64(x)*0.16, 4.9)*2)
@@ -147,7 +147,7 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 		}
 	}
 	// window: 2×2 lit cells flickering with seeded noise
-	flick := newPerlin(state.Seed, 401)
+	flick := cachedPerlin(state.Seed, 401)
 	winW := (cx1 - cx0) / 3
 	if winW < 1 {
 		winW = 1

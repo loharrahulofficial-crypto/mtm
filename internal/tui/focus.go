@@ -72,6 +72,9 @@ func (m Model) updateFocusKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.toggleDoneAction()
 		}
 		return m, nil
+	case "alt+s":
+		m.cycleScene(1)
+		return m, m.armAmbient()
 	}
 	return m, nil
 }
@@ -98,8 +101,25 @@ func formatFocusDuration(d time.Duration) string {
 
 // renderFocus renders the full-screen focus surface.
 func (m Model) renderFocus() string {
-	s := m.styles
 	base := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(lipgloss.Color(m.palette.Base))
+	body := m.renderFocusBody()
+	if m.ambientAllowFocus() {
+		scene := m.sceneFrame(m.ambientT, m.width, m.height, false)
+		content := verticalCenter(body, m.height, m.width, base)
+		blankFill := base.Render(strings.Repeat(" ", m.width))
+		flines := strings.Split(content, "\n")
+		for i, l := range flines {
+			if l == blankFill && i < len(scene) {
+				flines[i] = scene[i] // reveal the scene where the body is blank
+			}
+		}
+		return strings.Join(flines, "\n")
+	}
+	return verticalCenter(body, m.height, m.width, base)
+}
+
+func (m Model) renderFocusBody() []string {
+	s := m.styles
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Base))
 	bright := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(lipgloss.Color(m.palette.Base)).Bold(true)
 
@@ -126,7 +146,7 @@ func (m Model) renderFocus() string {
 		body = append(body, "")
 		body = append(body, strings.Repeat(" ", pad)+bright.Render("Nothing to focus on."))
 		body = append(body, strings.Repeat(" ", pad)+muted.Render("Esc to leave — pick a task and press "+m.keymap.Seq(aFocus)+"."))
-		return verticalCenter(body, m.height, w, base)
+		return body
 	}
 
 	// Title (up to 3 lines).
@@ -216,7 +236,7 @@ func (m Model) renderFocus() string {
 	hint := muted.Render(hintText)
 	body = append(body, strings.Repeat(" ", pad)+hint)
 
-	return verticalCenter(body, m.height, w, base)
+	return body
 }
 
 func pomodoroState(m Model) string {

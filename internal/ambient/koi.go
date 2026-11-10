@@ -24,7 +24,7 @@ func (s *koiScene) Reward(t time.Duration, w, h int, state SceneState) []Line {
 
 func (s *koiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	// Water: base color with a few sunken depth lines (no flat fills)
-	deep := newPerlin(state.Seed, 71)
+	deep := cachedPerlin(state.Seed, 71)
 	for y := sh(b) / 3; y < sh(b); y += sh(b)/4 + 1 {
 		n := deep.At(0.3, float64(y)*0.11)
 		if n > 0 {
@@ -34,7 +34,7 @@ func (s *koiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, 
 		}
 	}
 	// Quiet caustic shimmer
-	shimmer := newPerlin(state.Seed, 73)
+	shimmer := cachedPerlin(state.Seed, 73)
 	for y := 0; y < sh(b); y += 3 {
 		for x := 0; x < sw(b); x += 2 {
 			n := shimmer.At(float64(x)*0.14+tSecF(t)*0.18, float64(y)*0.3)

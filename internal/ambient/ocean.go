@@ -116,7 +116,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		amp := 0.9 + float64(3-layer)*0.35
 		speed := 0.45 + float64(layer)*0.2
 		lineOff := float64(seaY) + 1 + float64(layer)*maxF(float64(sh(b)-seaY-1)/4.2, 1)
-		xi := newPerlin(state.Seed, uint64(layer)*331+5)
+		xi := cachedPerlin(state.Seed, uint64(layer)*331+5)
 		for x := 0; x < sw(b); x++ {
 			wy := lineOff + math.Sin(float64(x)*freq+tSecF(t)*speed+float64(layer)*9.1)*amp + xi.At(float64(x)*0.07, float64(layer)*13.7)*0.7
 			ci := mixIndex(p, waveCols[layer], p.base, 0.35+float64(3-layer)*0.12)
@@ -126,7 +126,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 
 	// Specular path under the celestial body: flickering glints on water.
 	if celestialX > 0 {
-		glint := newPerlin(state.Seed, 919)
+		glint := cachedPerlin(state.Seed, 919)
 		for x := maxInt(celestialX-4, 0); x < minInt(celestialX+5, sw(b)); x++ {
 			for y := seaY; y < sh(b); y++ {
 				n := glint.At(float64(x)*0.5, float64(y)*0.33+tSecF(t)*0.5)

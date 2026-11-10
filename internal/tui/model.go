@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/glamour"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
+	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 	"github.com/loharrahulofficial-crypto/mtm/internal/clock"
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
@@ -54,7 +55,9 @@ const (
 	modeConflict        // sync conflict resolution screen
 	modeNotes           // built-in textarea notes editor
 	modeFocus           // full-screen single-task focus (Pomodoro)
+	modeSplash          // startup ambient splash (Phase 4b-B)
 	modePalette         // command palette overlay
+	modeAmbient         // :ambient settings screen with live preview
 )
 
 // inputKind identifies what the input bar is editing.
@@ -114,13 +117,29 @@ type Model struct {
 	width  int
 	height int
 
-	mode     modeID
-	view     viewID
-	focus    focusID
-	keymap   KeyMap
-	styles   styles
-	palette  theme.Palette
-	themeMod time.Time
+	mode  modeID
+	view  viewID
+	focus focusID
+
+	// Phase 4b-B ambient state
+	ambientSettingSel int
+	ambientT          time.Duration // accumulated scene clock
+	ambientArmed      bool          // the ambient ticker is running
+	lastAmbientTick   time.Time     // for frame delta math
+	ambientFocused    bool          // terminal focus (tea.FocusMsg/BlurMsg)
+	splashStart       time.Time     // splash entry time
+	splashTotal       time.Duration // splash lifetime (ui.splash_seconds)
+	ambientSceneName  string        // currently active scene
+	scene             ambient.Scene
+	sceneName         string
+	ambientSeed       int64
+	rewardUntil       time.Time
+	rewardTitle       string
+	rewardFires       []time.Time
+	keymap            KeyMap
+	styles            styles
+	palette           theme.Palette
+	themeMod          time.Time
 
 	// panes
 	sidebarItems  []sidebarItem
@@ -300,6 +319,7 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 		lastSync:       time.Time{},
 		icons:          buildIcons(cfg.UI.Icons),
 		animations:     cfg.UI.Animations,
+		ambientFocused: true,
 		paletteInput:   textinput.New(),
 	}
 	if unknown := m.keymap.ApplyOverrides(cfg.Keys); len(unknown) > 0 {

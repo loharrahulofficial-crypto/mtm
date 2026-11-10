@@ -2,8 +2,11 @@ package tui
 
 import (
 	"fmt"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"golang.org/x/term"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
@@ -23,7 +26,9 @@ func Run() error {
 	printDiagnostics := func() {}
 	_ = printDiagnostics
 	m := New(cfg, s, sync.New(s.Root))
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	isTTY := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+	m.startSplashIfEnabled(isTTY)
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus())
 	final, err := p.Run()
 	if err != nil {
 		_ = s.Close()

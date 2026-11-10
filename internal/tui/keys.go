@@ -5,19 +5,49 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// dispatch arms the ambient ticker around every message so the corner/
+// focus scene starts and stops with the visible surface. The raw handler
+// is wrapped so both paths settle in the same final model copy.
 func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
+	res, cmd := m.dispatchRaw(msg)
+	if nm, ok := res.(Model); ok {
+		armCmd := nm.armAmbient()
+		return nm, tea.Batch(cmd, armCmd)
+	}
+	return res, cmd
+}
+
+func (m Model) dispatchRaw(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ambientTickMsg:
+		return m.handleAmbientTick()
+	case tea.FocusMsg:
+		m.ambientFocused = true
+		return m, m.armAmbient()
+	case tea.BlurMsg:
+		m.ambientFocused = false
+		m.ambientArmed = false
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.clampDetailAndSidebar()
-		return m, nil
+		return m, m.armAmbient()
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	case tea.KeyMsg:
+		if m.mode == modeSplash {
+			// Any key skips the splash.
+			m.mode = modeNormal
+			return m, m.armAmbient()
+		}
 		return m.updateKey(msg)
 	case tea.MouseMsg:
+		if m.mode == modeSplash {
+			m.mode = modeNormal
+			return m, m.armAmbient()
+		}
 		return m.updateMouse(msg)
 	}
 	return m, nil
@@ -90,6 +120,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateNotesKey(msg)
 	case modeFocus:
 		return m.updateFocusKey(msg)
+	case modeAmbient:
+		return m.updateAmbientKey(msg)
 	case modePalette:
 		return m.updatePaletteKey(msg)
 	default:
@@ -219,6 +251,9 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		}
 		m.statusMsg = "no task selected to focus"
 		return m, nil
+	case aCycleScene:
+		m.cycleScene(1)
+		return m, m.armAmbient()
 	case aPalette, aPaletteColon:
 		return m, m.openPalette()
 	case aHelp:

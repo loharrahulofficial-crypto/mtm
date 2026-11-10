@@ -19,7 +19,7 @@ func renderFrame(s paintable, mode string, t time.Duration, w, h int, state Scen
 	if h < 1 {
 		h = 1
 	}
-	p := buildPalette(state.Palette)
+	p := paletteFor(state.Palette)
 	b := newBuffer(mode, w, h)
 	s.paint(b, p, t, w, h, state)
 	b.palette = p // reward overlay paints against the same palette

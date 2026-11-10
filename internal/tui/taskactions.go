@@ -297,12 +297,13 @@ func (m *Model) toggleDoneAction() tea.Cmd {
 		return nil
 	}
 	m.statusMsg = "done " + t.ID + spawnSuffix(spawnMsg)
+	rewardCmd := m.fireReward(t.Title)
 	m.animTaskID = t.ID
 	if m.animations {
 		m.animFrame = animFrames
-		return tea.Batch(m.afterChange("done: "+t.Title), animTickCmd())
+		return tea.Batch(m.afterChange("done: "+t.Title), animTickCmd(), rewardCmd)
 	}
-	return m.afterChange("done: " + t.Title)
+	return tea.Batch(m.afterChange("done: "+t.Title), rewardCmd)
 }
 
 func spawnSuffix(msg string) string {

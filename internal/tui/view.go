@@ -20,8 +20,20 @@ func (m Model) View() string {
 	if m.mode == modeConflict {
 		return m.renderConflictScreen()
 	}
+	if m.mode == modeSplash {
+		return normalizeBlock(m.renderSplash(), m.width, m.height, baseColor)
+	}
+	if m.mode == modeAmbient {
+		return normalizeBlock(m.renderAmbientSettings(), m.width, m.height, baseColor)
+	}
 	if m.mode == modeFocus {
-		return normalizeBlock(m.renderFocus(), m.width, m.height, baseColor)
+		fscreen := normalizeBlock(m.renderFocus(), m.width, m.height, baseColor)
+		if m.rewardUntil.After(m.clock.Now()) {
+			if panel := m.renderRewardPanel(); panel != "" {
+				return overlay(m.width, m.height, fscreen, panel, baseColor)
+			}
+		}
+		return fscreen
 	}
 	if m.projectPage != "" {
 		page := m.renderProjectPage(m.width, m.height-1)
@@ -36,6 +48,11 @@ func (m Model) View() string {
 			return overlay(m.width, m.height, screen, m.renderPickerBox(), baseColor)
 		case modePalette:
 			return overlay(m.width, m.height, screen, m.renderPaletteBox(), baseColor)
+		}
+		if m.rewardUntil.After(m.clock.Now()) {
+			if panel := m.renderRewardPanel(); panel != "" {
+				return overlay(m.width, m.height, screen, panel, baseColor)
+			}
 		}
 		return normalizeBlock(screen, m.width, m.height, baseColor)
 	}
@@ -82,6 +99,11 @@ func (m Model) View() string {
 		return overlay(m.width, m.height, screen, m.renderPickerBox(), baseColor)
 	case modePalette:
 		return overlay(m.width, m.height, screen, m.renderPaletteBox(), baseColor)
+	}
+	if m.rewardUntil.After(m.clock.Now()) {
+		if panel := m.renderRewardPanel(); panel != "" {
+			return overlay(m.width, m.height, screen, panel, baseColor)
+		}
 	}
 	return normalizeBlock(screen, m.width, m.height, baseColor)
 }

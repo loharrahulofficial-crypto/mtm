@@ -45,7 +45,7 @@ func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h 
 	}
 
 	// Warm radial glow around the fire, breathing with noise
-	glowN := newPerlin(state.Seed, 701)
+	glowN := cachedPerlin(state.Seed, 701)
 	fx0 := sw(b) / 2
 	breath := 0.85 + 0.3*glowN.At(tSec*0.55, 0.5)
 	for y := fireY - sh(b)*45/100; y < fireY+2; y++ {
@@ -82,7 +82,7 @@ func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h 
 	}
 
 	// Flame tongues: columns of rising noise-shaped cells
-	flame := newPerlin(state.Seed, 719)
+	flame := cachedPerlin(state.Seed, 719)
 	flameTop := fireY - 2 - sh(b)*34/100
 	for x := fx0 - 3; x <= fx0+3; x++ {
 		lateral := absF(float64(x-fx0)) / 3.5
@@ -124,7 +124,7 @@ func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h 
 	}
 
 	// Smoke: rising, leaning column of fading dots
-	smoke := newPerlin(state.Seed, 733)
+	smoke := cachedPerlin(state.Seed, 733)
 	for k := 0; k < 6; k++ {
 		ff := float64(wrapT(t, 24*time.Hour)/time.Millisecond)*0.24 + float64(k)*0.17
 		fp := math.Mod(ff, 1.7) / 1.7

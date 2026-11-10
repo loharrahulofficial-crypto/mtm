@@ -68,7 +68,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	}
 
 	// Aurora: two thin ribbons hugging the upper sky, dim and slow.
-	aura := newPerlin(state.Seed, 71)
+	aura := cachedPerlin(state.Seed, 71)
 	ts := float64(wrapT(t, 8*time.Minute)) / float64(time.Minute)
 	for x := 0; x < sw(b); x++ {
 		for r := 0; r < 2; r++ {
@@ -196,7 +196,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	}
 
 	// Horizon silhouettes: a jagged pine line at the base.
-	sil := newPerlin(state.Seed, 101)
+	sil := cachedPerlin(state.Seed, 101)
 	ground := sh(b) * 82 / 100
 	for x := 0; x < sw(b); x++ {
 		gy := ground + int(sil.At(float64(x)*0.21, 7.3)*2.2)

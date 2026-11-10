@@ -252,6 +252,11 @@ func renderHomeBody(m Model, w, h int) []string {
 
 	gutter := 1
 	bands := homeLayout(m, w, h)
+	corner, hasCorner := homeSceneCornerRect(m, w, h)
+	cornerBody := []string(nil)
+	if hasCorner && m.ambientAllowHome() {
+		cornerBody = renderSceneCorner(m, corner)
+	}
 	for _, band := range bands {
 		rendered := make([][]string, 0, len(band))
 		for _, r := range band {
@@ -285,9 +290,57 @@ func renderHomeBody(m Model, w, h int) []string {
 		lines = append(lines, bandLines...)
 	}
 	if sparse {
-		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgBase).Render(sparseHint(m)))
+		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(lipgloss.Color(m.palette.Base)).Render(sparseHint(m)))
+	}
+	// Ambient corner: overlay the scene onto the free rows below the
+	// last band, right-anchored. The left part stays blank base.
+	if cornerBody != nil {
+		fullRows := make([]string, 0, len(cornerBody))
+		for _, row := range cornerBody {
+			left := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base)).Render(strings.Repeat(" ", w-corner.w))
+			fullRows = append(fullRows, left+row)
+		}
+		y0 := 3 + corner.y
+		for i, row := range fullRows {
+			idx := y0 + i
+			if idx < len(lines) {
+				lines[idx] = row
+			} else {
+				lines = append(lines, row)
+			}
+		}
 	}
 	return lines
+}
+
+// renderSceneCorner builds the bordered ambient panel for the Home
+// corner: title row, then the scene. Returns corner.h rows.
+func renderSceneCorner(m Model, r homeRect) []string {
+	edge := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.AccentSoft)).Background(lipgloss.Color(m.palette.Base))
+	title := "AMBIENT · " + strings.ToUpper(m.currentSceneName())
+	top := titledBorder(m, title, r.w, true, edge)
+	bot := titledBorder(m, "", r.w, false, edge)
+	right := edge.Render("│")
+	body := m.sceneFrame(m.ambientT, r.w-2, r.h-2, false)
+	out := []string{top}
+	for _, l := range body {
+		if w := lipgloss.Width(l); w > r.w-2 {
+			l = clipStyled(l, r.w-2)
+		} else if w < r.w-2 {
+			l += lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base)).Render(strings.Repeat(" ", r.w-2-w))
+		}
+		out = append(out, edge.Render("│")+l+right)
+	}
+	out = append(out, bot)
+	return out
+}
+
+// currentSceneName returns the active scene without forcing a rebuild.
+func (m Model) currentSceneName() string {
+	if m.ambientSceneName == "" {
+		return m.sceneForLaunch()
+	}
+	return m.ambientSceneName
 }
 
 func maxInt(a, b int) int {

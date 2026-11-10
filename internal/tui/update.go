@@ -35,7 +35,7 @@ func (m Model) handleTimerTick() (tea.Model, tea.Cmd) {
 	default:
 		m.timer = v
 	}
-	return m, tea.Tick(time.Second, func(time.Time) tea.Msg { return timerTickMsg{} })
+	return m, tea.Batch(tea.Tick(time.Second, func(time.Time) tea.Msg { return timerTickMsg{} }), m.armAmbient())
 }
 
 func capSuffix(capped bool) string {

@@ -30,7 +30,7 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	paintMoon(b, moonX, moonY, maxInt(minInt(sw(b), sh(b))/8, 2), phase, p)
 
 	// Treeline silhouette
-	pine := newPerlin(state.Seed, 641)
+	pine := cachedPerlin(state.Seed, 641)
 	ground := sh(b) * 74 / 100
 	for x := 0; x < sw(b); x++ {
 		gy := ground + int(pine.At(float64(x)*0.17, 9.1)*2)
@@ -61,7 +61,7 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 
 	// Flakes: three parallax layers
 	tSec := tSecF(t)
-	wind := newPerlin(state.Seed, 661).At(tSec*0.05, 0)
+	wind := cachedPerlin(state.Seed, 661).At(tSec*0.05, 0)
 	layers := []struct {
 		count  int
 		speed  float64
