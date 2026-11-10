@@ -3,9 +3,11 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 	"github.com/loharrahulofficial-crypto/mtm/internal/paths"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 	"github.com/loharrahulofficial-crypto/mtm/internal/tui"
@@ -23,10 +25,27 @@ func parseSize(s string) (int, int, error) {
 	return w, h, nil
 }
 
+// dumpPalette is the fixed palette the ambient dump uses (matches the
+// default theme; rain_lightning off).
+func dumpPalette() ambient.Palette {
+	return ambient.Palette{
+		Base: "#14282d", Surface: "#253c41", SurfaceRaised: "#2f4a50", SurfaceStrong: "#3d5960",
+		Border: "#a1afa9", Text: "#e8dfc4", BrightText: "#fff2d5", MutedSoft: "#a1afa9",
+		Accent: "#d3ae78", AccentSoft: "#8a744f", Success: "#a8b887", Warning: "#dfc181",
+		Danger: "#d78f79", HeatWarm: "#dfc181", HeatHot: "#d3ae78", HeatOverdue: "#d78f79",
+		Blue: "#91afc5", Cyan: "#86b8b5", Yellow: "#dfc181", Magenta: "#b5a0ba",
+		Orange: "#d7a06c", Brown: "#b79b7f",
+	}
+}
+
 func newTuiCmd() *cobra.Command {
 	var dump bool
 	var view, size string
 	var noColor bool
+	var sceneName string
+	var frameT time.Duration
+	var progress float64
+	var renderMode, phase string
 	cmd := &cobra.Command{
 		Use:   "tui",
 		Short: "Launch the interactive TUI (or, hidden, render one frame)",
@@ -42,6 +61,34 @@ func newTuiCmd() *cobra.Command {
 			w, h, err := parseSize(size)
 			if err != nil {
 				return err
+			}
+			if sceneName != "" {
+				// Ambient frame mode: one scene frame at the requested t/progress.
+				if progress < 0 || progress > 1 {
+					return fmt.Errorf("--progress %v out of range (0..1)", progress)
+				}
+				if frameT < 0 {
+					return fmt.Errorf("--t %v must be >= 0", frameT)
+				}
+				ph := strings.ToLower(strings.TrimSpace(phase))
+				if ph == "" {
+					ph = "work"
+				}
+				st := ambient.SceneState{
+					Progress: progress,
+					Phase:    ambient.Phase(ph),
+					Now:      tui.DumpFixedTime,
+					Seed:     42,
+					Palette:  dumpPalette(),
+				}
+				s := ambient.New(sceneName, renderMode)
+				frame := strings.Join(s.Frame(frameT, w, h, st), "\n")
+				out := cmd.OutOrStdout()
+				fmt.Fprint(out, frame)
+				if !strings.HasSuffix(frame, "\n") {
+					fmt.Fprintln(out)
+				}
+				return nil
 			}
 			cfg, s, err := openStore()
 			if err != nil {
@@ -64,9 +111,19 @@ func newTuiCmd() *cobra.Command {
 	cmd.Flags().StringVar(&view, "view", "home", "view to dump: home|list|board|calendar|courses|focus|stats")
 	cmd.Flags().StringVar(&size, "size", "120x40", "frame size as WxH, e.g. 120x40")
 	cmd.Flags().BoolVar(&noColor, "no-color", false, "strip ANSI escape sequences")
+	cmd.Flags().StringVar(&sceneName, "scene", "", "dump an ambient scene frame instead of a TUI view: night|bonsai|ocean|rain|koi|snow|campfire")
+	cmd.Flags().DurationVar(&frameT, "t", 12*time.Second, "animation time for the scene frame")
+	cmd.Flags().Float64Var(&progress, "progress", 0.5, "scene progress 0..1 (pomodoro / tide / growth / clearing)")
+	cmd.Flags().StringVar(&renderMode, "render", "halfblock", "ambient render mode: auto|halfblock|braille|ascii")
+	cmd.Flags().StringVar(&phase, "phase", "work", "scene phase: work|break|idle")
 	_ = cmd.Flags().MarkHidden("dump")
 	_ = cmd.Flags().MarkHidden("view")
 	_ = cmd.Flags().MarkHidden("size")
 	_ = cmd.Flags().MarkHidden("no-color")
+	_ = cmd.Flags().MarkHidden("scene")
+	_ = cmd.Flags().MarkHidden("t")
+	_ = cmd.Flags().MarkHidden("progress")
+	_ = cmd.Flags().MarkHidden("render")
+	_ = cmd.Flags().MarkHidden("phase")
 	return cmd
 }

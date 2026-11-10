@@ -115,6 +115,24 @@ type UIConfig struct {
 	// SemesterStart anchors the brand header's "Week N of M". Empty hides it.
 	SemesterStart string `yaml:"semester_start,omitempty"` // 2006-01-02
 	SemesterWeeks int    `yaml:"semester_weeks,omitempty"` // default 16
+
+	// Ambient scenes (Phase 4b-B). Ambient master switch + where the
+	// surface scenes appear: off | splash | home | both. "both" = splash +
+	// home + focus + reward (everything).
+	Ambient string `yaml:"ambient"`
+	// Scene: auto (by local time of day) | night | bonsai | ocean | rain |
+	// koi | snow | campfire | random (per launch).
+	Scene string `yaml:"scene"`
+	// SplashSeconds is the startup splash length (default 2.5s).
+	SplashSeconds float64 `yaml:"splash_seconds"`
+	// RewardAnimation shows a 1.5s scene celebration when a task is done.
+	RewardAnimation bool `yaml:"reward_animation"`
+	// AmbientFPS caps animation frames per second (default 10, max 30).
+	AmbientFPS int `yaml:"ambient_fps"`
+	// AmbientRender: auto | halfblock | braille | ascii.
+	AmbientRender string `yaml:"ambient_render"`
+	// RainLightning enables rare lightning in the rain scene (off default).
+	RainLightning bool `yaml:"rain_lightning"`
 }
 
 func Default() Config {
@@ -147,10 +165,17 @@ func Default() Config {
 			QuietHours:     "",
 		},
 		UI: UIConfig{
-			Animations:    true,
-			Icons:         "nerd",
-			Density:       "comfortable",
-			SemesterWeeks: 16,
+			Animations:      true,
+			Icons:           "nerd",
+			Density:         "comfortable",
+			SemesterWeeks:   16,
+			Ambient:         "both",
+			Scene:           "auto",
+			SplashSeconds:   2.5,
+			RewardAnimation: true,
+			AmbientFPS:      10,
+			AmbientRender:   "auto",
+			RainLightning:   false,
 		},
 	}
 }
@@ -240,6 +265,39 @@ func Load() (Config, error) {
 	}
 	if cfg.Stats.StreakMinMinutes < 0 {
 		return cfg, fmt.Errorf("config %s: stats.streak_min_minutes must be >= 0 (0 disables minute-based activity), got %d", Path(), cfg.Stats.StreakMinMinutes)
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.UI.Ambient)) {
+	case "off", "splash", "home", "both":
+	case "":
+		cfg.UI.Ambient = "both"
+	default:
+		return cfg, fmt.Errorf("config %s: ui.ambient must be off|splash|home|both, got %q", Path(), cfg.UI.Ambient)
+	}
+	if strings.TrimSpace(cfg.UI.Scene) == "" {
+		cfg.UI.Scene = "auto"
+	} else {
+		known := map[string]bool{"auto": true, "random": true, "night": true, "bonsai": true, "ocean": true, "rain": true, "koi": true, "snow": true, "campfire": true}
+		if !known[strings.ToLower(strings.TrimSpace(cfg.UI.Scene))] {
+			return cfg, fmt.Errorf("config %s: ui.scene must be auto|random|night|bonsai|ocean|rain|koi|snow|campfire, got %q", Path(), cfg.UI.Scene)
+		}
+		cfg.UI.Scene = strings.ToLower(strings.TrimSpace(cfg.UI.Scene))
+	}
+	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.AmbientRender)); r {
+	case "auto", "halfblock", "braille", "ascii":
+	case "":
+		cfg.UI.AmbientRender = "auto"
+	default:
+		return cfg, fmt.Errorf("config %s: ui.ambient_render must be auto|halfblock|braille|ascii, got %q", Path(), cfg.UI.AmbientRender)
+	}
+	if cfg.UI.SplashSeconds <= 0 || cfg.UI.SplashSeconds > 30 {
+		return cfg, fmt.Errorf("config %s: ui.splash_seconds must be in (0, 30], got %v", Path(), cfg.UI.SplashSeconds)
+	}
+	if cfg.UI.AmbientFPS < 1 || cfg.UI.AmbientFPS > 30 {
+		return cfg, fmt.Errorf("config %s: ui.ambient_fps must be in [1, 30], got %d", Path(), cfg.UI.AmbientFPS)
+	}
+	// --no-ambient disables every surface for the run.
+	if os.Getenv("MTM_NO_AMBIENT") == "1" {
+		cfg.UI.Ambient = "off"
 	}
 	if tz := strings.TrimSpace(cfg.ICal.Timezone); tz != "" {
 		if _, err := time.LoadLocation(tz); err != nil {

@@ -22,6 +22,9 @@ var commit = "unknown"
 // buildDate is overridden at build time via -ldflags "-X .../cli.buildDate=<UTC stamp>".
 var buildDate = "unknown"
 
+// noAmbientFlag disables every ambient surface for the run (ui.ambient=off).
+var noAmbientFlag bool
+
 // Execute runs the root command and returns the process exit error.
 func Execute() error {
 	root := NewRootCmd()
@@ -41,6 +44,12 @@ func NewRootCmd() *cobra.Command {
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// --no-ambient disables every ambient surface for this run.
+			if noAmbientFlag {
+				_ = os.Setenv("MTM_NO_AMBIENT", "1")
+			}
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Bare `mtm` launches the TUI, but only on a terminal; otherwise
 			// print help (scripts keep the old behavior).
@@ -50,6 +59,7 @@ func NewRootCmd() *cobra.Command {
 			return tui.Run()
 		},
 	}
+	root.PersistentFlags().BoolVar(&noAmbientFlag, "no-ambient", false, "disable all ambient scenes for this run")
 	root.AddCommand(
 		newInitCmd(),
 		newAddCmd(),
