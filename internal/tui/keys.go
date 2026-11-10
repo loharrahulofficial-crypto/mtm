@@ -38,14 +38,15 @@ func (m Model) dispatchRaw(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case tea.KeyMsg:
 		if m.mode == modeSplash {
-			// Any key skips the splash.
-			m.mode = modeNormal
+			// Any key skips the splash with a quick fade: jump to the
+			// dissolve tail, keeping the frame flow.
+			m.skipSplash()
 			return m, m.armAmbient()
 		}
 		return m.updateKey(msg)
 	case tea.MouseMsg:
 		if m.mode == modeSplash {
-			m.mode = modeNormal
+			m.skipSplash()
 			return m, m.armAmbient()
 		}
 		return m.updateMouse(msg)

@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"math"
 	"os"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 	"github.com/loharrahulofficial-crypto/mtm/internal/caps"
@@ -328,44 +330,153 @@ func wordmarkFor(w, h int) (wordmarkGlyphs, bool) {
 	return wordmarkSmall, false
 }
 
-// renderSplash composes the startup splash: the current scene behind the
-// mtm wordmark. Any key skips.
+// renderSplash composes the startup splash: the scene warms in behind
+// the mtm wordmark, which rises letter by letter with a glow pulse, then
+// the tagline fades in, and a noise dissolve wipes into Home. The whole
+// sequence is ~3s; any key skips into the dissolve tail.
+func clampUnit(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
 func (m Model) renderSplash() string {
 	w, h := m.width, m.height
 	if w < 20 || h < 10 {
 		return tooSmallView(w, h, lipgloss.Color(m.palette.Base), m.keymap.Seq(aQuit))
 	}
-	lines := m.sceneFrame(m.ambientT, w, h, true) // dimmed: wordmark pops
-	bright := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Bold(true)
-	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft))
-	accent := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Bold(true)
-	glyphs, large := wordmarkFor(w, h)
-	unit := glyphs.rows()
-	out := append([]string{}, lines...)
+	t := m.ambientT.Seconds()
+	total := m.splashTotal.Seconds()
+	if total < 1.8 {
+		total = 3.0
+	}
+	sceneT := time.Duration(math.Max(0, t-0.25) * float64(time.Second))
+
+	// scene elements drift in behind the fade
+	sceneLines := m.sceneFrame(sceneT, w, h, true) // dimmed: wordmark pops
+	out := append([]string{}, sceneLines...)
+
+	// wordmark letters rise one by one with a glow pulse
 	cy := h / 2
-	place := func(y int, line string) {
-		if y < 0 || y >= h {
-			return
+	m.wordmarkLetters(out, w, cy, t)
+
+	// tagline fades in 1.6–2.2s
+	taglineT := clampUnit((t-1.6)/0.6, 0, 1)
+	if taglineT > 0 && cy+5 < h {
+		blend := ambient.BlendHex(m.palette.Base, m.palette.MutedSoft, taglineT)
+		blendStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(blend))
+		applyAt(out, w, cy+5, centerLine(w, "a calmer desk for your courses"), blendStyle, m.palette.Base)
+		applyAt(out, w, cy+3, centerLine(w, "✦  m t m  ✦"), lipgloss.NewStyle().Foreground(lipgloss.Color(ambient.BlendHex(m.palette.Base, m.palette.Accent, taglineT))).Bold(true), m.palette.Base)
+	}
+
+	// footer hint fades in early, stays
+	footT := clampUnit((t-0.35)/0.4, 0, 1)
+	if footT > 0 && h >= 2 {
+		blend := ambient.BlendHex(m.palette.Base, m.palette.MutedSoft, footT)
+		applyAt(out, w, h-2, centerLine(w, "press any key to skip"), lipgloss.NewStyle().Foreground(lipgloss.Color(blend)), m.palette.Base)
+	}
+
+	lines := out
+
+	// head fade-in from the background (0.0–0.55s)
+	if t < 0.55 {
+		black := ambient.BlackFrame(lines)
+		lines = ambient.Crossfade(black, lines, ambient.EaseOutCubic(t/0.55))
+	}
+	// tail dissolve (last 0.45s)
+	if t > total-0.45 {
+		prog := clampUnit((t-(total-0.45))/0.45, 0, 1)
+		lines = ambient.Dissolve(lines, ambient.EaseInOutCubic(prog))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// wordmarkLetters paints the rising letters of the wordmark into lines.
+func (m Model) wordmarkLetters(out []string, w, cy int, t float64) {
+	g, large := wordmarkFor(w, m.height)
+	letters := g.letters
+	letterW := len(letters[0][0])
+	gap := 3
+	wordW := len(letters)*letterW + (len(letters)-1)*gap
+	x0 := (w - wordW) / 2
+	letterDur := 0.55
+	step := 0.28
+	start := 0.9
+	for i, letter := range letters {
+		appear := clampUnit((t-(start+float64(i)*step))/letterDur, 0, 1)
+		if appear <= 0 {
+			continue
 		}
-		out[y] = strings.Repeat(" ", maxInt((w-lipgloss.Width(line))/2, 0)) + line
+		rize := ambient.EaseOutBack(appear)
+		yOff := int(math.Round((1 - rize) * 2))
+		bright := rize
+		// glow pulse on landing
+		landT := t - (start + float64(i)*step + letterDur*0.55)
+		if landT > 0 && landT < 1.2 {
+			pulse := ambient.Envelope(landT, 0, 0.25, 0.55, 1.1)
+			bright = clampUnit(rize+pulse*0.35, 0, 1)
+		}
+		col := ambient.BlendHex(m.palette.Base, m.palette.BrightText, bright)
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(col)).Bold(true)
+		rowOff := 2
+		if large {
+			rowOff = 3
+		}
+		for r, row := range letter {
+			y := cy - rowOff + r + yOff
+			if y < 0 || y >= len(out) {
+				continue
+			}
+			out[y] = spliceCells(out[y], x0+i*(letterW+gap), letterW, style.Render(row))
+		}
 	}
-	if large {
-		place(cy-3, bright.Render(unit[0]))
-		place(cy-2, bright.Render(unit[1]))
-		place(cy-1, bright.Render(unit[2]))
-		place(cy, bright.Render(unit[3]))
-		place(cy+1, bright.Render(unit[4]))
-		place(cy+3, accent.Render("✦  m t m  ✦"))
-		place(cy+5, muted.Render("a calmer desk for your courses"))
-	} else {
-		place(cy-2, bright.Render(unit[0]))
-		place(cy-1, bright.Render(unit[1]))
-		place(cy, bright.Render(unit[2]))
-		place(cy+2, accent.Render("✦  m t m  ✦"))
-		place(cy+4, muted.Render("a calmer desk for your courses"))
+	_ = large
+}
+
+// centerLine left-pads s so it is centered in w columns.
+func centerLine(w int, s string) string {
+	d := (w - lipglossWidth(s)) / 2
+	if d < 0 {
+		d = 0
 	}
-	place(h-2, muted.Render("press any key to skip"))
-	return strings.Join(out, "\n")
+	return strings.Repeat(" ", d) + s
+}
+
+// applyAt splices a centered/pre-positioned styled line into lines[y].
+func applyAt(out []string, w, y int, line string, style lipgloss.Style, baseColor string) {
+	if y < 0 || y >= len(out) {
+		return
+	}
+	// keep background continuity: pad the whole row to w cells
+	rendered := style.Render(line)
+	pad := w - lipgloss.Width(line)
+	if pad > 0 {
+		rendered = rendered + lipgloss.NewStyle().Background(lipgloss.Color(baseColor)).Render(strings.Repeat(" ", pad))
+	}
+	out[y] = clipStyled(rendered, w)
+}
+
+// spliceCells replaces cells [x, x+width) in a styled line.
+func spliceCells(dst string, x, width int, piece string) string {
+	prefix := clipStyled(dst, x)
+	if pad := x - lipgloss.Width(prefix); pad > 0 {
+		prefix += strings.Repeat(" ", pad)
+	}
+	suffix := clipStyled(stripAnsiPrefix(dst, x+width), lipgloss.Width(dst)-x-width)
+	if pad := lipgloss.Width(dst) - x - width - lipgloss.Width(suffix); pad > 0 {
+		suffix += strings.Repeat(" ", pad)
+	}
+	return prefix + piece + suffix
+}
+
+// stripAnsiPrefix returns the cells of dst starting at cell x.
+func stripAnsiPrefix(dst string, x int) string {
+	// reuse ansi.Cut for a correct slice of visible cells
+	return ansi.Cut(dst, x, lipgloss.Width(dst))
 }
 
 // renderRewardPanel composes the floating 1.5s completion celebration:
@@ -440,4 +551,13 @@ func (m *Model) fireReward(title string) tea.Cmd {
 		fps = 30
 	}
 	return ambientTickCmd(fps)
+}
+
+// skipSplash fast-forwards the splash into its dissolve tail: the next
+// ticks play a ~350ms fade rather than an instant cut.
+func (m *Model) skipSplash() {
+	tail := 350 * time.Millisecond
+	if m.splashTotal > tail && m.ambientT < m.splashTotal-tail {
+		m.ambientT = m.splashTotal - tail
+	}
 }

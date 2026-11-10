@@ -157,6 +157,9 @@ func (m *paletteModel) Less(i, j int) bool { return m.lum[i] < m.lum[j] }
 
 func (m *paletteModel) hexAt(i int) string { return m.hex[i] }
 
+// BlendHex is the exported form of blendHex for callers outside ambient.
+func BlendHex(from, to string, t float64) string { return blendHex(from, to, t) }
+
 // blendHex is theme.Blend specialized locally so ambient does not import
 // the theme package (TUI passes roles in; ambient stays value-only).
 func blendHex(from, to string, t float64) string {

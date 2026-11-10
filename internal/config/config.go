@@ -123,7 +123,7 @@ type UIConfig struct {
 	// Scene: auto (by local time of day) | night | bonsai | ocean | rain |
 	// koi | snow | campfire | random (per launch).
 	Scene string `yaml:"scene"`
-	// SplashSeconds is the startup splash length (default 2.5s).
+	// SplashSeconds is the startup splash length (default 3s).
 	SplashSeconds float64 `yaml:"splash_seconds"`
 	// RewardAnimation shows a 1.5s scene celebration when a task is done.
 	RewardAnimation bool `yaml:"reward_animation"`
@@ -175,7 +175,7 @@ func Default() Config {
 			SemesterWeeks:   16,
 			Ambient:         "both",
 			Scene:           "auto",
-			SplashSeconds:   2.5,
+			SplashSeconds:   3.0,
 			RewardAnimation: true,
 			AmbientFPS:      10,
 			AmbientRender:   "auto",

@@ -2,6 +2,8 @@ package ambient
 
 import (
 	"fmt"
+	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -100,6 +102,133 @@ func lerpHex(a, b string, t float64) string {
 		return uint8(float64(x)*(1-t) + float64(y)*t + 0.5)
 	}
 	return fmt.Sprintf("#%02x%02x%02x", mix(ar, br), mix(ag, bg), mix(ab, bb))
+}
+
+// Dissolve wipes cells away on flip order of a seeded noise field — a
+// cell turns to a space on the base background once the sweep passes it.
+// t ∈ [0,1] sweeps 0..1; 0 = fully intact, 1 = fully dissolved.
+func Dissolve(lines []Line, t float64) []Line {
+	if t <= 0 {
+		return lines
+	}
+	if t >= 1 {
+		return BlackFrame(lines)
+	}
+	cfg := baseHexFromLines(lines)
+	noise := cachedPerlin(0xD155, 911)
+	A := parseFrame(lines)
+	out := make([]Line, 0, len(A))
+	for y, row := range A {
+		var sb strings.Builder
+		curFG, curBG := "", ""
+		for x, c := range row {
+			n := noise.At(float64(x)*0.16+3.1, float64(y)*0.16+7.7)*0.5 + 0.5
+			// the wipe front: cells with n < t*1.35 dissolve
+			if float64(t)*1.35 > n {
+				glyph := " "
+				emitBlank(&sb, &curFG, &curBG, cfg, glyph)
+				continue
+			}
+			emitSGRStrings(&sb, &curFG, &curBG, c.fg, c.bg)
+			sb.WriteString(c.glyph)
+		}
+		sb.WriteString("\x1b[0m")
+		out = append(out, sb.String())
+	}
+	return out
+}
+
+// baseHexFromLines returns the dominant background hex of the frame
+// (default: the mtm default). Scene frames are opaque, so any interior
+// cell's bg works; ties break by hex value so the result is deterministic
+// across runs (map iteration order is randomized).
+func baseHexFromLines(lines []Line) string {
+	counts := map[string]int{}
+	for _, line := range lines {
+		for _, mm := range sgrBg.FindAllStringSubmatch(line, -1) {
+			counts["#"+mm[1]]++
+		}
+	}
+	best := "#14282d"
+	bestN := 0
+	keys := make([]string, 0, len(counts))
+	for k := range counts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if counts[k] > bestN {
+			best, bestN = k, counts[k]
+		}
+	}
+	return best
+}
+
+var sgrBg = regexp.MustCompile(`48;2;([0-9]+;[0-9]+;[0-9]+)`)
+
+// emitBlank writes a base-colored space, reasserting SGR only on changes.
+func emitBlank(sb *strings.Builder, curFG, curBG *string, baseHex string, glyph string) {
+	bg := baseHex
+	if bg == "" {
+		bg = "#14282d"
+	}
+	emitSGRStrings(sb, curFG, curBG, "", bg)
+	sb.WriteString(glyph)
+}
+
+// emitSGRStrings writes fg/bg SGR only when they changed.
+func emitSGRStrings(sb *strings.Builder, curFG, curBG *string, fg, bg string) {
+	if fg != *curFG {
+		if fg == "" {
+			sb.WriteString("\x1b[39m")
+		} else {
+			sb.WriteString(fmt.Sprintf("\x1b[38;2;%sm", rgbTriplet(hexToRGB(fg))))
+		}
+		*curFG = fg
+	}
+	if bg != *curBG {
+		if bg == "" {
+			sb.WriteString("\x1b[49m")
+		} else {
+			sb.WriteString(fmt.Sprintf("\x1b[48;2;%sm", rgbTriplet(hexToRGB(bg))))
+		}
+		*curBG = bg
+	}
+}
+
+// BlackFrame renders an all-base frame with the same cell grid as lines.
+func BlackFrame(lines []Line) []Line {
+	base := baseHexFromLines(lines)
+	var sb strings.Builder
+	s := fmt.Sprintf("\x1b[48;2;%sm", rgbTriplet(hexToRGB(base)))
+	out := make([]Line, 0, len(lines))
+	for _, l := range lines {
+		sb.Reset()
+		sb.WriteString(s)
+		n := len([]rune(stripEscapes(l)))
+		sb.WriteString(strings.Repeat(" ", n))
+		sb.WriteString("\x1b[0m")
+		out = append(out, sb.String())
+	}
+	return out
+}
+
+// stripEscapes removes ANSI sequences (for width counting).
+func stripEscapes(s string) string {
+	var sb strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\x1b' {
+			for j := i; j < len(s); j++ {
+				if s[j] >= 'a' && s[j] <= 'z' || s[j] >= 'A' && s[j] <= 'Z' {
+					i = j
+					break
+				}
+			}
+			continue
+		}
+		sb.WriteByte(s[i])
+	}
+	return sb.String()
 }
 
 // Crossfade blends from→to by eased t ∈ [0,1]. Endpoints return the exact

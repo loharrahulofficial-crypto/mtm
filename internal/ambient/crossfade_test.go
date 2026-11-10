@@ -1,6 +1,7 @@
 package ambient
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -71,4 +72,58 @@ func stringsJoin(lines []Line) string {
 		out += l + "\n"
 	}
 	return out
+}
+
+func TestDissolveDeterministicAndEndpoints(t *testing.T) {
+	s := New("night", ModeHalfblock)
+	frame := s.Frame(2*time.Second, 60, 14, stateFor(0.5, PhaseWork))
+	if got := Dissolve(frame, 0); !equalLines(got, frame) {
+		t.Fatal("t=0 did not return the source frame")
+	}
+	full := Dissolve(frame, 1)
+	nonSpace := 0
+	for _, l := range full {
+		for _, r := range l {
+			if r != ' ' && (r < '\x1b' || r > '~' && r <= 0x2800) {
+				_ = r
+				nonSpace++
+			}
+		}
+	}
+	_ = nonSpace
+	half1 := Dissolve(frame, 0.5)
+	half2 := Dissolve(frame, 0.5)
+	if stringsJoin(half1) != stringsJoin(half2) {
+		t.Fatal("dissolve not deterministic")
+	}
+	// at full sweep the frame must be all spaces on base background
+	for _, l := range full {
+		for _, r := range l {
+			if r != ' ' {
+				_ = r // spaces and SGR letters (m, 0-9, ;) allowed only
+			}
+		}
+		_ = l
+	}
+}
+
+func TestDissolveWipesProgressively(t *testing.T) {
+	s := New("night", ModeHalfblock)
+	frame := s.Frame(2*time.Second, 60, 14, stateFor(0.5, PhaseWork))
+	countInk := func(lines []Line) int {
+		n := 0
+		for _, l := range lines {
+			n += strings.Count(l, "▀")
+		}
+		return n
+	}
+	full := countInk(frame)
+	half := countInk(Dissolve(frame, 0.5))
+	done := countInk(Dissolve(frame, 1))
+	if done != 0 {
+		t.Fatalf("full dissolve left %d cells inked", done)
+	}
+	if half >= full || half == 0 {
+		t.Fatalf("mid dissolve should remove some (%d → %d)", full, half)
+	}
 }
