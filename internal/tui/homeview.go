@@ -1159,3 +1159,64 @@ func thisWeekBody(m Model, w, h int, d homeData) []string {
 	}
 	return gauges.RenderBarChart(cfg)
 }
+
+// homeFreeRows returns the number of body rows not covered by any Home
+// band and the row index below the last band. Bands are laid out
+// sequentially from y=0, so the free rows sit directly below the last
+// band. These rows render as unassigned surface padding; the Home scene
+// corner (Phase 4b-B) anchors there.
+func homeFreeRows(m Model, w, h int) (free, used int) {
+	stripRows := 0
+	if len(m.store.Tasks()) <= 3 {
+		stripRows = 1
+	}
+	avail := h - 3 - stripRows // date line + blank + greeting
+	for _, band := range homeLayout(m, w, h) {
+		for _, r := range band {
+			if r.y+r.h > used {
+				used = r.y + r.h
+			}
+		}
+	}
+	if f := avail - used; f > 0 {
+		return f, used
+	}
+	return 0, used
+}
+
+// Scene corner placement constraint (spec 0.1). The corner is a small animated
+// panel in free space. It never moves or shrinks an existing band — in
+// particular the IDEAS band at w >= 110 — and never counts toward a panel's
+// blank ratio. It renders only when the terminal is wide enough and the free
+// space below the last band holds the corner; otherwise it stays hidden.
+const (
+	sceneCornerMinTermW = 110 // shares the IDEAS-band threshold
+	sceneCornerMinRows  = 10  // below this the corner is not legible
+	sceneCornerMaxRows  = 12
+	sceneCornerWidth    = 46
+)
+
+// homeSceneCornerRect returns the scene corner's rect (relative to the body,
+// like homeRect) and whether it fits. When ok is false the corner stays
+// hidden. The rect never overlaps a band rect: it sits in the unassigned
+// rows below the last band, right-anchored.
+func homeSceneCornerRect(m Model, w, h int) (homeRect, bool) {
+	if w < sceneCornerMinTermW {
+		return homeRect{}, false
+	}
+	free, used := homeFreeRows(m, w, h)
+	if free < sceneCornerMinRows {
+		return homeRect{}, false
+	}
+	// Rects share the bands coordinate space (y=0 is the first band row);
+	// callers add the 3 header rows when placing lines in the body.
+	cw := sceneCornerWidth
+	if cw > w {
+		cw = w
+	}
+	ch := free
+	if ch > sceneCornerMaxRows {
+		ch = sceneCornerMaxRows
+	}
+	return homeRect{title: "SCENE", x: w - cw, y: used + (free - ch), w: cw, h: ch}, true
+}
