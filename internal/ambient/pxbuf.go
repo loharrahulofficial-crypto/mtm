@@ -46,7 +46,9 @@ type fbuf struct {
 	ink    []float32 // per-pixel ink coverage (non-background paint)
 }
 
-const fSS = 2 // supersampling factor per axis
+// fSS is the supersampling factor per axis. Adaptive quality (§4.7) may
+// halve it to 1 at runtime; it is a package variable, not a constant.
+var fSS = 2
 
 // fbPool reuses the supersampled raster across frames (the app renders at
 // most a handful of fixed sizes; holding them avoids ~1 MB of alloc
@@ -155,8 +157,8 @@ func (b *fbuf) blendPx(x, y int, src fpix, o blendOp) {
 
 // fillRectF fills a rect in sub-cell coordinates with soft edges.
 func (b *fbuf) fillRectF(x0, y0, x1, y1 float64, r, g, bl float32, alpha float64, o blendOp) {
-	fx0, fy0 := x0*fSS, y0*fSS
-	fx1, fy1 := x1*fSS, y1*fSS
+	fx0, fy0 := x0*float64(fSS), y0*float64(fSS)
+	fx1, fy1 := x1*float64(fSS), y1*float64(fSS)
 	feather := float64(fSS) * 0.75
 	px0 := int(math.Floor(fx0 - feather))
 	px1 := int(math.Ceil(fx1 + feather))
@@ -185,12 +187,12 @@ func (b *fbuf) fillRect(x0, y0, x1, y1 int, r, g, bl float32, alpha float64, o b
 
 // fillCircleF fills a circle in sub-cell coordinates with soft edges.
 func (b *fbuf) fillCircleF(cx, cy, radius float64, r, g, bl float32, alpha float64, o blendOp) {
-	px0 := int(math.Floor((cx - radius - 1) * fSS))
-	px1 := int(math.Ceil((cx + radius + 1) * fSS))
-	py0 := int(math.Floor((cy - radius - 1) * fSS))
-	py1 := int(math.Ceil((cy + radius + 1) * fSS))
-	fcx, fcy := cx*fSS, cy*fSS
-	fr := radius * fSS
+	px0 := int(math.Floor((cx - radius - 1) * float64(fSS)))
+	px1 := int(math.Ceil((cx + radius + 1) * float64(fSS)))
+	py0 := int(math.Floor((cy - radius - 1) * float64(fSS)))
+	py1 := int(math.Ceil((cy + radius + 1) * float64(fSS)))
+	fcx, fcy := cx*float64(fSS), cy*float64(fSS)
+	fr := radius * float64(fSS)
 	feather := float64(fSS) * 0.7
 	for py := py0; py < py1; py++ {
 		for px := px0; px < px1; px++ {
@@ -209,8 +211,8 @@ func (b *fbuf) fillCircleF(cx, cy, radius float64, r, g, bl float32, alpha float
 
 // fillEllipseF fills an axis-aligned ellipse in sub-cell coordinates.
 func (b *fbuf) fillEllipseF(cx, cy, rx, ry float64, r, g, bl float32, alpha float64, o blendOp) {
-	fxcx, fxcy := cx*fSS, cy*fSS
-	frx, fry := math.Max(rx*fSS, 0.5), math.Max(ry*fSS, 0.5)
+	fxcx, fxcy := cx*float64(fSS), cy*float64(fSS)
+	frx, fry := math.Max(rx*float64(fSS), 0.5), math.Max(ry*float64(fSS), 0.5)
 	px0 := int(math.Floor(fxcx - frx - 2))
 	px1 := int(math.Ceil(fxcx + frx + 2))
 	py0 := int(math.Floor(fxcy - fry - 2))
@@ -234,9 +236,9 @@ func (b *fbuf) fillEllipseF(cx, cy, rx, ry float64, r, g, bl float32, alpha floa
 
 // strokeCircleF strokes a ring (ripples, halos): an annulus SDF stroke.
 func (b *fbuf) strokeCircleF(cx, cy, radius, width float64, r, g, bl float32, alpha float64, o blendOp) {
-	fcx, fcy := cx*fSS, cy*fSS
-	fr := radius * fSS
-	fw := math.Max(width*fSS, 0.5)
+	fcx, fcy := cx*float64(fSS), cy*float64(fSS)
+	fr := radius * float64(fSS)
+	fw := math.Max(width*float64(fSS), 0.5)
 	feather := float64(fSS) * 0.75
 	px0 := int(math.Floor(fcx - fr - fw/2 - feather))
 	px1 := int(math.Ceil(fcx + fr + fw/2 + feather))
@@ -258,8 +260,8 @@ func (b *fbuf) strokeCircleF(cx, cy, radius, width float64, r, g, bl float32, al
 
 // strokeLineF strokes a line with the given width (sub-cell units).
 func (b *fbuf) strokeLineF(x0, y0, x1, y1, width float64, r, g, bl float32, alpha float64, o blendOp) {
-	fx0, fy0, fx1, fy1 := x0*fSS, y0*fSS, x1*fSS, y1*fSS
-	fw := width * fSS
+	fx0, fy0, fx1, fy1 := x0*float64(fSS), y0*float64(fSS), x1*float64(fSS), y1*float64(fSS)
+	fw := width * float64(fSS)
 	minX := int(math.Floor(math.Min(fx0, fx1) - fw - 1))
 	maxX := int(math.Ceil(math.Max(fx0, fx1) + fw + 1))
 	minY := int(math.Floor(math.Min(fy0, fy1) - fw - 1))

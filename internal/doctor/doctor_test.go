@@ -347,3 +347,19 @@ func TestAmbientBytesPerFrameReported(t *testing.T) {
 		}
 	}
 }
+
+func TestAmbientTierReported(t *testing.T) {
+	gitEnv(t)
+	root := t.TempDir()
+	initRepo(t, root, "a1b2c3")
+	writeMarker(t, root, "real")
+	rep := runDoctor(t, root)
+	name := rep.AmbientTierName
+	tier := rep.AmbientTier
+	if name == "" {
+		t.Fatal("doctor did not report ambient quality tier")
+	}
+	if tier < 0 || tier > 3 {
+		t.Fatalf("tier = %d, want 0..3", tier)
+	}
+}

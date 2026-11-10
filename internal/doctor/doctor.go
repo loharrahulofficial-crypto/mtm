@@ -47,6 +47,9 @@ type Report struct {
 	// AmbientBytesPerFrame reports the SGR byte count of one halfblock
 	// frame per scene at 100x30 (deterministic, default theme).
 	AmbientBytesPerFrame map[string]int `json:"ambient_bytes_per_frame,omitempty"`
+	// AmbientTier reports the adaptive-quality tier (0=full|1=no-blur|2=low-ss|3=low-fps).
+	AmbientTier     int    `json:"ambient_quality_tier"`
+	AmbientTierName string `json:"ambient_quality_name"`
 }
 
 // Options carries the inputs Run needs; zero values default to the
@@ -95,6 +98,7 @@ func Run(opts Options) Report {
 
 	// --- ambient render cost (deterministic; one frame per scene) ---
 	rep.AmbientBytesPerFrame = ambient.ReportBytes(ambient.ModeHalfblock, 100, 30)
+	rep.AmbientTier, rep.AmbientTierName = ambient.AmbientTier()
 
 	// --- git repo ---
 	repo := sync.New(opts.Root)

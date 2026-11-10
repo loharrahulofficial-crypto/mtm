@@ -280,6 +280,8 @@ func (m Model) dimScenePalette() ambient.Palette {
 
 // sceneFrame renders one ambient frame for the place being drawn.
 func (m *Model) sceneFrame(t time.Duration, w, h int, dim bool) []string {
+	start := time.Now()
+	defer func() { ambient.ObserveFrameCost(time.Since(start)) }()
 	st := m.sceneState()
 	if dim {
 		st.Palette = m.dimScenePalette()
@@ -357,6 +359,13 @@ func slowIdleFPS(full int) int {
 }
 
 func ambientTickCmd(fps int) tea.Cmd {
+	if tier, _ := ambient.AmbientTier(); tier >= 3 {
+		// adaptive quality stepped down: halve the effective rate
+		fps /= 2
+		if fps < 4 {
+			fps = 4
+		}
+	}
 	d := time.Second / time.Duration(fps)
 	return tea.Tick(d, func(time.Time) tea.Msg { return ambientTickMsg{} })
 }
