@@ -55,6 +55,7 @@ const (
 	aFocusRight         = "focus_right"
 	aJumpLeft           = "jump_left"
 	aJumpRight          = "jump_right"
+	aCycleScene         = "cycle_scene"
 	aMonthPrev          = "month_prev"
 	aMonthNext          = "month_next"
 	aGrade              = "grade"
@@ -70,7 +71,7 @@ var actionOrder = []string{
 	aDetail, aSidebar, aFocusLeft, aFocusRight, aConflicts, aHelp,
 	aToggleCalendarDone,
 	aEnter,
-	aJumpLeft, aJumpRight, aMonthPrev, aMonthNext, aGrade, aRate,
+	aCycleScene, aJumpLeft, aJumpRight, aMonthPrev, aMonthNext, aGrade, aRate,
 }
 
 var actionDescriptions = map[string]string{
@@ -124,6 +125,7 @@ var actionDescriptions = map[string]string{
 	aGrade:              "record a grade (courses)",
 	aRate:               "rate the selected idea 1-5",
 	aEnter:              "open the selected course's tasks",
+	aCycleScene:         "cycle ambient scene",
 	aToggleCalendarDone: "calendar: show/hide completed tasks",
 }
 
@@ -188,6 +190,7 @@ func DefaultKeyMap() KeyMap {
 		aMonthPrev:          "J",
 		aMonthNext:          "K",
 		aGrade:              "g",
+		aCycleScene:         "alt+s",
 		aRate:               "r",
 	}}
 }
@@ -223,14 +226,32 @@ func (k KeyMap) ApplyOverrides(overrides map[string]string) []string {
 }
 
 // IsPrefix reports whether s is a strict prefix of some binding (used to
-// hold multi-key sequences like "gg" and "dd").
+// hold multi-key sequences like "gg" and "dd"). Named keys (tab, esc, ctrl+d,
+// alt+s, …) are atomic and never put the keyboard into a pending state;
+// sequences are at most two plain printable characters.
 func (k KeyMap) IsPrefix(s string) bool {
 	for _, seq := range k.binds {
+		if !isSequenceBinding(seq) {
+			continue
+		}
 		if strings.HasPrefix(seq, s) && len(seq) > len(s) {
 			return true
 		}
 	}
 	return false
+}
+
+func isSequenceBinding(seq string) bool {
+	r := []rune(seq)
+	if len(r) < 2 || len(r) > 2 {
+		return false
+	}
+	for _, c := range r {
+		if c <= 32 || c == 127 {
+			return false
+		}
+	}
+	return true
 }
 
 // Match returns the action bound exactly to seq, or "" if none.
