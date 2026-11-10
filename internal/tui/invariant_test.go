@@ -141,10 +141,16 @@ func (g frameGrid) rows() int { return len(g.ch) }
 
 func TestFrameInvariants(t *testing.T) {
 	sizes := []struct{ w, h int }{{80, 24}, {120, 40}, {200, 50}, {97, 31}, {143, 37}, {61, 16}}
-	views := []string{"home", "list", "board", "calendar", "courses", "focus", "stats"}
+	views := []string{"home", "list", "board", "calendar", "courses", "focus", "stats", "ideas", "project", "roadmap", "devlog"}
 	for _, size := range sizes {
 		for _, view := range views {
-			for _, state := range []string{"empty", "populated"} {
+			states := []string{"empty", "populated"}
+			if view == "project" || view == "roadmap" || view == "devlog" {
+				// The rich fixture exercises the timeline bars, milestone
+				// chips and glamour-rendered dev-log through the invariants.
+				states = append(states, "projectTools")
+			}
+			for _, state := range states {
 				t.Run(fmt.Sprintf("%s_%s_%dx%d", view, state, size.w, size.h), func(t *testing.T) {
 					s := fixtures[state](t)
 					defer func() { _ = s.Close() }()

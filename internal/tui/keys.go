@@ -192,8 +192,13 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		m.view = viewStats
 		m.statsScroll = 0
 		return m, nil
+	case aViewIdeas:
+		m.view = viewIdeas
+		m.ideaSel = 0
+		m.ideaScroll = 0
+		return m, nil
 	case aCycleView:
-		m.view = (m.view + 1) % 6
+		m.view = (m.view + 1) % 7
 		return m, nil
 	case aFocus:
 		if t := m.selectedTask(); t != nil {
@@ -220,6 +225,20 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 	case aFocusRight:
 		m.focus = (m.focus + 1) % 3
 		return m, nil
+	case aEnter:
+		// Sidebar enter on a project/course item opens the project page.
+		if m.focus == focusSidebar {
+			if sel := m.sidebarSelection(); sel != nil && (sel.Kind == "project" || sel.Kind == "course") {
+				cmd := m.openProjectPage(sel.Key, projectTabOverview)
+				return m, cmd
+			}
+			return m, nil
+		}
+		switch m.view {
+		case viewCourses:
+			return m.updateCoursesKey(aEnter)
+		}
+		return m, nil
 	case aSync:
 		return m.startSync()
 	case aConflicts:
@@ -245,6 +264,8 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		return m.updateCoursesKey(act)
 	case viewStats:
 		return m.updateStatsKey(act)
+	case viewIdeas:
+		return m.updateIdeasKey(act)
 	}
 	return m, nil
 }

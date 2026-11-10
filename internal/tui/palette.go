@@ -29,6 +29,7 @@ func (m Model) buildPaletteItems() []paletteItem {
 		{id: "view:calendar", label: "Go to Calendar", hint: m.keymap.Seq(aViewCalendar), group: "Commands"},
 		{id: "view:courses", label: "Go to Courses", hint: m.keymap.Seq(aViewCourses), group: "Commands"},
 		{id: "view:stats", label: "Go to Stats", hint: m.keymap.Seq(aViewStats), group: "Commands"},
+		{id: "view:ideas", label: "Go to Ideas", hint: m.keymap.Seq(aViewIdeas), group: "Commands"},
 		{id: "focus", label: "Focus current task", hint: m.keymap.Seq(aFocus), group: "Commands"},
 		{id: "toggle:sidebar", label: "Toggle sidebar", hint: m.keymap.Seq(aSidebar), group: "Commands"},
 		{id: "toggle:detail", label: "Toggle detail pane", hint: m.keymap.Seq(aDetail), group: "Commands"},
@@ -40,6 +41,7 @@ func (m Model) buildPaletteItems() []paletteItem {
 		{id: "pomo:start", label: "Pomodoro: start on selected task", hint: ":", group: "Actions"},
 		{id: "exam:add", label: "Exam: add…", hint: ":exam", group: "Actions"},
 		{id: "grade:record", label: "Grade: record for selected task", hint: ":grade", group: "Actions"},
+		{id: "idea:capture", label: "Idea: capture…", hint: ":idea", group: "Actions"},
 	}
 	for _, t := range m.store.Tasks() {
 		if m.store.IsDoneStatus(t.Project, t.Status) {
@@ -330,6 +332,7 @@ var knownCommands = map[string]bool{
 	"calendar": true, "cal": true, "view3": true, "quit": true, "q": true,
 	"home": true, "view0": true, "focus": true, "exam": true,
 	"courses": true, "view4": true, "timer": true, "pomo": true, "grade": true,
+	"idea": true, "ideas": true, "view6": true, "roadmap": true,
 }
 
 func filterOut(ids []string, drop string) []string {
@@ -361,6 +364,18 @@ func (m Model) executePaletteAction(id string) (Model, tea.Cmd) {
 	case "view:stats":
 		m.view = viewStats
 		m.statsScroll = 0
+	case "view:ideas":
+		m.view = viewIdeas
+		m.ideaSel = 0
+		m.ideaScroll = 0
+	case "idea:capture":
+		m.mode = modePalette
+		m.paletteInput.SetValue("idea ")
+		m.paletteInput.CursorEnd()
+		m.paletteQuery = "idea "
+		m.paletteItems = paletteItemsFor(m, m.paletteQuery)
+		m.paletteSel = 0
+		return m, nil
 	case "timer:toggle":
 		return quickTimerToggle(m)
 	case "pomo:start":

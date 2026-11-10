@@ -3,11 +3,14 @@ package tui
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"gopkg.in/yaml.v3"
+
 	"github.com/loharrahulofficial-crypto/mtm/internal/clock"
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
@@ -26,6 +29,7 @@ type fixtureTask struct {
 	created, updated, completed                     string
 	tags                                            []string
 	parent                                          string
+	milestone                                       string
 	estimate, logged                                int
 	weight                                          *float64
 	score, scoreMax                                 *float64
@@ -78,6 +82,7 @@ func fixtureStore(t *testing.T, tasks []fixtureTask, projects ...fixtureProject)
 			Completed:         ft.completed,
 			Tags:              ft.tags,
 			Parent:            ft.parent,
+			Milestone:         ft.milestone,
 			EstimateMinutes:   ft.estimate,
 			TimeLoggedMinutes: ft.logged,
 			Weight:            ft.weight,
@@ -170,6 +175,93 @@ func subtasksFixture(t *testing.T) *store.Store {
 	)
 }
 
+// seedIdeas writes a fixed set of idea files into root/ideas. Used by the
+// ideas-view fixtures and by the Home blank-ratio test's fixture.
+func seedIdeas(t *testing.T, root string) {
+	t.Helper()
+	ts := DumpFixedTime
+	slug := func(s string) string {
+		out := []rune{}
+		lastDash := true
+		for _, r := range strings.ToLower(s) {
+			switch {
+			case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+				out = append(out, r)
+				lastDash = false
+			default:
+				if !lastDash {
+					out = append(out, '-')
+					lastDash = true
+				}
+			}
+		}
+		trim := strings.Trim(string(out), "-")
+		if trim == "" {
+			return "idea"
+		}
+		return trim
+	}
+	mk := func(id, status string, rating int, title string, createdBack, updatedBack int, tags []string, promotedTo, body string) {
+		t.Helper()
+		created := ts.AddDate(0, 0, createdBack).Format(core.TimestampFormat)
+		updated := ts.AddDate(0, 0, updatedBack).Format(core.TimestampFormat)
+		var b strings.Builder
+		b.WriteString("---\nid: " + id + "\ntitle: " + title + "\nstatus: " + status + "\n")
+		if rating > 0 {
+			b.WriteString(fmt.Sprintf("rating: %d\n", rating))
+		}
+		if len(tags) > 0 {
+			b.WriteString("tags:\n")
+			for _, tag := range tags {
+				b.WriteString("- " + tag + "\n")
+			}
+		}
+		b.WriteString("created: " + created + "\nupdated: " + updated + "\n")
+		if promotedTo != "" {
+			b.WriteString("promoted_to: " + promotedTo + "\n")
+		}
+		b.WriteString("---\n" + body)
+		if err := os.WriteFile(filepath.Join(root, "ideas", id+"-"+slug(title)+".md"), []byte(b.String()), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, "ideas"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mk("i00001", "exploring", 5, "Local-first sync engine", -40, -2, []string{"sync", "go"}, "", "CRDT or oplog?\nCompare Automerge and ElectricSQL.\n")
+	mk("i00002", "seed", 0, "Offline flashcard deck for exam prep", -3, -1, []string{"study"}, "", "")
+	mk("i00003", "seed", 3, "Pomodoro ambient scenes", -20, -10, []string{"tui"}, "", "Rain, cafe, library.\n")
+	mk("i00004", "parked", 2, "Paperless todo pipeline", -90, -30, []string{"paper"}, "", "Waiting on a scanner.\n")
+	mk("i00005", "promoted", 4, "AI syllabus import", -120, -50, []string{"ai"}, "college/dbms", "Shipped as mtm syllabus import.\n")
+	mk("i00006", "dropped", 1, "Voice memos to tasks", -200, -80, []string{"audio"}, "", "Privacy wore me down.\n")
+}
+
+// reopenStore closes s and re-opens the same repo with a fresh index.
+func reopenStore(t *testing.T, s *store.Store) *store.Store {
+	t.Helper()
+	root := s.Root
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := store.Open(root, filepath.Join(t.TempDir(), "index.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened.Clock = clock.Fixed(DumpFixedTime)
+	return opened
+}
+
+func ideasFixture(t *testing.T) *store.Store {
+	ts := DumpFixedTime
+	stamp := ts.Format(core.TimestampFormat)
+	tasks := []fixtureTask{
+		{id: "e00001", title: "Submit problem set 4", project: "inbox", status: "todo", priority: "medium", kind: "assignment", due: ts.AddDate(0, 0, 2).Format("2006-01-02"), created: stamp, updated: stamp},
+	}
+	s := fixtureStore(t, tasks)
+	seedIdeas(t, s.Root)
+	return reopenStore(t, s)
+}
+
 func f64(f float64) *float64 { return &f }
 
 func coursesFixture(t *testing.T) *store.Store {
@@ -196,11 +288,14 @@ func coursesFixture(t *testing.T) *store.Store {
 			created: stampBack, updated: stampBack, completed: stampBack, logged: 60 + i*5, due: stampDay,
 		})
 	}
-	return fixtureStore(t, tasks,
+	s := fixtureStore(t, tasks,
 		fixtureProject{name: "college/dbms", color: "blue", course: &core.Course{Code: "DBMS", Name: "Database Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "A"}},
 		fixtureProject{name: "college/os", color: "green", course: &core.Course{Code: "OS", Name: "Operating Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "B+"}},
 		fixtureProject{name: "college/maths", color: "yellow", course: &core.Course{Code: "MAM", Name: "Mathematics", Semester: "2026-odd", Credits: 3, TargetGrade: "A"}},
 	)
+	// Seed ideas so the Home blank-ratio test exercises the IDEAS band.
+	seedIdeas(t, s.Root)
+	return reopenStore(t, s)
 }
 
 // Phase 4 data: two exams across two courses, topic progress on the nearest
@@ -274,6 +369,122 @@ func doneTasksFixture(t *testing.T) *store.Store {
 	})
 }
 
+// projectToolsFixture: a full project page's worth of data — two milestones
+// (one active, one planned), two dev-log entries, linked tasks, a temp git
+// repo with fixed-date commits (deterministic sparkline/streak) and a fake
+// gh on MTM_GH so the remote counts are canned. Everything date-related is
+// anchored to DumpFixedTime.
+func projectToolsFixture(t *testing.T) *store.Store {
+	ts := DumpFixedTime
+	stamp := ts.Format(core.TimestampFormat)
+	stampAt := func(daysBack int) string { return ts.AddDate(0, 0, daysBack).Format(core.TimestampFormat) }
+
+	// Temp git repo with fixed commit dates (author date drives %aI).
+	repo := t.TempDir()
+	gitEnv := append(os.Environ(),
+		"GIT_AUTHOR_NAME=mtm", "GIT_AUTHOR_EMAIL=mtm@example.invalid",
+		"GIT_COMMITTER_NAME=mtm", "GIT_COMMITTER_EMAIL=mtm@example.invalid")
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repo
+		cmd.Env = gitEnv
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	commits := []struct{ day, msg string }{
+		{"2026-09-10T10:00:00+00:00", "docs: syllabus import design"},
+		{"2026-10-06T10:00:00+00:00", "store: index ideas dir"},
+		{"2026-10-14T10:00:00+00:00", "tui: board card drag-and-drop"},
+		{"2026-10-14T18:00:00+00:00", "timer: stale accrual cap"},
+		{"2026-10-22T10:00:00+00:00", "sync: rework conflict screen"},
+		{"2026-10-22T15:00:00+00:00", "fix: duplicate task on merge"},
+		{"2026-10-28T10:00:00+00:00", "gauge: thin bars everywhere"},
+		{"2026-10-31T10:00:00+00:00", "grades: target met math"},
+		{"2026-11-02T10:00:00+00:00", "stats: streak from completion day"},
+		{"2026-11-05T10:00:00+00:00", "ideas: incubation cards"},
+		{"2026-11-06T10:00:00+00:00", "ical: milestone events"},
+	}
+	for i, c := range commits {
+		if err := os.WriteFile(filepath.Join(repo, fmt.Sprintf("f%d.txt", i)), []byte(c.msg+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git("add", "-A")
+		git("commit", "-q", "--date", c.day, "-m", c.msg)
+	}
+
+	tasks := []fixtureTask{
+		{id: "p00001", title: "Revise normalization", project: "college/dbms", status: "doing", priority: "high", kind: "study", created: stamp, updated: stamp, milestone: "ms0001"},
+		{id: "p00002", title: "Problem set 5", project: "college/dbms", status: "todo", priority: "medium", kind: "assignment", due: "2026-11-13", created: stamp, updated: stamp, milestone: "ms0001"},
+		{id: "p00003", title: "DB design doc", project: "college/dbms", status: "done", priority: "medium", kind: "task", created: stampAt(-4), updated: stampAt(-3), completed: stampAt(-3), milestone: "ms0002"},
+		{id: "p00004", title: "OS lab report", project: "college/os", status: "todo", priority: "low", kind: "task", created: stamp, updated: stamp},
+	}
+	s := fixtureStore(t, tasks,
+		fixtureProject{name: "college/dbms", color: "blue", course: &core.Course{Code: "DBMS", Name: "Database Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "A"}},
+		fixtureProject{name: "college/os", color: "green", course: &core.Course{Code: "OS", Name: "Operating Systems", Semester: "2026-odd", Credits: 4, TargetGrade: "B+"}},
+	)
+	root := s.Root
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	write := func(rel, content string) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("projects/college/dbms/milestones/ms0001-v0-1-study-mvp.md",
+		"---\nid: ms0001\ntitle: v0.1 — study MVP\ntarget: 2026-11-19\nstatus: active\ndescription: Course companion features\ncreated: "+stampAt(-18)+"\nupdated: "+stampAt(-2)+"\n---\nScope: quick-add, grades, syllabus import.\n")
+	write("projects/college/dbms/milestones/ms0002-v1-0-public-beta.md",
+		"---\nid: ms0002\ntitle: v1.0 — public beta\ntarget: 2027-01-30\nstatus: planned\ndescription: Open-source release\ncreated: "+stampAt(-6)+"\nupdated: "+stampAt(-6)+"\n---\n")
+	write("projects/college/dbms/devlog/2026-11-04-dl00001.md",
+		"---\nid: dl00001\ntitle: Week 2 wrap\nmood: flow\ntime_spent_minutes: 90\ntags:\n- study\ncreated: "+stampAt(-3)+"\n---\nER diagrams, then 3NF. Lost an hour to the foreign-key rabbit hole but the schema clicked.\n")
+	write("projects/college/dbms/devlog/2026-11-01-dl00002.md",
+		"---\nid: dl00002\ntitle: ER diagrams\ntime_spent_minutes: 45\ntags:\n- study\ncreated: "+stampAt(-6)+"\n---\nCrow's foot notation is opinionated and I respect it.\n")
+
+	// Link the repo + a fake gh on MTM_GH (fixed issue/PR payloads).
+	pyaml := filepath.Join(root, "projects", "college", "dbms", "project.yaml")
+	data, err := os.ReadFile(pyaml)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var proj map[string]any
+	if err := yaml.Unmarshal(data, &proj); err != nil {
+		t.Fatal(err)
+	}
+	proj["github"] = "loharrahulofficial-crypto/mtm"
+	proj["repo_path"] = repo
+	out, err := yaml.Marshal(proj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pyaml, out, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	fakeGH := filepath.Join(t.TempDir(), "gh")
+	script := "#!/bin/sh\n" +
+		"case \"$*\" in\n" +
+		"  \"auth status\"*) echo \"✓ Logged in to github.com\"; exit 0;;\n" +
+		"  \"issue list\"*) printf '%s' '[{\"number\":12,\"title\":\"Sync: duplicate task on merge\",\"url\":\"https://github.com/x/mtm/issues/12\"},{\"number\":9,\"title\":\"Waybar icon glitch on resumed timer\",\"url\":\"https://github.com/x/mtm/issues/9\"}]'; exit 0;;\n" +
+		"  \"pr list\"*) printf '%s' '[{\"number\":18,\"title\":\"board: column virtualization\",\"url\":\"https://github.com/x/mtm/pull/18\"}]'; exit 0;;\n" +
+		"esac\n" +
+		"exit 1\n"
+	if err := os.WriteFile(fakeGH, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MTM_GH", fakeGH)
+
+	return reopenStore(t, s)
+}
+
 var fixtures = map[string]func(t *testing.T) *store.Store{
 	"empty":        emptyFixture,
 	"populated":    twoTasksFixture,
@@ -284,6 +495,8 @@ var fixtures = map[string]func(t *testing.T) *store.Store{
 	"courses":      coursesFixture,
 	"boardColumns": boardColumnsFixture,
 	"exams":        examsFixture,
+	"ideas":        ideasFixture,
+	"projectTools": projectToolsFixture,
 }
 
 func dumpConfig() config.Config {
@@ -309,7 +522,7 @@ func renderFixture(t *testing.T, view, size, state string) string {
 }
 
 func TestDumpGolden(t *testing.T) {
-	views := []string{"home", "list", "board", "calendar", "courses", "focus", "stats"}
+	views := []string{"home", "list", "board", "calendar", "courses", "focus", "stats", "ideas", "project", "roadmap", "devlog"}
 	sizes := []string{"80x24", "120x40", "200x50"}
 	states := []string{"empty", "populated"}
 
@@ -362,7 +575,7 @@ func TestDumpGolden(t *testing.T) {
 				})
 			}
 			// Richer states at the canonical size.
-			for _, state := range []string{"manyTasks", "longTitles", "subtasks", "courses", "boardColumns", "exams"} {
+			for _, state := range []string{"manyTasks", "longTitles", "subtasks", "courses", "boardColumns", "exams", "ideas", "projectTools"} {
 				t.Run(view+"_"+size+"_"+state, func(t *testing.T) {
 					if size != "120x40" {
 						t.Skip("rich states only at 120x40")

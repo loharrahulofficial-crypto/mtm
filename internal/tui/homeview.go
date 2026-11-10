@@ -105,6 +105,14 @@ func homeLayout(m Model, w, h int) [][]homeRect {
 
 	sideBySide := w >= 110
 
+	// Ideas band (small, wide terminals only): up to 3 open ideas, one line
+	// each. Absent when there is nothing open to show.
+	ideaCount := len(homeIdeas(m, 3))
+	ideaBand := 0
+	if ideaCount > 0 && w >= 110 {
+		ideaBand = ideaCount + 2 // title row + bottom row are the panel chrome
+	}
+
 	weekH := chartNat
 	if sideBySide {
 		// Both panels share one band. The chart keeps ≥4 interior rows
@@ -126,9 +134,9 @@ func homeLayout(m Model, w, h int) [][]homeRect {
 			if weekH > mid {
 				mid = weekH
 			}
-			return row1H + examsH + mid + heatH
+			return row1H + examsH + mid + heatH + ideaBand
 		}
-		return row1H + examsH + coursesH + weekH + heatH
+		return row1H + examsH + coursesH + weekH + heatH + ideaBand
 	}
 	// Starvation: shrink THIS WEEK, then EXAMS, then COURSES, then row1;
 	// the heatmap degrades to its floor last (its content drops the
@@ -144,6 +152,10 @@ func homeLayout(m Model, w, h int) [][]homeRect {
 			coursesH--
 		case row1H > 5:
 			row1H--
+		case ideaBand > 4:
+			ideaBand-- // shrink to a 1-line idea before dropping the band
+		case ideaBand > 0:
+			ideaBand = 0
 		case heatH > heatMin:
 			heatH--
 		case examsH > 0:
@@ -164,7 +176,7 @@ func homeLayout(m Model, w, h int) [][]homeRect {
 	} else if coursesH > weekH {
 		midH = coursesH
 	}
-	upH := avail - row1H - examsH - midH - heatH
+	upH := avail - row1H - examsH - midH - heatH - ideaBand
 	if upH > upIdeal {
 		upH = upIdeal
 	}
@@ -197,6 +209,10 @@ func homeLayout(m Model, w, h int) [][]homeRect {
 	} else {
 		band("COURSES", coursesH)
 		band("THIS WEEK", weekH)
+	}
+	if ideaBand > 0 {
+		b = append(b, []homeRect{{"IDEAS", 0, y, w, ideaBand}})
+		y += ideaBand
 	}
 	band("UP NEXT", upH)
 	band("HEATMAP", heatH)
@@ -253,8 +269,14 @@ func renderHomeBody(m Model, w, h int) []string {
 				body = thisWeekBody(m, r.w-2, r.h-2, d)
 			case "HEATMAP":
 				body = heatmapBody(m, r.w-2, r.h-2, d)
+			case "IDEAS":
+				body = homeIdeasBody(m, r.w-2, r.h-2)
 			}
-			rendered = append(rendered, splitPane(m, r.title, r.w, r.h, m.focus == focusMain && r.title == "TODAY", body))
+			panelTitle := r.title
+			if r.title == "IDEAS" {
+				panelTitle = fmt.Sprintf("IDEAS · %d open", len(homeIdeas(m, 9999)))
+			}
+			rendered = append(rendered, splitPane(m, panelTitle, r.w, r.h, m.focus == focusMain && r.title == "TODAY", body))
 		}
 		bandLines := rendered[0]
 		if len(rendered) > 1 {

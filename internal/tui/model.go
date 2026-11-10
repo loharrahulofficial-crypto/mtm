@@ -32,6 +32,7 @@ const (
 	viewCalendar
 	viewCourses
 	viewStats
+	viewIdeas
 )
 
 type focusID int
@@ -66,6 +67,7 @@ const (
 	inputDue
 	inputTags
 	inputTitle
+	inputIdea
 )
 
 type pickerKind int
@@ -73,6 +75,7 @@ type pickerKind int
 const (
 	pickerStatus pickerKind = iota
 	pickerPriority
+	pickerRating
 )
 
 type syncState int
@@ -181,8 +184,12 @@ type Model struct {
 	confirmYes   func(m *Model) tea.Cmd
 
 	// notes editor
-	notes   textarea.Model
-	notesID string
+	notes     textarea.Model
+	notesID   string
+	notesKind string // "task" (default) | "idea"
+
+	// github link state (keyed by project name)
+	github map[string]*actions.GitHubInfo
 
 	// conflict screen
 	conflicts      []string
@@ -202,6 +209,18 @@ type Model struct {
 	// stats view (master-detail like courses; the detail pane scrolls)
 	statsSel    int
 	statsScroll int
+
+	// ideas view (cards grouped by status)
+	ideaSel    int
+	ideaScroll int
+
+	// project page (tabbed overlay, opened with enter on a sidebar project)
+	projectPage   string
+	projectReturn viewID
+	projectTab    int
+	projectSel    int // tasks row / milestone selection
+	projectScroll int // body scroll inside the current tab (dev-log)
+	roadmapPan    int // roadmap window shift in days (±84/+112)
 
 	// command palette
 	paletteQuery  string
@@ -276,6 +295,7 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 		conflictDone:   map[string]bool{},
 		conflictReturn: modeNormal,
 		hasRemote:      repo.HasRemote(cfg.Sync.Remote),
+		github:         map[string]*actions.GitHubInfo{},
 		spinner:        sp,
 		lastSync:       time.Time{},
 		icons:          buildIcons(cfg.UI.Icons),

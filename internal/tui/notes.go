@@ -21,16 +21,27 @@ func editorCommand(editorCmd, path string) *exec.Cmd {
 }
 
 func (m Model) openNotesInEditor() (tea.Model, tea.Cmd) {
-	t := m.selectedTask()
-	if t == nil {
-		return m, nil
+	var body string
+	isIdea := m.notesKind == "idea"
+	if isIdea {
+		i := m.findIdeaByID(m.notesID)
+		if i == nil {
+			return m, nil
+		}
+		body = i.Body
+	} else {
+		t := m.selectedTask()
+		if t == nil {
+			return m, nil
+		}
+		body = t.Body
 	}
 	temp, err := os.CreateTemp("", "mtm-notes-*.md")
 	if err != nil {
 		m.statusMsg = err.Error()
 		return m, nil
 	}
-	if _, err := temp.WriteString(t.Body); err != nil {
+	if _, err := temp.WriteString(body); err != nil {
 		temp.Close()
 		os.Remove(temp.Name())
 		m.statusMsg = err.Error()
@@ -74,11 +85,28 @@ func (m Model) handleEditorDone(msg editorDoneMsg) (tea.Model, tea.Cmd) {
 			m.statusMsg = err.Error()
 			return m, nil
 		}
+		body := string(data)
+		if m.notesKind == "idea" {
+			i := m.findIdeaByID(m.notesID)
+			if i == nil {
+				return m, nil
+			}
+			if i.Body != body {
+				i.Body = body
+				if err := m.store.UpdateIdea(i); err != nil {
+					m.statusMsg = err.Error()
+					return m, nil
+				}
+				m.statusMsg = "notes saved " + i.ID
+				return m, m.afterChange("note: " + i.Title)
+			}
+			m.statusMsg = "no changes"
+			return m, nil
+		}
 		t := m.selectedTask()
 		if t == nil {
 			return m, nil
 		}
-		body := string(data)
 		if t.Body != body {
 			t.Body = body
 			if err := m.store.Update(t); err != nil {
@@ -149,7 +177,11 @@ func relToRoot(root, path string) string {
 func (m Model) renderNotesEditor(w, h int) string {
 	s := m.styles
 	header := " notes "
-	if t := m.findTaskByID(m.notesID); t != nil {
+	if m.notesKind == "idea" {
+		if i := m.findIdeaByID(m.notesID); i != nil {
+			header = " notes — " + i.ID + "  " + truncatePlain(i.Title, w-16)
+		}
+	} else if t := m.findTaskByID(m.notesID); t != nil {
 		header = " notes — " + t.ID + "  " + truncatePlain(t.Title, w-16)
 	}
 	if h < 3 {

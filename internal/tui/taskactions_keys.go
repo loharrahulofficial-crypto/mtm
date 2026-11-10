@@ -190,6 +190,7 @@ func (m Model) openNotesEditor() Model {
 		return m
 	}
 	m.mode = modeNotes
+	m.notesKind = "task"
 	m.notesID = t.ID
 	ta := textarea.New()
 	ta.ShowLineNumbers = false
@@ -217,6 +218,30 @@ func (m Model) updateNotesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) saveNotesAndClose() (tea.Model, tea.Cmd) {
+	if m.notesKind == "idea" {
+		i := m.findIdeaByID(m.notesID)
+		if i == nil {
+			m.mode = modeNormal
+			return m, nil
+		}
+		body := m.notes.Value()
+		if strings.TrimRight(i.Body, "\n") == strings.TrimRight(body, "\n") {
+			m.mode = modeNormal
+			m.notesKind = "task"
+			return m, nil
+		}
+		i.Body = body
+		if err := m.store.UpdateIdea(i); err != nil {
+			m.statusMsg = "notes: " + err.Error()
+			m.mode = modeNormal
+			m.notesKind = "task"
+			return m, nil
+		}
+		m.statusMsg = "notes saved " + i.ID
+		m.mode = modeNormal
+		m.notesKind = "task"
+		return m, m.afterChange("note: " + i.Title)
+	}
 	t := m.findTaskByID(m.notesID)
 	if t == nil {
 		m.mode = modeNormal

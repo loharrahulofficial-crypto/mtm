@@ -15,6 +15,7 @@ const (
 	aViewCalendar       = "view_calendar"
 	aViewCourses        = "view_courses"
 	aViewStats          = "view_stats"
+	aViewIdeas          = "view_ideas"
 	aCycleView          = "cycle_view"
 	aFocus              = "focus"
 	aPalette            = "palette"
@@ -57,10 +58,11 @@ const (
 	aMonthPrev          = "month_prev"
 	aMonthNext          = "month_next"
 	aGrade              = "grade"
+	aRate               = "rate"
 )
 
 var actionOrder = []string{
-	aQuit, aViewHome, aViewList, aViewBoard, aViewCalendar, aViewCourses, aViewStats, aCycleView, aFocus, aPalette,
+	aQuit, aViewHome, aViewList, aViewBoard, aViewCalendar, aViewCourses, aViewStats, aViewIdeas, aCycleView, aFocus, aPalette,
 	aUp, aDown, aLeft, aRight, aTop, aBottom, aPageDown, aPageUp,
 	aSearch, aSearchNext, aSearchPrev, aPaletteColon,
 	aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle,
@@ -68,7 +70,7 @@ var actionOrder = []string{
 	aDetail, aSidebar, aFocusLeft, aFocusRight, aConflicts, aHelp,
 	aToggleCalendarDone,
 	aEnter,
-	aJumpLeft, aJumpRight, aMonthPrev, aMonthNext, aGrade,
+	aJumpLeft, aJumpRight, aMonthPrev, aMonthNext, aGrade, aRate,
 }
 
 var actionDescriptions = map[string]string{
@@ -79,6 +81,7 @@ var actionDescriptions = map[string]string{
 	aViewCalendar:       "calendar view",
 	aViewCourses:        "course dashboard",
 	aViewStats:          "stats view",
+	aViewIdeas:          "ideas view",
 	aCycleView:          "cycle views",
 	aFocus:              "focus current task",
 	aPalette:            "command palette",
@@ -119,6 +122,7 @@ var actionDescriptions = map[string]string{
 	aMonthPrev:          "prev month (calendar)",
 	aMonthNext:          "next month (calendar)",
 	aGrade:              "record a grade (courses)",
+	aRate:               "rate the selected idea 1-5",
 	aEnter:              "open the selected course's tasks",
 	aToggleCalendarDone: "calendar: show/hide completed tasks",
 }
@@ -140,6 +144,7 @@ func DefaultKeyMap() KeyMap {
 		aViewCalendar: "3",
 		aViewCourses:  "4",
 		aViewStats:    "5",
+		aViewIdeas:    "6",
 		aCycleView:    "tab",
 		aFocus:        "F",
 		aPalette:      "ctrl+p",
@@ -183,6 +188,7 @@ func DefaultKeyMap() KeyMap {
 		aMonthPrev:          "J",
 		aMonthNext:          "K",
 		aGrade:              "g",
+		aRate:               "r",
 	}}
 }
 

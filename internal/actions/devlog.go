@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -135,22 +134,4 @@ func parseStampOK(s string) (time.Time, bool) {
 		}
 	}
 	return time.Time{}, false
-}
-
-// expandHome expands a leading ~ (kept local to avoid importing config here).
-func expandHome(p string) string {
-	p = strings.TrimSpace(p)
-	if p == "~" {
-		if h, err := os.UserHomeDir(); err == nil {
-			return h
-		}
-		return p
-	}
-	if strings.HasPrefix(p, "~/") {
-		if h, err := os.UserHomeDir(); err == nil {
-			return h + p[1:]
-		}
-		return p
-	}
-	return p
 }

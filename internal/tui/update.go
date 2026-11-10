@@ -58,14 +58,48 @@ const (
 	pendingKeyTimeout = 700 * time.Millisecond
 )
 
-// Init starts the background sync, the theme poll and the 1-second timer tick.
+// Init starts the background sync, the theme poll, the 1-second timer tick
+// and — for every linked project (bounded) — the GitHub load that feeds the
+// sidebar/Home streak chips and the project Overview.
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.kickSyncCmd(),
 		tea.Tick(themePollInterval, func(t time.Time) tea.Msg { return themeTickMsg(t) }),
 		m.spinner.Tick,
 		tea.Tick(time.Second, func(time.Time) tea.Msg { return timerTickMsg{} }),
+		m.kickGitHubAll(),
 	)
+}
+
+// kickGitHubAll kicks off background loads for linked projects. Cheap no-op
+// when nothing is linked (the common case).
+func (m Model) kickGitHubAll() tea.Cmd {
+	cmds := []tea.Cmd{}
+	projects, _ := m.store.ListProjects()
+	for i, p := range projects {
+		if i >= 8 {
+			break // bound the startup fan-out
+		}
+		cmd := m.githubLoadCmdFor(p.Name)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	if len(cmds) == 0 {
+		return nil
+	}
+	return tea.Batch(cmds...)
+}
+
+// githubLoadCmdFor kicks one background GitHub load when the project is
+// linked — the same trigger the project page uses, but callable at startup
+// too. Loads are idempotent refreshes, not cached against a session.
+func (m *Model) githubLoadCmdFor(project string) tea.Cmd {
+	p, err := m.store.GetProject(project)
+	if err != nil || (p.GitHub == "" && p.RepoPath == "") {
+		return nil
+	}
+	return m.githubLoadCmd(project)
 }
 
 func (m Model) kickSyncCmd() tea.Cmd {
@@ -145,6 +179,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case timerTickMsg:
 		return m.handleTimerTick()
+
+	case githubInfoMsg:
+		return m.handleGitHubInfo(msg)
 
 	case animTickMsg:
 		if m.animFrame > 1 {

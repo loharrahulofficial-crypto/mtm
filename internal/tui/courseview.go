@@ -161,7 +161,7 @@ func sortExamsByDays(exams []courseExam) {
 func mainPaneSize(m Model) (w, h int) {
 	sidebarW := sideWidth(m.width, m.sidebarHidden)
 	detailW := detailWidth(m.width, m.detailOn)
-	if m.view == viewCourses || m.view == viewStats {
+	if m.view == viewCourses || m.view == viewStats || m.view == viewIdeas {
 		detailW = 0 // read-only dashboards; no detail pane
 	}
 	gutters := 0

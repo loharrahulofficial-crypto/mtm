@@ -26,7 +26,7 @@ var DumpFixedTime = time.Date(2026, 11, 7, 14, 32, 0, 0, time.UTC)
 // blank-ratio test) renders: fixed clock, fixed default theme, nerd icons
 // unless cfg says otherwise, focus pinned to the first row.
 //
-// view: home|list|board|calendar|courses|focus|stats
+// view: home|list|board|calendar|courses|focus|stats|ideas|project|roadmap|devlog
 func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, t time.Time) Model {
 	s.Clock = clock.Fixed(t)
 
@@ -46,6 +46,15 @@ func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view stri
 		m.view = viewCourses
 	case "stats":
 		m.view = viewStats
+	case "ideas":
+		m.view = viewIdeas
+		m.ideaSel = 0
+	case "project":
+		m = openDumpProject(m, projectTabOverview)
+	case "roadmap":
+		m = openDumpProject(m, projectTabRoadmap)
+	case "devlog":
+		m = openDumpProject(m, projectTabDevlog)
 	case "focus":
 		m.view = viewList
 		if task := m.selectedTask(); task != nil {
@@ -68,9 +77,9 @@ func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view stri
 // RenderDump renders exactly one deterministic frame of the requested view.
 func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, noColor bool, t time.Time) (string, error) {
 	switch view {
-	case "home", "list", "board", "calendar", "courses", "focus", "stats":
+	case "home", "list", "board", "calendar", "courses", "focus", "stats", "ideas", "project", "roadmap", "devlog":
 	default:
-		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|courses|focus|stats)", view)
+		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|courses|focus|stats|ideas|project|roadmap|devlog)", view)
 	}
 	m := BuildDumpModel(cfg, s, repo, view, w, h, t)
 	frame := m.View()
@@ -78,6 +87,32 @@ func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, 
 		frame = StripANSI(frame)
 	}
 	return frame, nil
+}
+
+// openDumpProject opens the project page on the fixture's representative
+// project (college/dbms when present, else the first project, else inbox)
+// and executes the background GitHub load synchronously so the rendered
+// frame is deterministic.
+func openDumpProject(m Model, tab int) Model {
+	name := "college/dbms"
+	if !m.store.ProjectExists(name) {
+		projects, _ := m.store.ListProjects()
+		if len(projects) > 0 {
+			name = projects[0].Name
+		} else {
+			name = "inbox"
+		}
+	}
+	cmd := m.openProjectPage(name, tab)
+	if cmd == nil {
+		return m
+	}
+	msg := cmd()
+	if infoMsg, ok := msg.(githubInfoMsg); ok {
+		updated, _ := m.handleGitHubInfo(infoMsg)
+		return updated
+	}
+	return m
 }
 
 var (

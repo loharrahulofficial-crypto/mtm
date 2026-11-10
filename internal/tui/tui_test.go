@@ -454,12 +454,16 @@ func TestViewSwitchingAndTab(t *testing.T) {
 		t.Fatal("tab 3 -> want Stats")
 	}
 	m = press(t, m, "tab")
+	if m.view != viewIdeas {
+		t.Fatal("tab 4 -> want Ideas")
+	}
+	m = press(t, m, "tab")
 	if m.view != viewHome {
-		t.Fatal("tab 4 -> want Home")
+		t.Fatal("tab 5 -> want Home")
 	}
 	m = press(t, m, "tab")
 	if m.view != viewList {
-		t.Fatal("tab 5 -> want List")
+		t.Fatal("tab 6 -> want List")
 	}
 	// Direct jump with its key.
 	m = press(t, m, "4")

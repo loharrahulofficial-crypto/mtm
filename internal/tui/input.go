@@ -46,6 +46,20 @@ func (m Model) submitInput() (tea.Model, tea.Cmd) {
 		return m, nil
 	case inputAdd:
 		return m.submitQuickAdd(value, "")
+	case inputIdea:
+		m.mode = modeNormal
+		m.input.Blur()
+		if value == "" {
+			m.statusMsg = "idea text required"
+			return m, nil
+		}
+		i, err := actions.AddIdea(m.store, value, nil, 0)
+		if err != nil {
+			m.statusMsg = err.Error()
+			return m, nil
+		}
+		m.statusMsg = "idea " + i.ID + "  " + i.Title
+		return m, m.afterChange("idea: " + i.Title)
 	case inputSubtask:
 		parent := ""
 		if t := m.selectedTask(); t != nil {
@@ -351,6 +365,44 @@ func (m Model) execCommand(value string) (tea.Model, tea.Cmd) {
 		m.view = viewStats
 		m.statsScroll = 0
 		return m, nil
+	case "ideas", "view6":
+		m.view = viewIdeas
+		m.ideaSel = 0
+		m.ideaScroll = 0
+		return m, nil
+	case "idea":
+		if arg == "" {
+			m.statusMsg = "usage: :idea <title>"
+			return m, nil
+		}
+		i, err := actions.AddIdea(m.store, arg, nil, 0)
+		if err != nil {
+			m.statusMsg = err.Error()
+			return m, nil
+		}
+		m.statusMsg = "idea " + i.ID + "  " + i.Title
+		return m, m.afterChange("idea: " + i.Title)
+	case "roadmap":
+		project := ""
+		if sel := m.sidebarSelection(); sel != nil {
+			switch sel.Kind {
+			case "project", "course":
+				project = sel.Key
+			}
+		}
+		if project == "" {
+			if t := m.selectedTask(); t != nil {
+				project = t.Project
+			}
+		}
+		if project == "" {
+			project = m.cfg.DefaultProject
+		}
+		if _, err := m.store.GetProject(project); err != nil {
+			m.statusMsg = fmt.Sprintf("no project %q — :roadmap needs a project (select one in the sidebar first)", project)
+			return m, nil
+		}
+		return m, m.openProjectPage(project, projectTabRoadmap)
 	case "quit", "q":
 		return m.quitWithFlush()
 	case "help":
@@ -505,6 +557,23 @@ func (m Model) pickerAccept() (Model, tea.Cmd) {
 		return m, nil
 	}
 	choice := m.pickerItems[m.pickerSel]
+	if m.picker == pickerRating {
+		i := m.selectedIdea()
+		if i == nil {
+			return m, nil
+		}
+		r, err := core.ParseRating(choice)
+		if err != nil {
+			return m, nil
+		}
+		i.Rating = r
+		if err := m.store.UpdateIdea(i); err != nil {
+			m.statusMsg = err.Error()
+			return m, nil
+		}
+		m.statusMsg = "idea " + i.ID + " rated " + choice + "/5"
+		return m, m.afterChange("idea rate: " + i.Title)
+	}
 	t := m.selectedTask()
 	if t == nil {
 		return m, nil

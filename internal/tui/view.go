@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -22,6 +23,22 @@ func (m Model) View() string {
 	if m.mode == modeFocus {
 		return normalizeBlock(m.renderFocus(), m.width, m.height, baseColor)
 	}
+	if m.projectPage != "" {
+		page := m.renderProjectPage(m.width, m.height-1)
+		footer := m.renderFooterBar(m.width)
+		screen := lipgloss.JoinVertical(lipgloss.Left, page, footer)
+		switch m.mode {
+		case modeHelp:
+			return overlay(m.width, m.height, screen, renderHelpBox(m.keymap, m.styles, m.width), baseColor)
+		case modeConfirm:
+			return overlay(m.width, m.height, screen, m.renderConfirmBox(), baseColor)
+		case modePicker:
+			return overlay(m.width, m.height, screen, m.renderPickerBox(), baseColor)
+		case modePalette:
+			return overlay(m.width, m.height, screen, m.renderPaletteBox(), baseColor)
+		}
+		return normalizeBlock(screen, m.width, m.height, baseColor)
+	}
 
 	contentH := m.height - 1 // footer
 
@@ -32,6 +49,9 @@ func (m Model) View() string {
 	}
 	if m.view == viewStats {
 		detailW = 0 // stats view is read-only; no detail pane
+	}
+	if m.view == viewIdeas {
+		detailW = 0 // ideas are notes; the panel is the room
 	}
 	mainW, _ := mainPaneSize(m)
 
@@ -85,6 +105,9 @@ func (m Model) renderMain(w, h int) string {
 		return renderCoursesBody(m, w, h)
 	case viewStats:
 		return renderStatsBody(m, w, h)
+	case viewIdeas:
+		open := len(m.store.Ideas())
+		return panel("IDEAS · "+fmt.Sprintf("%d", open), renderIdeasBody(m, w-2, h-2))
 	case viewBoard:
 		return panel("board", renderBoardBody(m, w-2, h-2))
 	case viewCalendar:

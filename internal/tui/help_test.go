@@ -109,6 +109,7 @@ func TestFooterPillsMatchKeymap(t *testing.T) {
 		m.keymap.Seq(aViewCalendar),
 		m.keymap.Seq(aViewCourses),
 		m.keymap.Seq(aViewStats),
+		m.keymap.Seq(aViewIdeas),
 	}
 	if len(pills) != len(want) {
 		t.Fatalf("pills = %d, want %d", len(pills), len(want))
