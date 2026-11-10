@@ -58,8 +58,8 @@ const minLayerContrast = 1.15
 // the minimum contrast between adjacent layers.
 func BuildRamps(p Palette) Ramps {
 	r := Ramps{
-		SkyTop:     blendHex(p.Base, p.Accent, 0.10),
-		SkyHorizon: blendHex(p.Base, p.Accent, 0.48),
+		SkyTop:     blendHex(blendHex(p.Base, "#000000", 0.40), p.Accent, 0.06),
+		SkyHorizon: blendHex(p.Base, p.Accent, 0.52),
 		Mid:        blendHex(p.Base, p.SurfaceStrong, 0.85),
 		Highlight:  blendHex(p.Base, p.BrightText, 0.52),
 		Glow:       p.BrightText,
