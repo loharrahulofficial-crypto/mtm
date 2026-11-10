@@ -347,15 +347,28 @@ func mustAtoi(s string) int {
 func BenchmarkScenes(b *testing.B) {
 	for _, scene := range Registered() {
 		for _, mode := range []string{ModeHalfblock, ModeBraille, ModeASCII} {
-			b.Run(scene+"/"+mode, func(b *testing.B) {
-				s := New(scene, mode)
-				st := stateFor(0.5, PhaseWork)
-				b.ReportAllocs()
-				b.ResetTimer()
-				for i := 0; i < b.N; i++ {
-					_ = s.Frame(time.Duration(i)*time.Second/10, 100, 30, st)
-				}
-			})
+			for _, size := range [][2]int{{40, 14}, {100, 30}} {
+				name := fmt.Sprintf("%s/%s/%dx%d", scene, mode, size[0], size[1])
+				b.Run(name, func(b *testing.B) {
+					s := New(scene, mode)
+					st := stateFor(0.5, PhaseWork)
+					m := ReportBytes(mode, size[0], size[1])
+					bytes := 0
+					for k, v := range m {
+						if k == scene {
+							bytes = v
+						}
+					}
+					b.ResetTimer()
+					b.ReportAllocs()
+					if bytes > 0 {
+						b.ReportMetric(float64(bytes), "bytes/frame")
+					}
+					for i := 0; i < b.N; i++ {
+						_ = s.Frame(time.Duration(i)*time.Second/10, size[0], size[1], st)
+					}
+				})
+			}
 		}
 	}
 }
