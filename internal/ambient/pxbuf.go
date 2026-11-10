@@ -43,6 +43,7 @@ type fbuf struct {
 	sw, sh int
 	pw, ph int
 	px     []fpix
+	ink    []float32 // per-pixel ink coverage (non-background paint)
 }
 
 const fSS = 2 // supersampling factor per axis
@@ -66,9 +67,17 @@ func newFBuffer(sw, sh int) *fbuf {
 		for i := range fb.px {
 			fb.px[i] = fpix{}
 		}
+		if cap(v.ink) >= need {
+			fb.ink = v.ink[:need]
+			for i := range fb.ink {
+				fb.ink[i] = 0
+			}
+		} else {
+			fb.ink = make([]float32, need)
+		}
 		return fb
 	}
-	return &fbuf{sw: sw, sh: sh, pw: pw, ph: ph, px: make([]fpix, need)}
+	return &fbuf{sw: sw, sh: sh, pw: pw, ph: ph, px: make([]fpix, need), ink: make([]float32, need)}
 }
 
 // release returns the raster to the pool.
@@ -85,6 +94,31 @@ func (b *fbuf) baseFill(r, g, bl float32) {
 	for i := range b.px {
 		b.px[i] = fpix{r, g, bl, 1}
 	}
+}
+
+// inkLum returns a 0..1 perceived luminance for a float pixel.
+func inkLum(c fpix) float64 {
+	return 0.2126*float64(c.r) + 0.7152*float64(c.g) + 0.0722*float64(c.b)
+}
+
+// asciiGlyphInk maps ink coverage to a legibility glyph.
+func asciiGlyphInk(v float32) rune {
+	const ramp = " ·:-=+*#%@"
+	t := clampf(float64(v)/0.9, 0, 1)
+	return rune(ramp[int(t*float64(len(ramp)-1)+0.5)])
+}
+
+// inkAt adds coverage to the ink raster at pixel (x, y).
+func (b *fbuf) inkAt(x, y int, cov float32) {
+	if x < 0 || y < 0 || x >= b.pw || y >= b.ph {
+		return
+	}
+	i := y*b.pw + x
+	v := b.ink[i] + cov
+	if v > 1 {
+		v = 1
+	}
+	b.ink[i] = v
 }
 
 // blendPx composites a premultiplied source pixel at (x, y).
@@ -139,6 +173,7 @@ func (b *fbuf) fillRectF(x0, y0, x1, y1 float64, r, g, bl float32, alpha float64
 			}
 			cov := clampf((feather-math.Sqrt(d2))/feather, 0, 1)
 			b.blendPx(px, py, fpix{r, g, bl, float32(alpha * cov)}, o)
+			b.inkAt(px, py, float32(alpha*cov))
 		}
 	}
 }
@@ -167,6 +202,7 @@ func (b *fbuf) fillCircleF(cx, cy, radius float64, r, g, bl float32, alpha float
 				continue
 			}
 			b.blendPx(px, py, fpix{r, g, bl, float32(alpha * cov)}, o)
+			b.inkAt(px, py, float32(alpha*cov))
 		}
 	}
 }
@@ -191,6 +227,31 @@ func (b *fbuf) fillEllipseF(cx, cy, rx, ry float64, r, g, bl float32, alpha floa
 			}
 			cov := clampf((feather-d)/feather, 0, 1)
 			b.blendPx(px, py, fpix{r, g, bl, float32(alpha * cov)}, o)
+			b.inkAt(px, py, float32(alpha*cov))
+		}
+	}
+}
+
+// strokeCircleF strokes a ring (ripples, halos): an annulus SDF stroke.
+func (b *fbuf) strokeCircleF(cx, cy, radius, width float64, r, g, bl float32, alpha float64, o blendOp) {
+	fcx, fcy := cx*fSS, cy*fSS
+	fr := radius * fSS
+	fw := math.Max(width*fSS, 0.5)
+	feather := float64(fSS) * 0.75
+	px0 := int(math.Floor(fcx - fr - fw/2 - feather))
+	px1 := int(math.Ceil(fcx + fr + fw/2 + feather))
+	py0 := int(math.Floor(fcy - fr - fw/2 - feather))
+	py1 := int(math.Ceil(fcy + fr + fw/2 + feather))
+	for py := py0; py < py1; py++ {
+		for px := px0; px < px1; px++ {
+			dx, dy := float64(px)+0.5-fcx, float64(py)+0.5-fcy
+			dd := math.Abs(math.Sqrt(dx*dx+dy*dy)-fr) - fw/2
+			if dd >= feather {
+				continue
+			}
+			cov := clampf((feather-dd)/feather, 0, 1)
+			b.blendPx(px, py, fpix{r, g, bl, float32(alpha * cov)}, o)
+			b.inkAt(px, py, float32(alpha*cov))
 		}
 	}
 }
@@ -219,6 +280,7 @@ func (b *fbuf) strokeLineF(x0, y0, x1, y1, width float64, r, g, bl float32, alph
 				continue
 			}
 			b.blendPx(px, py, fpix{r, g, bl, float32(alpha * cov)}, o)
+			b.inkAt(px, py, float32(alpha*cov))
 		}
 	}
 }
@@ -265,6 +327,7 @@ func (b *fbuf) boxBlur(radius int) {
 }
 
 var downPool sync.Pool
+var inkPool sync.Pool
 
 // downsample box-averages each supersampled block into one subcell pixel.
 // The returned slice is borrowed — callers must return it to the pool.
@@ -289,5 +352,30 @@ func (b *fbuf) downsample() []fpix {
 	return out
 }
 
-// releaseDownsample returns the downsample scratch buffer to the pool.
-func releaseDownsample(px []fpix) { downPool.Put(px) }
+// downsampleInk box-averages the ink raster (per subcell).
+func (b *fbuf) downsampleInk() []float32 {
+	v, ok := inkPool.Get().([]float32)
+	need := b.sw * b.sh
+	if !ok || cap(v) < need {
+		v = make([]float32, need)
+	}
+	out := v[:need]
+	for sy := 0; sy < b.sh; sy++ {
+		for sx := 0; sx < b.sw; sx++ {
+			var acc float32
+			for dy := 0; dy < fSS; dy++ {
+				for dx := 0; dx < fSS; dx++ {
+					acc += b.ink[(sy*fSS+dy)*b.pw+(sx*fSS+dx)]
+				}
+			}
+			out[sy*b.sw+sx] = acc / float32(fSS*fSS)
+		}
+	}
+	return out
+}
+
+// releaseDownsample returns the downsample scratch buffers to the pool.
+func releaseDownsample(px []fpix, ink []float32) {
+	downPool.Put(px)
+	inkPool.Put(ink)
+}

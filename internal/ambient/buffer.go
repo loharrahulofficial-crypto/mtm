@@ -159,26 +159,94 @@ func (b *buffer) paintChar(x0, y0, x1, y1 int, ch rune, ci int) {
 	}
 }
 
-// fillRectF proxies the float primitive so scenes can take it directly.
+// fillRectF / fillRectHexF: float-plane primitives; hex variants parse on
+// the spot (ramps produce hex strings).
 func (b *buffer) fillRectF(x0, y0, x1, y1 float64, ci int, alpha float64, o blendOp) {
 	r, g, bl := b.rgbF(ci)
 	b.fb.fillRectF(x0, y0, x1, y1, r, g, bl, alpha, o)
 }
 
-// fillCircleF / fillEllipseF / strokeLineF: float-coordinate primitives.
+func (b *buffer) fillRectHexF(x0, y0, x1, y1 float64, hex string, alpha float64, o blendOp) {
+	r, g, bl, ok := hexF(hex)
+	if !ok {
+		return
+	}
+	b.fb.fillRectF(x0, y0, x1, y1, r, g, bl, alpha, o)
+}
+
+// fillCircleF / fillCircleHexF: float-coordinate primitives.
 func (b *buffer) fillCircleF(cx, cy, radius float64, ci int, alpha float64, o blendOp) {
 	r, g, bl := b.rgbF(ci)
 	b.fb.fillCircleF(cx, cy, radius, r, g, bl, alpha, o)
 }
 
+func (b *buffer) fillCircleHexF(cx, cy, radius float64, hex string, alpha float64, o blendOp) {
+	r, g, bl, ok := hexF(hex)
+	if !ok {
+		return
+	}
+	b.fb.fillCircleF(cx, cy, radius, r, g, bl, alpha, o)
+}
+
+// fillEllipseF / fillEllipseHexF: ellipse fill.
 func (b *buffer) fillEllipseF(cx, cy, rx, ry float64, ci int, alpha float64, o blendOp) {
 	r, g, bl := b.rgbF(ci)
 	b.fb.fillEllipseF(cx, cy, rx, ry, r, g, bl, alpha, o)
 }
 
+func (b *buffer) fillEllipseHexF(cx, cy, rx, ry float64, hex string, alpha float64, o blendOp) {
+	r, g, bl, ok := hexF(hex)
+	if !ok {
+		return
+	}
+	b.fb.fillEllipseF(cx, cy, rx, ry, r, g, bl, alpha, o)
+}
+
+// strokeLineF / strokeHexF: arbitrary-slope strokes.
 func (b *buffer) strokeLineF(x0, y0, x1, y1, width float64, ci int, alpha float64, o blendOp) {
 	r, g, bl := b.rgbF(ci)
 	b.fb.strokeLineF(x0, y0, x1, y1, width, r, g, bl, alpha, o)
+}
+
+func (b *buffer) strokeHexF(x0, y0, x1, y1, width float64, hex string, alpha float64, o blendOp) {
+	r, g, bl, ok := hexF(hex)
+	if !ok {
+		return
+	}
+	b.fb.strokeLineF(x0, y0, x1, y1, width, r, g, bl, alpha, o)
+}
+
+// strokeCircleF / strokeCircleHexF: ring stroke (ripples, halos).
+func (b *buffer) strokeCircleF(cx, cy, radius, width float64, ci int, alpha float64, o blendOp) {
+	r, g, bl := b.rgbF(ci)
+	b.fb.strokeCircleF(cx, cy, radius, width, r, g, bl, alpha, o)
+}
+
+func (b *buffer) strokeCircleHexF(cx, cy, radius, width float64, hex string, alpha float64, o blendOp) {
+	r, g, bl, ok := hexF(hex)
+	if !ok {
+		return
+	}
+	b.fb.strokeCircleF(cx, cy, radius, width, r, g, bl, alpha, o)
+}
+
+// fillGradientHex paints a vertical hex-to-hex gradient.
+func (b *buffer) fillGradientHex(x0, y0, x1, y1 float64, topHex, botHex string, alpha float64, o blendOp) {
+	tr, tg, tb, ok1 := hexF(topHex)
+	br, bg, bb, ok2 := hexF(botHex)
+	if !ok1 || !ok2 {
+		return
+	}
+	b.fb.fillGradientF(x0, y0, x1, y1, tr, tg, tb, br, bg, bb, alpha, o)
+}
+
+// hexF parses #rrggbb into float channels.
+func hexF(hex string) (float32, float32, float32, bool) {
+	c, ok := parseHex(hex)
+	if !ok {
+		return 0, 0, 0, false
+	}
+	return float32(c.r) / 255, float32(c.g) / 255, float32(c.b) / 255, true
 }
 
 // blur softens the raster in place (box blur, radius in pixels).
@@ -239,6 +307,7 @@ func (p *paletteModel) isBase(c fpix) bool {
 func (b *buffer) render(p *paletteModel, w, h int) []Line {
 	b.palette = p
 	px := b.fb.downsample()
+	ink := b.fb.downsampleInk()
 	for i := range px {
 		px[i] = p.clampHull(px[i])
 	}
@@ -297,16 +366,19 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 			var sb strings.Builder
 			for tx := 0; tx < w; tx++ {
 				bits := 0
-				best := -1
+				bestLum := -1.0
+				bestRGB := rgbPix{}
 				for dy := 0; dy < 4; dy++ {
 					for dx := 0; dx < 2; dx++ {
-						c := b.sub(tx*2+dx, ty*4+dy)
-						if c.ch == 0 && c.c == 0 {
+						i2 := (ty*4+dy)*b.sw + tx*2 + dx
+						if ink[i2] <= 0.22 {
 							continue
 						}
+						c := px[i2]
 						bits |= brailleDot(dx, dy)
-						if best < 0 || p.lum[c.c] > p.lum[best] {
-							best = c.c
+						if l := inkLum(c); l > bestLum {
+							bestLum = l
+							bestRGB = rgbPix{quantize(c.r), quantize(c.g), quantize(c.b)}
 						}
 					}
 				}
@@ -314,7 +386,7 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 					sb.WriteString(" ")
 					continue
 				}
-				sb.WriteString(fmt.Sprintf("\x1b[38;2;%sm%c", rgbTriplet(hexToRGB(p.hexAt(best))), rune(0x2800+bits)))
+				sb.WriteString(fmt.Sprintf("\x1b[38;2;%sm%c", rgbTriplet(bestRGB.r, bestRGB.g, bestRGB.b), rune(0x2800+bits)))
 			}
 			sb.WriteString("\x1b[0m")
 			out = append(out, sb.String())
@@ -323,16 +395,14 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 		for ty := 0; ty < h; ty++ {
 			var sb strings.Builder
 			for tx := 0; tx < w; tx++ {
-				c := b.sub(tx, ty)
-				if c.ch == 0 && c.c == 0 {
+				i2 := ty*b.sw + tx
+				c := px[i2]
+				if ink[i2] <= 0.07 {
 					sb.WriteString(" ")
 					continue
 				}
-				ch := c.ch
-				if ch == 0 {
-					ch = '·'
-				}
-				sb.WriteString(fmt.Sprintf("\x1b[38;2;%sm%c", rgbTriplet(hexToRGB(p.hexAt(c.c))), ch))
+				ch := asciiGlyphInk(ink[i2])
+				sb.WriteString(fmt.Sprintf("\x1b[38;2;%sm%c", rgbTriplet(quantize(c.r), quantize(c.g), quantize(c.b)), ch))
 			}
 			sb.WriteString("\x1b[0m")
 			out = append(out, sb.String())
@@ -344,7 +414,7 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 	}
 	b.bytes = total
 	b.fb.release()
-	releaseDownsample(px)
+	releaseDownsample(px, ink)
 	return out
 }
 
