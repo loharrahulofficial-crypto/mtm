@@ -6,7 +6,7 @@ COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X $(MODULE)/internal/cli.version=$(VERSION) -X $(MODULE)/internal/cli.commit=$(COMMIT) -X $(MODULE)/internal/cli.buildDate=$(DATE)
 
-.PHONY: build install uninstall test vet fmt man demo smoke check clean scenes-gallery
+.PHONY: build install uninstall test vet fmt man demo smoke check clean scenes-gallery perf
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/mtm
@@ -19,6 +19,16 @@ man: build
 # Your real data is never touched; the sandbox is deleted on exit.
 demo: build
 	@sh contrib/demo.sh bin/$(BINARY)
+
+# Measure idle CPU and paint cost under a pty in a throwaway sandbox.
+# Runs the four shipping scenarios (120x40; override with PERF_ARGS) and
+# prints user+sys CPU time, paints/s, bytes/paint, allocations/paint and
+# the top 15 pprof functions. The idle-ambient-5m scenario runs 5 minutes;
+# PERF_DURATION shortens it for a quick check.
+# Example: make perf            make perf PERF_ARGS="--duration 10 home-ambient-off"
+PERF_ARGS ?=
+perf: build
+	@python3 contrib/perf.py $(PERF_ARGS)
 
 # End-to-end smoke run against a throwaway sandbox (temp HOME + XDG roots,
 # MTM_SANDBOX=1). Always runs isolated; the sandbox is deleted on exit.

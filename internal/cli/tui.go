@@ -48,12 +48,13 @@ func newTuiCmd() *cobra.Command {
 	var renderMode, phase string
 	var ppmPath string
 	var ppmScale int
+	var profilePath string
 	cmd := &cobra.Command{
 		Use:   "tui",
 		Short: "Launch the interactive TUI (or, hidden, render one frame)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !dump {
-				return tui.Run()
+				return tui.Run(profilePath)
 			}
 			// Hidden verification path: render one frame and print it. Refuses
 			// to run outside a sandbox — this never touches real data.
@@ -119,6 +120,7 @@ func newTuiCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&profilePath, "profile", "", "write a CPU profile to FILE while the TUI runs (sandbox-only, like MTM_PPROF=cpu:FILE)")
 	cmd.Flags().BoolVar(&dump, "dump", false, "render one frame to stdout (hidden; requires MTM_SANDBOX=1 and temp XDG roots)")
 	cmd.Flags().StringVar(&view, "view", "home", "view to dump: home|list|board|calendar|courses|focus|stats")
 	cmd.Flags().StringVar(&size, "size", "120x40", "frame size as WxH, e.g. 120x40")
@@ -131,6 +133,7 @@ func newTuiCmd() *cobra.Command {
 	cmd.Flags().StringVar(&ppmPath, "ppm", "", "also write the frame as a binary PPM image to FILE (tool-only)")
 	cmd.Flags().IntVar(&ppmScale, "ppm-scale", 6, "PPM pixel scale per subcell (1..20)")
 	_ = cmd.Flags().MarkHidden("dump")
+	_ = cmd.Flags().MarkHidden("profile")
 	_ = cmd.Flags().MarkHidden("view")
 	_ = cmd.Flags().MarkHidden("size")
 	_ = cmd.Flags().MarkHidden("no-color")

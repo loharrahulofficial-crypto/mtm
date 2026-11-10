@@ -62,7 +62,7 @@ func NewRootCmd() *cobra.Command {
 			if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
 				return cmd.Help()
 			}
-			return tui.Run()
+			return tui.Run("")
 		},
 	}
 	root.PersistentFlags().BoolVar(&noAmbientFlag, "no-ambient", false, "disable all ambient scenes for this run")

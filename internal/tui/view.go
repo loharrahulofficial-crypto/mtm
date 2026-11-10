@@ -6,10 +6,18 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/loharrahulofficial-crypto/mtm/internal/perf"
 )
 
-// View renders the whole screen.
+// View renders the whole screen (and counts it for the profiling harness).
 func (m Model) View() string {
+	s := m.viewInner()
+	perf.CountView(len(s))
+	return s
+}
+
+func (m Model) viewInner() string {
 	if m.width == 0 || m.height == 0 {
 		return "loading…"
 	}

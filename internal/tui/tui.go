@@ -9,12 +9,20 @@ import (
 	"golang.org/x/term"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
+	"github.com/loharrahulofficial-crypto/mtm/internal/perf"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 )
 
-// Run opens the data repo and launches the interactive TUI.
-func Run() error {
+// Run opens the data repo and launches the interactive TUI. profilePath,
+// when non-empty (--profile FILE), requests a CPU profile exactly like
+// MTM_PPROF=cpu:FILE. Profiling refuses to start outside the sandbox.
+func Run(profilePath string) error {
+	stopProfile, err := perf.Setup(profilePath)
+	if err != nil {
+		return err
+	}
+	defer stopProfile()
 	cfg, err := config.Load()
 	if err != nil {
 		return err
