@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func writeState(t *testing.T, dir string, colorsToml string) {
@@ -100,9 +101,14 @@ func TestPollModTimeChanges(t *testing.T) {
 	if before.IsZero() {
 		t.Fatal("expected non-zero fingerprint")
 	}
-	// Touch a newer mtime on colors.toml.
+	// Touch a newer mtime on colors.toml (explicit: filesystem granularity
+	// can equal the original mtime on fast machines).
 	colors := filepath.Join(dir, "current", "theme", "colors.toml")
 	if err := os.WriteFile(colors, []byte(sampleColors+"# comment\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(colors, future, future); err != nil {
 		t.Fatal(err)
 	}
 	after := PollModTime(dir)
