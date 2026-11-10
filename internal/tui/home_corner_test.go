@@ -5,10 +5,12 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
@@ -239,5 +241,98 @@ func TestSceneCornerSitsInsideSurfaceBand(t *testing.T) {
 				break
 			}
 		}
+	}
+}
+
+// §5.2: the corner is now an optional larger panel — hidden while the
+// sidebar window is on; the corner-only surface (ambient=home) and the
+// sidebar-family with the window toggled off still show it.
+
+func ambientModel(t *testing.T, s *store.Store, mutate func(*config.Config), w, h int) Model {
+	t.Helper()
+	cfg := dumpConfig()
+	cfg.UI.Scene = "night"
+	mutate(&cfg)
+	return BuildDumpModel(cfg, s, sync.New(s.Root), "home", w, h, DumpFixedTime)
+}
+
+func normSpaces(s string) string {
+	return strings.Join(strings.FieldsFunc(s, unicode.IsSpace), " ")
+}
+
+func frameHasCorner(frame string) bool {
+	return strings.Contains(normSpaces(StripANSI(frame)), "A M B I E N T")
+}
+
+func frameHasSidebarWindow(frame string, sideW int) bool {
+	_, _, ok := windowSpan(frame, sideW)
+	return ok
+}
+
+func TestCornerHiddenWhenSidebarWindowOn(t *testing.T) {
+	s := emptyFixture(t)
+	defer func() { _ = s.Close() }()
+	m := ambientModel(t, s, func(c *config.Config) {}, 200, 50)
+	frame := m.View()
+	if frameHasCorner(frame) {
+		t.Fatal("corner rendered while the sidebar window is on")
+	}
+	if !frameHasSidebarWindow(frame, sideWidth(m.width, m.sidebarHidden)) {
+		t.Fatal("sidebar window missing at default config")
+	}
+}
+
+func TestCornerShownWhenSidebarWindowToggledOff(t *testing.T) {
+	s := emptyFixture(t)
+	defer func() { _ = s.Close() }()
+	m := ambientModel(t, s, func(c *config.Config) { c.UI.AmbientSidebar = false }, 200, 50)
+	frame := m.View()
+	if !frameHasCorner(frame) {
+		t.Fatal("corner hidden even though the sidebar window is off and ambient=both")
+	}
+	if frameHasSidebarWindow(frame, sideWidth(m.width, m.sidebarHidden)) {
+		t.Fatal("sidebar window rendered while ui.ambient_sidebar is false")
+	}
+}
+
+func TestCornerShownOnlyForHomeSurface(t *testing.T) {
+	for _, tc := range []struct {
+		ambient string
+		want    bool
+	}{
+		{"home", true},
+		{"both", false},
+		{"sidebar", false},
+		{"splash", false},
+		{"off", false},
+	} {
+		t.Run(tc.ambient, func(t *testing.T) {
+			s := emptyFixture(t)
+			defer func() { _ = s.Close() }()
+			m := ambientModel(t, s, func(c *config.Config) { c.UI.Ambient = tc.ambient }, 200, 50)
+			if got := frameHasCorner(m.View()); got != tc.want {
+				t.Errorf("ambient=%s: corner visible=%v, want %v", tc.ambient, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCornerIsTheLargerOptionalPanel(t *testing.T) {
+	s := emptyFixture(t)
+	defer func() { _ = s.Close() }()
+	m := ambientModel(t, s, func(c *config.Config) { c.UI.Ambient = "home" }, 200, 50)
+	_, mainW := mainPaneGeometry(m)
+	rect, ok := homeSceneCornerRect(m, mainW, m.height-1)
+	if !ok {
+		t.Fatal("corner rect missing on a 200x50 empty Home")
+	}
+	if rect.w != sceneCornerWidth {
+		t.Errorf("corner width = %d, want %d", rect.w, sceneCornerWidth)
+	}
+	if sceneCornerWidth <= 46 {
+		t.Errorf("sceneCornerWidth = %d, want the larger panel (> 46)", sceneCornerWidth)
+	}
+	if rect.h > sceneCornerMaxRows {
+		t.Errorf("corner height = %d, cap is %d", rect.h, sceneCornerMaxRows)
 	}
 }

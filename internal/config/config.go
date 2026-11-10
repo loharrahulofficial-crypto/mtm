@@ -117,8 +117,12 @@ type UIConfig struct {
 	SemesterWeeks int    `yaml:"semester_weeks,omitempty"` // default 16
 
 	// Ambient scenes (Phase 4b-B). Ambient master switch + where the
-	// surface scenes appear: off | splash | home | both. "both" = splash +
-	// home + focus + reward (everything).
+	// surface scenes appear: off | splash | sidebar | home | both.
+	// "both" = splash + sidebar window (the new default placement).
+	// "sidebar" = the framed window below the sidebar list.
+	// "home" = the larger optional panel in Home free space (hidden while
+	// the sidebar window is on). Focus, reward and splash ride on any
+	// non-off value. Old "home" values keep their meaning — no remap.
 	Ambient string `yaml:"ambient"`
 	// Scene: auto (by local time of day) | night | bonsai | ocean | rain |
 	// koi | snow | campfire | random (per launch).
@@ -281,12 +285,14 @@ func Load() (Config, error) {
 	if cfg.Stats.StreakMinMinutes < 0 {
 		return cfg, fmt.Errorf("config %s: stats.streak_min_minutes must be >= 0 (0 disables minute-based activity), got %d", Path(), cfg.Stats.StreakMinMinutes)
 	}
-	switch strings.ToLower(strings.TrimSpace(cfg.UI.Ambient)) {
-	case "off", "splash", "home", "both":
+	ambientNorm := strings.ToLower(strings.TrimSpace(cfg.UI.Ambient))
+	switch ambientNorm {
+	case "off", "splash", "home", "sidebar", "both":
+		cfg.UI.Ambient = ambientNorm
 	case "":
 		cfg.UI.Ambient = "both"
 	default:
-		return cfg, fmt.Errorf("config %s: ui.ambient must be off|splash|home|both, got %q", Path(), cfg.UI.Ambient)
+		return cfg, fmt.Errorf("config %s: ui.ambient must be off|splash|sidebar|home|both, got %q", Path(), cfg.UI.Ambient)
 	}
 	if strings.TrimSpace(cfg.UI.Scene) == "" {
 		cfg.UI.Scene = "auto"

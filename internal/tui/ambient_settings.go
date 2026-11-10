@@ -15,8 +15,6 @@ import (
 // picker on the right. Changes apply to the session; persistence stays in
 // ~/.config/mtm/config.yaml (ui.* keys).
 
-const ambientSettingRows = 9
-
 // ambientSettingRow{ label, value, adjust } — adjust cycles the value.
 type ambientSettingRow struct {
 	label  string
@@ -26,7 +24,7 @@ type ambientSettingRow struct {
 
 func ambientRows() []ambientSettingRow {
 	scenes := append([]string{"auto", "random"}, ambient.Registered()...)
-	surfaces := []string{"both", "splash", "home", "off"}
+	surfaces := []string{"both", "sidebar", "home", "splash", "off"}
 	fpsSteps := []int{10, 15, 20, 30}
 	fmtSeconds := []float64{1.0, 2.5, 4.0, 6.0}
 	renders := []string{"auto", "halfblock", "braille", "ascii"}

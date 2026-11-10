@@ -36,7 +36,15 @@ func (m Model) ambientAllowSplash() bool {
 	return m.cfg.UI.Ambient == "splash" || m.cfg.UI.Ambient == "both"
 }
 func (m Model) ambientAllowHome() bool {
-	return m.cfg.UI.Ambient == "home" || m.cfg.UI.Ambient == "both"
+	switch m.cfg.UI.Ambient {
+	case "home":
+		return m.ambientEnabled()
+	case "sidebar", "both":
+		// Hidden by default while the sidebar window is on; the corner is
+		// the fallback ambient surface when the window is toggled off.
+		return m.ambientEnabled() && !m.cfg.UI.AmbientSidebar
+	}
+	return false
 }
 func (m Model) ambientAllowFocus() bool  { return m.ambientEnabled() }
 func (m Model) ambientAllowReward() bool { return m.ambientEnabled() && m.cfg.UI.RewardAnimation }

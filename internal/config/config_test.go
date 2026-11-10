@@ -310,3 +310,72 @@ func TestAmbientDitherValidation(t *testing.T) {
 		t.Fatal("ambient_dither: maybe was accepted")
 	}
 }
+
+func TestUIAmbientEnumAndSidebarWindow(t *testing.T) {
+	fixedXDG(t)
+	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	load := func() (Config, error) { return Load() }
+
+	// default: both, sidebar window on
+	write("default_project: inbox\n")
+	cfg, err := load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.Ambient != "both" || !cfg.UI.AmbientSidebar {
+		t.Fatalf("defaults = ambient %q ambient_sidebar %v, want both/true", cfg.UI.Ambient, cfg.UI.AmbientSidebar)
+	}
+
+	for _, v := range []string{"off", "splash", "sidebar", "home", "both", "BOTH"} {
+		write("ui:\n  ambient: " + v + "\n")
+		cfg, err = load()
+		if err != nil {
+			t.Fatalf("ambient %q rejected: %v", v, err)
+		}
+	}
+
+	// home keeps its meaning (no remap to both)
+	write("ui:\n  ambient: home\n")
+	cfg, err = load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.Ambient != "home" {
+		t.Fatalf("ambient home migrated to %q — home must stay home", cfg.UI.Ambient)
+	}
+
+	// bogus rejected
+	write("ui:\n  ambient: corner\n")
+	if _, err := load(); err == nil {
+		t.Fatal("ambient: corner was accepted")
+	}
+
+	// empty string defaults to both
+	write("ui:\n  ambient: \"\"\n")
+	cfg, err = load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.Ambient != "both" {
+		t.Fatalf("empty ambient = %q, want both", cfg.UI.Ambient)
+	}
+
+	// ui.ambient_sidebar false round-trips
+	write("ui:\n  ambient_sidebar: false\n")
+	cfg, err = load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.AmbientSidebar {
+		t.Fatal("ambient_sidebar: false was not honored")
+	}
+}

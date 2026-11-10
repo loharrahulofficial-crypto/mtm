@@ -1263,16 +1263,19 @@ func homeFreeRows(m Model, w, h int) (free, used int) {
 	return 0, used
 }
 
-// Scene corner placement constraint (spec 0.1). The corner is a small animated
-// panel in free space. It never moves or shrinks an existing band — in
+// Scene corner placement constraint. The corner is an optional larger
+// panel in free space — shown when ambient wants the Home surface (ui.ambient:
+// home, or when the sidebar window is toggled off) and only when the terminal is
+// wide enough and the free space below the last band holds the corner.
+// Otherwise it stays hidden. It never moves or shrinks an existing band — in
 // particular the IDEAS band at w >= 110 — and never counts toward a panel's
 // blank ratio. It renders only when the terminal is wide enough and the free
 // space below the last band holds the corner; otherwise it stays hidden.
 const (
 	sceneCornerMinTermW = 110 // shares the IDEAS-band threshold
 	sceneCornerMinRows  = 10  // below this the corner is not legible
-	sceneCornerMaxRows  = 12
-	sceneCornerWidth    = 46
+	sceneCornerMaxRows  = 16
+	sceneCornerWidth    = 64
 )
 
 // homeSceneCornerRect returns the scene corner's rect (relative to the body,

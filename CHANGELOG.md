@@ -18,14 +18,17 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   lightning off by default), plus three extras — koi pond (segment-jointed
   fish), snowfall (three parallax flake depths) and campfire (breathing
   radial glow, sparks, smoke)
-- **Where they appear** (`ui.ambient: off|splash|home|both`, default both):
+- **Where they appear** (`ui.ambient: off|splash|sidebar|home|both`, default both):
   startup splash (default 2.5s, any key skips; skipped on non-TTY,
-  `--no-splash`, or when disabled), a bordered `AMBIENT` corner panel on a
-  wide Home (right-anchored in free space — hidden when it can't fit without
-  breaking the IDEAS band or the blank-ratio invariant), behind the Focus
+  `--no-splash`, or when disabled), a framed ambient window at the bottom
+  of the sidebar filling only the free rows under the course list (the new
+  default surface; minimum 8 rows, collapses on short terminals; toggle
+  `ui.ambient_sidebar: false` or in `:ambient`), and behind the Focus
   surface (progress follows the Pomodoro; pausing freezes the scene; breaks
   switch to a calm phase), and a 1.5s task-complete reward burst
-  (`ui.reward_animation: true`, rate-limited to 3 per minute)
+  (`ui.reward_animation: true`, rate-limited to 3 per minute). `home` keeps
+  the larger optional panel in Home free space (hidden while the sidebar
+  window is on), `sidebar` is the window only, `both` is splash + window
 - **Controls**: `alt+s` cycles scenes; `:scene <name>` switches (koi, snow,
   campfire …); `:ambient` opens a live full-screen preview with a mood
   picker (`:ambient` also reachable from the palette and `:scene list`);

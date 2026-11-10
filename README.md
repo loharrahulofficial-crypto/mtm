@@ -324,9 +324,14 @@ ui:
                                 # blank line between a card's title and badges)
   semester_start: ""            # "2026-09-01" — enables the brand-header week chip
   semester_weeks: 16
-  ambient: both                 # off | splash | home | both — ambient scenes
-                                # (splash at startup, corner on a wide Home,
-                                # behind Focus, reward burst on completion)
+  ambient: both                 # off | splash | sidebar | home | both — ambient
+                                # scenes (both = splash + sidebar window;
+                                # sidebar = framed window below the sidebar
+                                # list; home = larger panel in Home free
+                                # space, hidden while the window is on;
+                                # Focus + reward ride on any non-off value)
+  ambient_sidebar: true         # framed window below the sidebar list (≥ 8 rows,
+                                # collapses on short terminals); toggle in :ambient
   scene: auto                   # auto (by local hour) | random | night |
                                 # bonsai | ocean | rain | koi | snow | campfire
   splash_seconds: 2.5           # startup splash length

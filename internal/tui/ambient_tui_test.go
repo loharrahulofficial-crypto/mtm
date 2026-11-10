@@ -16,7 +16,7 @@ import (
 // integration points (corner, focus, reward overlay).
 
 func TestSplashPolicyMatrix(t *testing.T) {
-	for _, ambientSetting := range []string{"off", "splash", "home", "both"} {
+	for _, ambientSetting := range []string{"off", "splash", "home", "sidebar", "both"} {
 		for _, anim := range []bool{true, false} {
 			for _, isTTY := range []bool{true, false} {
 				m := freshAmbientModel(t)
