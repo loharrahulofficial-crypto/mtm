@@ -135,12 +135,18 @@ func Run(opts Options) Report {
 		}
 	}
 
-	// --- task files: frontmatter validity + demo-looking IDs ---
+	// --- working-tree demo-data scan ---
+	// Demo detection looks only at the current tree, never at history:
+	// a demo-looking commit message in history is reported at most as an
+	// info line, and only when the tree still contains demo data, so a
+	// reverted demo commit is never reported. flagDemoAsFail (real or
+	// unmarked repo) is computed above from the marker kind.
 	demoLevel := LevelWarn
 	if flagDemoAsFail {
 		demoLevel = LevelFail
 	}
-	var demoTasks, demoSubjects []string
+	var demoTasks []string
+	var demoProjects []string
 	for _, base := range []string{"projects", "archive"} {
 		walkBase := filepath.Join(opts.Root, base)
 		if info, err := os.Stat(walkBase); err != nil || !info.IsDir() {
@@ -151,12 +157,39 @@ func Run(opts Options) Report {
 				rep.add(LevelWarn, "frontmatter", path, "cannot read: %v", err)
 				return nil
 			}
-			if d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
+			if d.IsDir() {
+				rel, rerr := filepath.Rel(walkBase, path)
+				if rerr == nil && demo.IsDemoProject(filepath.ToSlash(rel)) {
+					demoProjects = append(demoProjects, filepath.ToSlash(rel))
+				}
+				return nil
+			}
+			if !strings.HasSuffix(d.Name(), ".md") {
 				return nil
 			}
 			data, err := os.ReadFile(path)
 			if err != nil {
 				rep.add(LevelWarn, "frontmatter", path, "cannot read: %v", err)
+				return nil
+			}
+			rel, rerr := filepath.Rel(walkBase, path)
+			seg := ""
+			if rerr == nil {
+				seg = filepath.ToSlash(filepath.Dir(rel))
+			}
+			// Milestones and dev-log entries are not task files; check
+			// them with their own parsers so real repos with milestones
+			// are not false-flagged.
+			switch {
+			case isUnder(seg, "milestones"):
+				if _, err := store.ParseMilestone(data); err != nil {
+					rep.add(LevelFail, "frontmatter", path, "invalid milestone frontmatter: %v", err)
+				}
+				return nil
+			case isUnder(seg, "devlog"):
+				if _, err := store.ParseDevLog(data); err != nil {
+					rep.add(LevelFail, "frontmatter", path, "invalid dev-log frontmatter: %v", err)
+				}
 				return nil
 			}
 			t, err := store.ParseTask(data)
@@ -170,32 +203,40 @@ func Run(opts Options) Report {
 				}
 			}
 			if demo.IsDemoID(t.ID) {
+				demoTasks = append(demoTasks, t.ID)
 				if flagDemoAsFail {
 					rep.add(demoLevel, "demo-data", path, "task id %s matches the demo corpus", t.ID)
-				} else {
-					demoTasks = append(demoTasks, t.ID)
 				}
 			}
 			return nil
 		})
 	}
+	for _, p := range demoProjects {
+		if flagDemoAsFail {
+			rep.add(demoLevel, "demo-data", filepath.Join(opts.Root, "projects", filepath.FromSlash(p)), "project %s is a demo corpus project", p)
+		}
+	}
+	treeHasDemo := len(demoTasks) > 0 || len(demoProjects) > 0
 
 	// --- commit messages that look like the demo seeder's ---
-	if repo.IsRepo() {
+	// History alone proves nothing: the demo-seed incident was reverted.
+	// Report demo-looking subjects only as an info line, and only when the
+	// current tree still contains demo data.
+	if repo.IsRepo() && treeHasDemo {
 		if subjects, err := repo.LogSubjects(); err == nil {
+			var demoSubjects []string
 			for _, s := range subjects {
 				if demoSubjectRe.MatchString(s) {
-					if flagDemoAsFail {
-						rep.add(demoLevel, "demo-data", opts.Root, "commit message %q looks like the demo seeder", s)
-					} else {
-						demoSubjects = append(demoSubjects, s)
-					}
+					demoSubjects = append(demoSubjects, s)
 				}
+			}
+			if len(demoSubjects) > 0 {
+				rep.add(LevelInfo, "demo-data", opts.Root, "%d commit message(s) look like the demo seeder; the current tree also contains demo data", len(demoSubjects))
 			}
 		}
 	}
-	if !flagDemoAsFail && (len(demoTasks) > 0 || len(demoSubjects) > 0) {
-		rep.add(LevelInfo, "demo-data", opts.Root, "%d demo-corpus task(s), %d demo commit message(s) — expected for a demo repo", len(demoTasks), len(demoSubjects))
+	if !flagDemoAsFail && treeHasDemo {
+		rep.add(LevelInfo, "demo-data", opts.Root, "%d demo-corpus task(s), %d demo project(s) — expected for a demo repo", len(demoTasks), len(demoProjects))
 	}
 
 	// --- timer state (stale / corrupt) ---
@@ -204,6 +245,17 @@ func Run(opts Options) Report {
 	}
 
 	return finish()
+}
+
+// isUnder reports whether slash-separated dir is or sits below a directory
+// named name (e.g. projects/college/dbms/milestones is under "milestones").
+func isUnder(dir, name string) bool {
+	for _, part := range strings.Split(filepath.ToSlash(dir), "/") {
+		if part == name {
+			return true
+		}
+	}
+	return false
 }
 
 func checkTimer(rep *Report, stateDir string, now time.Time) {

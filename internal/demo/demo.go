@@ -47,6 +47,27 @@ func IDs() map[string]bool { return demoIDs }
 // IsDemoID reports whether id belongs to the demo corpus.
 func IsDemoID(id string) bool { return demoIDs[strings.ToLower(id)] }
 
+// demoProjectNames are the project paths the demo corpus seeds.
+var demoProjectNames = []string{"college/dbms", "college/maths", "college/os"}
+
+// IsDemoProject reports whether name is one of the demo corpus's project
+// paths. Used by `mtm doctor` to flag demo-looking projects.
+func IsDemoProject(name string) bool {
+	for _, n := range demoProjectNames {
+		if n == name {
+			return true
+		}
+	}
+	return false
+}
+
+// ProjectNames returns the project paths the demo corpus seeds.
+func ProjectNames() []string {
+	out := make([]string, len(demoProjectNames))
+	copy(out, demoProjectNames)
+	return out
+}
+
 // Seed writes the demo dataset under dir (the projects root), shifting
 // every date by the difference between `now` and the reference day.
 // The file set and task identities never change — only dates move.

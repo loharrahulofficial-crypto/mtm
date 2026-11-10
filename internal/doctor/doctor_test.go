@@ -119,9 +119,100 @@ func TestDemoDataInRealRepoIsFlagged(t *testing.T) {
 		t.Fatal("demo-looking data in a real repo was not flagged")
 	}
 	demo := findingsOf(rep, LevelFail, "demo-data")
-	if len(demo) < 2 {
+	if len(demo) != 1 || !strings.Contains(demo[0].Message, "dn0055") {
 		data, _ := json.MarshalIndent(rep.Findings, "", "  ")
-		t.Fatalf("want both the task-id and commit-message findings, got:\n%s", data)
+		t.Fatalf("want exactly the task-id fail finding, got:\n%s", data)
+	}
+	// The commit message is at most an info line alongside tree demo data.
+	if infos := findingsOf(rep, LevelInfo, "demo-data"); len(infos) != 1 {
+		data, _ := json.MarshalIndent(rep.Findings, "", "  ")
+		t.Fatalf("want one info line about the demo-looking commit message, got:\n%s", data)
+	}
+}
+
+// (a) A real repo whose demo commit was reverted passes cleanly: no
+// demo-data findings of any level, because the tree no longer contains
+// demo data. A reverted commit is never reported.
+func TestRevertedDemoCommitIsNotReported(t *testing.T) {
+	root := t.TempDir()
+	gitEnv(t)
+	initRepo(t, root, "a1b2c3") // real task, committed as "add first task"
+	// A past demo commit: demo corpus task with a demo-looking subject.
+	demoFile := filepath.Join(root, "projects", "inbox", "dn0055-example.md")
+	if err := os.WriteFile(demoFile, []byte(fmt.Sprintf(taskFile, "dn0055")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitCmd(t, root, "add", "-A")
+	gitCmd(t, root, "commit", "-qm", "demo: seed example tasks")
+	// Followed by a revert: the tree no longer contains demo data.
+	gitCmd(t, root, "revert", "--no-edit", "HEAD")
+	writeMarker(t, root, "real")
+	gitCmd(t, root, "add", "-A")
+	_ = gitCmd(t, root, "commit", "-qm", "marker")
+
+	rep := runDoctor(t, root)
+	if !rep.OK {
+		data, _ := json.MarshalIndent(rep.Findings, "", "  ")
+		t.Fatalf("repo with a reverted demo commit reported failures:\n%s", data)
+	}
+	for _, f := range rep.Findings {
+		if f.Check == "demo-data" {
+			t.Fatalf("reverted demo commit was reported: %+v", f)
+		}
+	}
+}
+
+// (b) A real repo whose tree still contains demo IDs fails.
+func TestRealRepoWithDemoIDsInTreeFails(t *testing.T) {
+	root := t.TempDir()
+	gitEnv(t)
+	// Tree with a demo corpus ID, no demo commit message anywhere.
+	initRepo(t, root, "od0001")
+	writeMarker(t, root, "real")
+	gitCmd(t, root, "add", "-A")
+	_ = gitCmd(t, root, "commit", "-qm", "add task")
+
+	rep := runDoctor(t, root)
+	if rep.OK {
+		data, _ := json.MarshalIndent(rep.Findings, "", "  ")
+		t.Fatalf("demo IDs in the tree were not flagged:\n%s", data)
+	}
+	if fails := findingsOf(rep, LevelFail, "demo-data"); len(fails) != 1 {
+		data, _ := json.MarshalIndent(rep.Findings, "", "  ")
+		t.Fatalf("want one demo-data fail, got:\n%s", data)
+	}
+}
+
+// (b2) A real repo containing a demo corpus project fails on the project name.
+func TestRealRepoWithDemoProjectNameFails(t *testing.T) {
+	root := t.TempDir()
+	gitEnv(t)
+	initRepo(t, root, "a1b2c3")
+	dir := filepath.Join(root, "projects", "college", "dbms")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "project.yaml"), []byte("description: dbms\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeMarker(t, root, "real")
+	gitCmd(t, root, "add", "-A")
+	_ = gitCmd(t, root, "commit", "-qm", "add project")
+
+	rep := runDoctor(t, root)
+	if rep.OK {
+		data, _ := json.MarshalIndent(rep.Findings, "", "  ")
+		t.Fatalf("demo project in the tree was not flagged:\n%s", data)
+	}
+	found := false
+	for _, f := range findingsOf(rep, LevelFail, "demo-data") {
+		if strings.Contains(f.Message, "college/dbms") {
+			found = true
+		}
+	}
+	if !found {
+		data, _ := json.MarshalIndent(rep.Findings, "", "  ")
+		t.Fatalf("want a demo-data fail naming college/dbms, got:\n%s", data)
 	}
 }
 
