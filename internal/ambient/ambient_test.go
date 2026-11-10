@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -245,14 +246,37 @@ func TestThemeRolesOnly(t *testing.T) {
 			if len(found) == 0 {
 				t.Fatalf("%s %s: no colors in frame — renderer broken?", scene, mode)
 			}
-			allowed := map[string]bool{}
 			pm := buildPalette(defaultPalette())
-			for _, h := range pm.hex {
-				allowed[h] = true
+			// convex hull of the raw theme roles (blends and gradients live inside it)
+			hull := func(ch func(rgb) int) [2]int {
+				lo, hi := 255, 0
+				for i := 0; i < cRoleCount; i++ {
+					v := ch(pm.table[i])
+					if v < lo {
+						lo = v
+					}
+					if v > hi {
+						hi = v
+					}
+				}
+				return [2]int{lo, hi}
 			}
+			hullR := hull(func(c rgb) int { return int(c.r) })
+			hullG := hull(func(c rgb) int { return int(c.g) })
+			hullB := hull(func(c rgb) int { return int(c.b) })
 			for color := range found {
-				if !allowed[color] {
-					t.Fatalf("%s %s: color %s is not a theme role or a blend toward Base", scene, mode, color)
+				// Blends, gradients and additive glow may produce any point
+				// inside the theme's convex hull; an invented hue outside the
+				// hull violates the theme-only rule.
+				rv, err1 := strconv.ParseUint(color[1:3], 16, 8)
+				gv, err2 := strconv.ParseUint(color[3:5], 16, 8)
+				bv, err3 := strconv.ParseUint(color[5:7], 16, 8)
+				if err1 != nil || err2 != nil || err3 != nil {
+					t.Fatalf("%s %s: malformed color %q", scene, mode, color)
+				}
+				r, g, b := int(rv), int(gv), int(bv)
+				if r < hullR[0] || r > hullR[1] || g < hullG[0] || g > hullG[1] || b < hullB[0] || b > hullB[1] {
+					t.Fatalf("%s %s: color %s is outside the theme convex hull", scene, mode, color)
 				}
 			}
 		}

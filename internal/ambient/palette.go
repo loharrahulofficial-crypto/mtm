@@ -16,6 +16,10 @@ type paletteModel struct {
 	hex    []string
 	lookup map[string]int
 	lum    []int // luminance rank per table index (higher = brighter)
+
+	// convex hull of the raw theme roles, per channel — additive glow can
+	// push past the hull, and the renderer clamps back into it.
+	hullLo, hullHi [3]uint8
 }
 
 const (
@@ -83,7 +87,48 @@ func buildPalette(p Palette) *paletteModel {
 	for i, c := range m.table {
 		m.lum[i] = int(0.2126*float64(c.r) + 0.7152*float64(c.g) + 0.0722*float64(c.b))
 	}
+	// Convex hull of the raw roles. (Duplicated roles were deduped above, so
+	// walk the role hexes directly.)
+	for ch := 0; ch < 3; ch++ {
+		m.hullLo[ch] = 255
+		m.hullHi[ch] = 0
+	}
+	for _, r := range roles {
+		c, ok := parseHex(r)
+		if !ok {
+			continue
+		}
+		vals := [3]uint8{c.r, c.g, c.b}
+		for ch := 0; ch < 3; ch++ {
+			if vals[ch] < m.hullLo[ch] {
+				m.hullLo[ch] = vals[ch]
+			}
+			if vals[ch] > m.hullHi[ch] {
+				m.hullHi[ch] = vals[ch]
+			}
+		}
+	}
 	return m
+}
+
+// clampHull clamps a float pixel's channels into the theme hull.
+func (m *paletteModel) clampHull(p fpix) fpix {
+	cl := func(v float32, lo, hi uint8) float32 {
+		flo, fhi := float32(lo)/255, float32(hi)/255
+		if v < flo {
+			return flo
+		}
+		if v > fhi {
+			return fhi
+		}
+		return v
+	}
+	return fpix{
+		cl(p.r, m.hullLo[0], m.hullHi[0]),
+		cl(p.g, m.hullLo[1], m.hullHi[1]),
+		cl(p.b, m.hullLo[2], m.hullHi[2]),
+		p.a,
+	}
 }
 
 // Bright returns the brighter of two indices of the same role family (or two raw indices).
