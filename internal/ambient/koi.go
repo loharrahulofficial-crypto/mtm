@@ -50,7 +50,7 @@ func (s *koiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, 
 		px := lr.rangeF(0.06, 0.94) * float64(sw(b))
 		py := lr.rangeF(0.1, 0.55) * float64(sh(b))
 		for j := 0; j < 4; j++ {
-			ci := mixIndex(p, cSuccess, p.base, 0.25+lr.float64()*0.35)
+			ci := mixIndex(p, cSuccess, p.base, 0.18+lr.float64()*0.3)
 			b.mark(int(px+float64(j)-1.5), int(py), '▬', ci)
 		}
 		b.mark(int(px), int(py)-1, '▴', mixIndex(p, cSuccess, p.base, 0.15))
