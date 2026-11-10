@@ -45,6 +45,7 @@ func (s *koiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, 
 	}
 
 	// Lily pads: seeded clusters on the surface
+	b.beginLayer(layerFoliage, 0, 0, sw(b), sh(b)*3/5+2)
 	for i := 0; i < 5; i++ {
 		lr := newRNG(state.Seed, uint64(i)*412+19)
 		px := lr.rangeF(0.06, 0.94) * float64(sw(b))
@@ -55,6 +56,8 @@ func (s *koiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, 
 		}
 		b.mark(int(px), int(py)-1, '▴', mixIndex(p, cSuccess, p.base, 0.15))
 	}
+
+	b.endLayer()
 
 	// Koi: two fish, segment chains along lissajous paths
 	for i := 0; i < 2; i++ {

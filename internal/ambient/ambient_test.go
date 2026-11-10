@@ -127,6 +127,59 @@ func TestGoldenSceneFrames(t *testing.T) {
 // Invariants: exact dimensions, no panics at tiny sizes, determinism,
 // and theme-role colors only.
 
+// TestLayerRegionsRespected: every cell painted by a tagged layer must
+// lie inside that layer's declared bounding union. This is the regression
+// net for elements drifting out of their intended region (a stray cell
+// outside the horizon band, a cabin cell off the cabin rect, ...).
+func TestLayerRegionsRespected(t *testing.T) {
+	times := []time.Duration{0, 800 * time.Millisecond, 5*time.Second + 300*time.Millisecond, 34 * time.Second}
+	sizes := [][2]int{{40, 14}, {100, 30}}
+	for _, sceneName := range Registered() {
+		for _, mode := range []string{ModeHalfblock, ModeBraille, ModeASCII} {
+			for _, size := range sizes {
+				for _, ft := range times {
+					s := New(sceneName, mode)
+					p, ok := s.(paintable)
+					if !ok {
+						t.Fatalf("%s: scene is not paintable", sceneName)
+					}
+					st := stateFor(0.35, PhaseWork)
+					st.Lightning = true // exercise the lightning bolt layer
+					b := newFrameBuffer(p, mode, ft, size[0], size[1], st)
+					type rect struct{ x0, y0, x1, y1 int }
+					union := map[uint8]rect{}
+					for _, r := range b.regions {
+						u, ok := union[r.tag]
+						if !ok {
+							union[r.tag] = rect{r.x0, r.y0, r.x1, r.y1}
+							continue
+						}
+						u.x0 = minInt(u.x0, r.x0)
+						u.y0 = minInt(u.y0, r.y0)
+						u.x1 = maxInt(u.x1, r.x1)
+						u.y1 = maxInt(u.y1, r.y1)
+						union[r.tag] = u
+					}
+					for i := 0; i < b.sw*b.sh; i++ {
+						tag := b.layer[i]
+						if tag == 0 {
+							continue
+						}
+						u, ok := union[tag]
+						if !ok {
+							t.Fatalf("%s %s %dx%d t=%v: cell tagged layer %d with no recorded region", sceneName, mode, size[0], size[1], ft, tag)
+						}
+						x, y := i%b.sw, i/b.sw
+						if x < u.x0 || y < u.y0 || x >= u.x1 || y >= u.y1 {
+							t.Fatalf("%s %s %dx%d t=%v: cell (%d,%d) painted by layer %d outside its region [(%d,%d),(%d,%d))", sceneName, mode, size[0], size[1], ft, x, y, tag, u.x0, u.y0, u.x1, u.y1)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 func TestFrameExactDimensions(t *testing.T) {
 	sizes := [][2]int{{1, 1}, {2, 2}, {5, 3}, {10, 6}, {40, 12}, {60, 18}, {100, 30}}
 	for _, scene := range Registered() {

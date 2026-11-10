@@ -11,8 +11,9 @@ type paintable interface {
 	paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState)
 }
 
-// renderFrame builds one line-set for the frame (reward adds the sparkle).
-func renderFrame(s paintable, mode string, t time.Duration, w, h int, state SceneState, reward bool) []Line {
+// newFrameBuffer paints one frame and returns the buffer for inspection
+// (the golden/invariant tests read the raster, not just the lines).
+func newFrameBuffer(s paintable, mode string, t time.Duration, w, h int, state SceneState) *buffer {
 	if w < 1 {
 		w = 1
 	}
@@ -22,7 +23,15 @@ func renderFrame(s paintable, mode string, t time.Duration, w, h int, state Scen
 	p := paletteFor(state.Palette)
 	b := newBuffer(mode, w, h)
 	s.paint(b, p, t, w, h, state)
-	b.palette = p // reward overlay paints against the same palette
+	b.palette = p
+	return b
+}
+
+// renderFrame builds one line-set for the frame (reward adds the sparkle).
+func renderFrame(s paintable, mode string, t time.Duration, w, h int, state SceneState, reward bool) []Line {
+	p := paletteFor(state.Palette)
+	b := newFrameBuffer(s, mode, t, w, h, state)
+	b.palette = p
 	if reward {
 		paintReward(b, t, state.Seed)
 	}

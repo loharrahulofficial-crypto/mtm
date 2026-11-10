@@ -38,6 +38,7 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	// The clearing is signalled by the fog thinning and the drops easing.
 
 	// Fog wisps: sparse noise dots drifting sideways
+	b.beginLayer(layerFog, 0, sh(b)*40/100, sw(b), sh(b)*72/100)
 	fog := cachedPerlin(state.Seed, 211)
 	for y := sh(b) * 40 / 100; y < sh(b)*72/100; y++ {
 		fx := float64(y) / float64(sh(b))
@@ -48,6 +49,8 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 			}
 		}
 	}
+
+	b.endLayer()
 
 	// Rain: seeded streaks with varied speed; braille does fine dots
 	dropCount := int(18 + float64(sw(b)*sh(b))/16*(1-clearing*0.75))
@@ -83,6 +86,7 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	}
 
 	// Ripples on the clearing pond at the bottom (beat-slotted)
+	b.beginLayer(layerSea, 0, maxInt(0, sh(b)-3), sw(b), sh(b))
 	ripSlot := int64(wrapT(t, 24*time.Hour)/time.Millisecond) / 650
 	for k := 0; k < 4; k++ {
 		slot := ripSlot - int64(k)
@@ -103,7 +107,10 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 		}
 	}
 
+	b.endLayer()
+
 	// Pines: two parallax depths along the ground
+	b.beginLayer(layerLand, 0, maxInt(0, sh(b)*80/100-9), sw(b), sh(b))
 	pine := cachedPerlin(state.Seed, 311)
 	ground := sh(b) * 80 / 100
 	for x := 0; x < sw(b); x++ {
@@ -119,7 +126,20 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 		}
 	}
 
+	b.endLayer()
+
 	// Cabin (right third): body, roof, lit window with flicker, chimney smoke
+	cabinTopInit := sh(b)*72/100 + 1
+	cx0Init := sw(b) * 62 / 100
+	cwInit := sw(b) * 26 / 100
+	if cwInit < 8 {
+		cwInit = 8
+	}
+	cx1Init := cx0Init + cwInit
+	if cx1Init > sw(b)-1 {
+		cx1Init = sw(b) - 1
+	}
+	b.beginLayer(layerCabin, maxInt(0, cx0Init-4), maxInt(0, cabinTopInit-3), minInt(sw(b), cx1Init+4), sh(b))
 	cx0 := sw(b) * 62 / 100
 	cw := sw(b) * 26 / 100
 	if cw < 8 {
@@ -171,6 +191,8 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	// chimney + smoke: three dots wiggling upward, fading with height
 	chimneyX := cx1 - maxInt((cx1-cx0)/5, 2)
 	b.glowBlock(chimneyX, cabinTop-3, chimneyX+1, cabinTop, mixIndex(p, cSurfaceStrong, p.base, 0.2))
+	b.endLayer()
+	b.beginLayer(layerSmoke, maxInt(0, chimneyX-3), 0, minInt(sw(b), chimneyX+4), cabinTop)
 	for k := 0; k < 5; k++ {
 		ff := float64(wrapT(t, 24*time.Hour)/time.Second)*1.4 + float64(k)*1.7 + float64(state.Seed%7)
 		fp := math.Mod(ff, 6) / 6
@@ -180,8 +202,11 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 		b.mark(int(px), int(py), '·', ci)
 	}
 
+	b.endLayer()
+
 	// Lightning: rare, silent, off by default. One jagged bolt + a flash.
 	if state.Lightning {
+		b.beginLayer(layerCelestial, 0, 0, sw(b), sh(b)*2/3)
 		slot := int64(wrapT(t, 24*time.Hour)/time.Millisecond) / 21000
 		lr := newRNG(state.Seed, uint64(slot)*613+41)
 		if lr.float64() < 0.28 {
@@ -205,6 +230,7 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 				}
 			}
 		}
+		b.endLayer()
 	}
 }
 

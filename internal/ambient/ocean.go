@@ -33,6 +33,8 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	alt := sunAltitude(state.Now)
 	dayness := clampf(alt, 0, 1)
 	nightness := clampf(-alt, 0, 1)
+	// Dusk band + horizon line: land-layer paint along the waterline.
+	b.beginLayer(layerLand, 0, maxInt(0, seaY-2), sw(b), seaY+1)
 	if dayness < 0.25 && nightness < 0.25 {
 		// Dusk and dawn: a single warm band hugging the horizon
 		for y := seaY - 2; y < seaY; y++ {
@@ -43,17 +45,21 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	}
 	// Horizon line
 	b.glowBlock(0, seaY, sw(b), seaY+1, mixIndex(p, cSurfaceStrong, p.base, 0.5))
+	b.endLayer()
 
 	// A few stars at night
 	if nightness >= 0.4 {
+		b.beginLayer(layerStars, 0, 0, sw(b), sh(b)*7/10)
 		for _, st := range sceneStars(state.Seed, sw(b), sh(b)) {
 			if st.layer == 0 && st.mag > 0.55 {
 				b.mark(st.x, st.y, '·', mixIndex(p, cBrightText, p.base, 0.45))
 			}
 		}
+		b.endLayer()
 	}
 
 	// Sun or moon: an arc from rise to set across the sky.
+	b.beginLayer(layerCelestial, 0, 0, sw(b), seaY)
 	celestialX, celestialY, celestialR, celestialIsSun := 0, 0, 0, true
 	if dayness > 0 {
 		rise, set := sunTimes(state.Now)
@@ -83,8 +89,10 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		celestialIsSun = false
 	}
 	_ = celestialIsSun
+	b.endLayer()
 
 	// Clouds: three seeded puffs drifting slowly with parallax.
+	b.beginLayer(layerFog, 0, 0, sw(b), minInt(sh(b), seaY/2+5))
 	tMin := float64(wrapT(t, 20*time.Minute)) / float64(time.Minute)
 	for i := 0; i < 3; i++ {
 		cr := newRNG(state.Seed, uint64(i)*977+11)
@@ -107,36 +115,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 			}
 		}
 	}
-
-	// Sea: layered sine wave crests, drawn as single brighter rows on the
-	// bare base color — clean crest lines instead of flat fills.
-	waveCols := []int{cSurface, cCyan, cBlue, cSurfaceStrong}
-	for layer := 0; layer < 4; layer++ {
-		freq := 0.10 + float64(layer)*0.055
-		amp := 0.9 + float64(3-layer)*0.35
-		speed := 0.45 + float64(layer)*0.2
-		lineOff := float64(seaY) + 1 + float64(layer)*maxF(float64(sh(b)-seaY-1)/4.2, 1)
-		xi := cachedPerlin(state.Seed, uint64(layer)*331+5)
-		for x := 0; x < sw(b); x++ {
-			wy := lineOff + math.Sin(float64(x)*freq+tSecF(t)*speed+float64(layer)*9.1)*amp + xi.At(float64(x)*0.07, float64(layer)*13.7)*0.7
-			ci := mixIndex(p, waveCols[layer], p.base, 0.35+float64(3-layer)*0.12)
-			b.glow(x, int(wy), ci)
-		}
-	}
-
-	// Specular path under the celestial body: flickering glints on water.
-	if celestialX > 0 {
-		glint := cachedPerlin(state.Seed, 919)
-		for x := maxInt(celestialX-4, 0); x < minInt(celestialX+5, sw(b)); x++ {
-			for y := seaY; y < sh(b); y++ {
-				n := glint.At(float64(x)*0.5, float64(y)*0.33+tSecF(t)*0.5)
-				d := absF(float64(x)-float64(celestialX)) / 4.0
-				if n+(1-d) > 0.9-(0.45*float64(y-seaY)/float64(maxInt(sh(b)-seaY, 1))) {
-					b.mark(x, y, '·', mixIndex(p, cYellow, p.base, 0.25+d*0.3))
-				}
-			}
-		}
-	}
+	b.endLayer()
 
 	// Gulls: seeded "v" glyphs bobbing above the water.
 	gullR := newRNG(state.Seed, 553)
@@ -151,6 +130,47 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		b.mark(gx-1, gy, ch, cText)
 		b.mark(gx+1, gy, ch, cText)
 		_ = gullR
+	}
+
+	// Sea: layered sine wave crests, drawn as single brighter rows on the
+	// bare base color — clean crest lines instead of flat fills.
+	b.beginLayer(layerSea, 0, maxInt(0, seaY-sh(b)/5-1), sw(b), sh(b))
+	waveCols := []int{cSurface, cCyan, cBlue, cSurfaceStrong}
+	for layer := 0; layer < 4; layer++ {
+		freq := 0.10 + float64(layer)*0.055
+		amp := 0.9 + float64(3-layer)*0.35
+		speed := 0.45 + float64(layer)*0.2
+		lineOff := float64(seaY) + 1 + float64(layer)*maxF(float64(sh(b)-seaY-1)/4.2, 1)
+		xi := cachedPerlin(state.Seed, uint64(layer)*331+5)
+		for x := 0; x < sw(b); x++ {
+			wy := lineOff + math.Sin(float64(x)*freq+tSecF(t)*speed+float64(layer)*9.1)*amp + xi.At(float64(x)*0.07, float64(layer)*13.7)*0.7
+			ci := mixIndex(p, waveCols[layer], p.base, 0.35+float64(3-layer)*0.12)
+			b.glow(x, int(wy), ci)
+		}
+	}
+
+	// Specular path under the celestial body: scattered glints on the
+	// water. The sparkle path widens toward the viewer and each cell twinkles
+	// independently — a single low-frequency noise column here used to render
+	// as a faint hard vertical strip (the ghost column).
+	if celestialX > 0 {
+		glint := cachedPerlin(state.Seed, 919)
+		waterRows := maxInt(sh(b)-seaY, 1)
+		for x := 0; x < sw(b); x++ {
+			for y := seaY; y < sh(b); y++ {
+				depth := float64(y-seaY) / float64(waterRows)
+				halfW := 2.5 + 5.0*depth // reflection widens toward the viewer
+				d := absF(float64(x)-float64(celestialX)) / halfW
+				if d > 1 {
+					continue
+				}
+				n := glint.At(float64(x)*2.15+11.7, float64(y)*2.65+tSecF(t)*1.15)
+				tw := 0.5 + 0.5*math.Sin(tSecF(t)*2.15+float64(x)*1.83+float64(y)*2.71)
+				if n > 0.42+d*0.34 && tw > 0.22 {
+					b.mark(x, y, '·', mixIndex(p, cYellow, p.base, 0.22+d*0.38))
+				}
+			}
+		}
 	}
 
 	// Fish event: occasional silhouette leaps in seeded slots.
@@ -175,6 +195,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 			b.mark(bx, by, '·', mixIndex(p, cCyan, p.base, 0.4))
 		}
 	}
+	b.endLayer()
 }
 
 // paintDisc fills a disc with a color; ringOnly draws only the outline.

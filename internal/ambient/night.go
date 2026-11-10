@@ -68,6 +68,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	}
 
 	// Aurora: two thin ribbons hugging the upper sky, dim and slow.
+	b.beginLayer(layerSky, 0, 0, sw(b), minInt(sh(b), sh(b)/2+3))
 	aura := cachedPerlin(state.Seed, 71)
 	ts := float64(wrapT(t, 8*time.Minute)) / float64(time.Minute)
 	for x := 0; x < sw(b); x++ {
@@ -91,7 +92,10 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		}
 	}
 
+	b.endLayer()
+
 	// Stars: two layers with drift + twinkle.
+	b.beginLayer(layerStars, 0, 0, sw(b), sh(b)*7/10)
 	for _, st := range sceneStars(state.Seed, sw(b), sh(b)) {
 		driftX := int(float64(st.x) + st.drift*float64(wrapT(t, 3*time.Minute))/float64(time.Minute)*float64(sw(b))/80)
 		x := driftX % sw(b)
@@ -118,6 +122,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		ci := mixIndex(p, cBrightText, p.base, 0.85-bright*0.75)
 		b.mark(x, st.y, ch, ci)
 	}
+	b.endLayer()
 
 	// Moon: real phase from the date; progress walks it across the sky.
 	phase := moonPhase(state.Now)
@@ -125,10 +130,12 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	_ = moonAge(state.Now)
 	mx := int(float64(sw(b)) * (0.10 + 0.80*clampf(state.Progress, 0, 1)))
 	my := int(float64(sh(b)) * (0.58 - 0.42*math.Sin(math.Pi*clampf(state.Progress, 0, 1))))
-	mr := minInt(mr0(sw(b), sh(b)), 5)
-	if mr < 2 {
-		mr = 2
+	mri := minInt(mr0(sw(b), sh(b)), 5)
+	if mri < 2 {
+		mri = 2
 	}
+	b.beginLayer(layerCelestial, mx-mri-1, my-mri-1, mx+mri+2, my+mri+2)
+	mr := mri
 	lightSide := 1 // waxing: light from the right
 	if !moonWaxing(phase) {
 		lightSide = -1
@@ -164,7 +171,10 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		}
 	}
 
+	b.endLayer()
+
 	// Shooting stars: deterministic slot every ~5.5s with a seeded chance.
+	b.beginLayer(layerStars, 0, 0, sw(b), sh(b)/2)
 	slotSec := int64(5)
 	slot := int64(wrapT(t, 24*time.Hour)/time.Second) / slotSec
 	slotR := newRNG(state.Seed, uint64(slot)*977+13)
@@ -195,9 +205,13 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		}
 	}
 
+	b.endLayer()
+
 	// Horizon silhouettes: a jagged pine line at the base.
-	sil := cachedPerlin(state.Seed, 101)
 	ground := sh(b) * 82 / 100
+	beginLand := maxInt(0, ground-9)
+	b.beginLayer(layerLand, 0, beginLand, sw(b), sh(b))
+	sil := cachedPerlin(state.Seed, 101)
 	for x := 0; x < sw(b); x++ {
 		gy := ground + int(sil.At(float64(x)*0.21, 7.3)*2.2)
 		for y := gy; y < sh(b); y++ {
@@ -213,6 +227,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 			b.glow(x, y, ci)
 		}
 	}
+	b.endLayer()
 }
 
 func mr0(w, h int) int {

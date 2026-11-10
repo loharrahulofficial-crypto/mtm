@@ -35,15 +35,22 @@ func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h 
 		}
 	}
 	phase := moonPhase(state.Now)
-	paintMoon(b, sw(b)/4, maxInt(sh(b)/6, 1), maxInt(minInt(sw(b), sh(b))/9, 1), phase, p)
+	moonYr := maxInt(sh(b)/6, 1)
+	moonRr := maxInt(minInt(sw(b), sh(b))/9, 1)
+	b.beginLayer(layerCelestial, sw(b)/4-moonRr-1, maxInt(0, moonYr-moonRr-1), sw(b)/4+moonRr+2, moonYr+moonRr+2)
+	paintMoon(b, sw(b)/4, moonYr, moonRr, phase, p)
+	b.endLayer()
 
 	// Ground line only — the fire glow carries the rest
 	fireY := sh(b) * 78 / 100
+	flameTopF := fireY - 2 - sh(b)*34/100
+	b.beginLayer(layerLand, 0, fireY+2, sw(b), minInt(sh(b), fireY+4))
 	for x := 0; x < sw(b); x++ {
 		b.glow(x, fireY+2, mixIndex(p, cBrown, p.base, 0.5))
 		b.glow(x, fireY+3, mixIndex(p, cBrown, p.base, 0.35))
 	}
 
+	b.endLayer()
 	// Warm radial glow around the fire, breathing with noise
 	glowN := cachedPerlin(state.Seed, 701)
 	fx0 := sw(b) / 2
@@ -60,6 +67,7 @@ func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h 
 		}
 	}
 
+	b.beginLayer(layerFire, maxInt(0, sw(b)/2-12), maxInt(0, flameTopF-1), minInt(sw(b), sw(b)/2+13), sh(b))
 	// Stone ring
 	stones := [][2]int{{-7, 1}, {-5, 2}, {-3, 2}, {-1, 3}, {1, 3}, {3, 2}, {5, 2}, {7, 1}}
 	for _, sPos := range stones {
@@ -123,6 +131,8 @@ func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h 
 		b.mark(int(spx), int(spy), '*', ci)
 	}
 
+	b.endLayer()
+	b.beginLayer(layerSmoke, maxInt(0, sw(b)/2-9), 0, minInt(sw(b), sw(b)/2+16), minInt(sh(b), flameTopF+1))
 	// Smoke: rising, leaning column of fading dots
 	smoke := cachedPerlin(state.Seed, 733)
 	for k := 0; k < 6; k++ {
@@ -133,4 +143,5 @@ func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h 
 		ci := mixIndex(p, cText, p.base, 0.35+fp*0.55)
 		b.mark(int(float64(fx0)+lean), int(py), '·', ci)
 	}
+	b.endLayer()
 }

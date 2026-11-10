@@ -76,9 +76,12 @@ func buildTree(seed int64, sw, sh int, mult float64) []branch {
 func (s *bonsaiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	// ground: quiet dark soil line
 	ground := sh(b) - 1
+	b.beginLayer(layerLand, 0, ground, sw(b), sh(b))
 	for x := 0; x < sw(b); x++ {
 		b.mark(x, ground, '_', mixIndex(p, cSurfaceStrong, p.base, 0.35))
 	}
+
+	b.endLayer()
 
 	grow := state.Progress
 	if state.Phase == PhaseIdle {
@@ -86,6 +89,7 @@ func (s *bonsaiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h in
 	}
 	grow = clampf(grow, 0, 1)
 
+	b.beginLayer(layerFoliage, 0, 0, sw(b), ground+1)
 	segs := buildTree(state.Seed, sw(b), sh(b), 0.85+grow*0.75)
 	total := len(segs)
 	reveal := grow * float64(total)
@@ -141,6 +145,8 @@ func (s *bonsaiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h in
 		}
 		_ = heightFrac
 	}
+
+	b.endLayer()
 
 	// Falling petals once the tree bears blossom
 	if grow > 0.85 {

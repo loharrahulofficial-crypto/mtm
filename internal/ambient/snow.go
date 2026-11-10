@@ -27,11 +27,15 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	moonY := sh(b) / 5
 	moonX := sw(b) * 3 / 4
 	phase := moonPhase(state.Now)
-	paintMoon(b, moonX, moonY, maxInt(minInt(sw(b), sh(b))/8, 2), phase, p)
+	moonRrSnow := maxInt(minInt(sw(b), sh(b))/8, 2)
+	b.beginLayer(layerCelestial, moonX-moonRrSnow-1, maxInt(0, moonY-moonRrSnow-1), moonX+moonRrSnow+2, moonY+moonRrSnow+2)
+	paintMoon(b, moonX, moonY, moonRrSnow, phase, p)
+	b.endLayer()
 
 	// Treeline silhouette
 	pine := cachedPerlin(state.Seed, 641)
 	ground := sh(b) * 74 / 100
+	b.beginLayer(layerLand, 0, maxInt(0, ground-11), sw(b), sh(b))
 	for x := 0; x < sw(b); x++ {
 		gy := ground + int(pine.At(float64(x)*0.17, 9.1)*2)
 		ci := mixIndex(p, cSurfaceStrong, p.base, 0.25)
@@ -50,6 +54,8 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 		}
 	}
 
+	b.endLayer()
+	b.beginLayer(layerLand, 0, maxInt(0, sh(b)*9/10-2), sw(b), sh(b))
 	// Snow accumulation — creeps up with progress (the pomodoro settles in)
 	accum := int(state.Progress * float64(sh(b)) * 0.10)
 	for y := sh(b) - 1 - accum; y < sh(b); y++ {
@@ -58,6 +64,8 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 			b.mark(x, y, '▁', ci)
 		}
 	}
+
+	b.endLayer()
 
 	// Flakes: three parallax layers
 	tSec := tSecF(t)

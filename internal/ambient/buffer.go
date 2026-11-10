@@ -13,13 +13,40 @@ import (
 //
 // Scenes set cells with a glyph and a palette index; the mode decides how
 // subcells become terminal glyphs.
+//
+// Layers: scenes wrap bounded elements in beginLayer/endLayer with a tag.
+// Every painted cell records the tag of the layer that painted it last.
+// The region union per tag is checked by tests (no layer paints outside
+// its intended region).
 type buffer struct {
-	mode    string
-	sw      int
-	sh      int
-	cells   []subcell
-	palette *paletteModel
+	mode     string
+	sw       int
+	sh       int
+	cells    []subcell
+	layer    []uint8
+	regions  []layerRegion
+	curLayer uint8
+	palette  *paletteModel
 }
+
+// layerRegion records the intended bounding rect of one painted layer.
+type layerRegion struct {
+	tag            uint8
+	x0, y0, x1, y1 int // half-open
+}
+
+const (
+	layerSky uint8 = 1 + iota
+	layerCelestial
+	layerStars
+	layerSea
+	layerLand
+	layerCabin
+	layerSmoke
+	layerFoliage
+	layerFire
+	layerFog
+)
 
 type subcell struct {
 	ch rune // 0 = unmarked
@@ -40,7 +67,32 @@ func newBuffer(mode string, w, h int) *buffer {
 	if sh < 1 {
 		sh = 1
 	}
-	return &buffer{mode: mode, sw: sw, sh: sh, cells: make([]subcell, sw*sh)}
+	return &buffer{mode: mode, sw: sw, sh: sh, cells: make([]subcell, sw*sh), layer: make([]uint8, sw*sh)}
+}
+
+// beginLayer starts a bounded layer: every painted cell is tagged until
+// endLayer is called, and (x0, y0, x1, y1) — half-open, sub-cell coords —
+// records the layer's intended region for the region invariant test.
+func (b *buffer) beginLayer(tag uint8, x0, y0, x1, y1 int) {
+	b.curLayer = tag
+	if x1 < x0 {
+		x1 = x0
+	}
+	if y1 < y0 {
+		y1 = y0
+	}
+	b.regions = append(b.regions, layerRegion{tag: tag, x0: x0, y0: y0, x1: x1, y1: y1})
+}
+
+// endLayer stops tagging cells (regions stay recorded).
+func (b *buffer) endLayer() { b.curLayer = 0 }
+
+// layerOf reports the tag of the layer that painted the cell (0 = none).
+func (b *buffer) layerOf(i int) uint8 {
+	if b.layer == nil {
+		return 0
+	}
+	return b.layer[i]
 }
 
 // mark writes a glyph cell (ascii mode) or a charged dot/block (others).
@@ -48,9 +100,13 @@ func (b *buffer) mark(x, y int, ch rune, ci int) {
 	if x < 0 || y < 0 || x >= b.sw || y >= b.sh {
 		return
 	}
-	c := &b.cells[y*b.sw+x]
+	i := y*b.sw + x
+	c := &b.cells[i]
 	c.ch = ch
 	c.c = ci
+	if b.curLayer != 0 {
+		b.layer[i] = b.curLayer
+	}
 }
 
 // glow charges a cell without a glyph (used for light/color washes).
