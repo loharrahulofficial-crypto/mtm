@@ -70,7 +70,7 @@ func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h 
 	fireY := H * 0.78
 	// light cast: a breathing warm pool over the whole lower scene
 	glowN := cachedPerlin(state.Seed, 701)
-	breath := 0.78 + 0.3*glowN.At(ts*0.5, 0.5)
+	breath := 0.78 + reducedAmp(state, 0.3)*glowN.At(ts*0.5, 0.5)
 	b.beginLayer(layerFire, 0, int(H*0.28), sw(b), sh(b))
 	// ground pool of light
 	b.fillEllipseHexF(fx, groundY+H*0.1, W*0.52, H*0.17, state.Palette.Warning, 0.16*breath, opAdd)

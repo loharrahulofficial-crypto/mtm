@@ -253,13 +253,14 @@ func (m Model) sceneState() ambient.SceneState {
 		}
 	}
 	return ambient.SceneState{
-		Progress:  progress,
-		Phase:     ambient.Phase(v.Phase),
-		Now:       m.clock.Now(),
-		Seed:      42,
-		Palette:   pal,
-		Lightning: m.cfg.UI.RainLightning,
-		Dither:    m.cfg.UI.AmbientDither != "off" && caps.Current().LimitedPalette,
+		Progress:      progress,
+		Phase:         ambient.Phase(v.Phase),
+		Now:           m.clock.Now(),
+		Seed:          42,
+		Palette:       pal,
+		Lightning:     m.cfg.UI.RainLightning,
+		Dither:        m.cfg.UI.AmbientDither != "off" && caps.Current().LimitedPalette,
+		ReducedMotion: m.reducedMotionActive(),
 	}
 }
 
@@ -305,6 +306,9 @@ func (m *Model) sceneRewardFrame(t time.Duration, w, h int) []string {
 	st := m.sceneState()
 	st.Progress = 1
 	st.Phase = ambient.PhaseWork
+	if m.reducedMotionActive() {
+		t = 900 * time.Millisecond // still frame of the burst
+	}
 	return m.currentScene().Reward(t, w, h, st)
 }
 
@@ -485,7 +489,13 @@ func (m Model) renderSplash() string {
 	if total < 1.8 {
 		total = 3.0
 	}
+	if m.reducedMotionActive() {
+		t = total // static still: the full composition from the first frame
+	}
 	sceneT := time.Duration(math.Max(0, t-0.25) * float64(time.Second))
+	if m.reducedMotionActive() {
+		sceneT = 0 // the scene is a still; idle breathing is the only motion
+	}
 
 	// scene elements drift in behind the fade
 	sceneLines := m.sceneFrame(sceneT, w, h, true) // dimmed: wordmark pops
@@ -513,6 +523,10 @@ func (m Model) renderSplash() string {
 
 	lines := out
 
+	// reduced motion: a static splash — no fade, no dissolve, no choreography
+	if m.reducedMotionActive() {
+		return strings.Join(lines, "\n")
+	}
 	// head fade-in from the background (0.0–0.55s)
 	if t < 0.55 {
 		black := ambient.BlackFrame(lines)

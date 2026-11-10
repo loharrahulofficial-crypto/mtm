@@ -135,7 +135,7 @@ func (s *bonsaiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h in
 	// --- the tree
 	segs := buildBonsai(state.Seed, sw(b), sh(b), 0.75+grow*0.9)
 	n := revealed(segs, grow)
-	swayS := math.Sin(ts*0.75) * 0.55 * breathe
+	swayS := math.Sin(ts*0.75) * reducedAmp(state, 0.55) * breathe
 
 	b.beginLayer(layerLand, 0, 0, sw(b), sh(b))
 	for i, seg := range segs {

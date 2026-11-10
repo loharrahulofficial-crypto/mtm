@@ -133,7 +133,7 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 			fall := L.fall[0] + r.float64()*(L.fall[1]-L.fall[0])
 			alpha := L.alpha[0] + r.float64()*(L.alpha[1]-L.alpha[0])
 			y := math.Mod(yOff+ts*fall, H+6) - 3
-			x := xBase + wind*3.2 + math.Sin(ts*0.75+float64(i)*1.7+float64(li)*2.3)*0.9
+			x := xBase + wind*3.2 + math.Sin(ts*0.75+float64(i)*1.7+float64(li)*2.3)*reducedAmp(state, 0.9)
 			if x < -2 {
 				x += W + 4
 			}

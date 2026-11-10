@@ -34,6 +34,8 @@ type SceneState struct {
 	Palette   Palette
 	Lightning bool // rain scene option; off by default
 	Dither    bool // quantize output to xterm-256 with ordered dithering
+	// ReducedMotion: slow crawl, low-amplitude stills (idle breathing only).
+	ReducedMotion bool
 }
 
 // Palette carries the resolved theme roles the scenes paint with.

@@ -15,12 +15,21 @@ type paintable interface {
 
 // newFrameBuffer paints one frame and returns the buffer for inspection
 // (the golden/invariant tests read the raster, not just the lines).
-func newFrameBuffer(s paintable, mode string, t time.Duration, w, h int, state SceneState) *buffer {
+// ReducedMotion slows every scene to a crawl (idle breathing only).
+// Reward frames freeze outright — the celebration is a still.
+func newFrameBuffer(s paintable, mode string, t time.Duration, w, h int, state SceneState, reward bool) *buffer {
 	if w < 1 {
 		w = 1
 	}
 	if h < 1 {
 		h = 1
+	}
+	if state.ReducedMotion {
+		if reward {
+			t = 0
+		} else if t > 0 {
+			t = time.Duration(float64(t) * 0.12)
+		}
 	}
 	p := paletteFor(state.Palette)
 	b := newBuffer(mode, w, h, p)
@@ -33,9 +42,12 @@ func newFrameBuffer(s paintable, mode string, t time.Duration, w, h int, state S
 // renderFrame builds one line-set for the frame (reward adds the sparkle).
 func renderFrame(s paintable, mode string, t time.Duration, w, h int, state SceneState, reward bool) []Line {
 	p := paletteFor(state.Palette)
-	b := newFrameBuffer(s, mode, t, w, h, state)
+	b := newFrameBuffer(s, mode, t, w, h, state, reward)
 	b.palette = p
 	if reward {
+		if state.ReducedMotion {
+			t = 0
+		}
 		paintReward(b, t, state, s.Name())
 	}
 	return b.render(p, w, h)

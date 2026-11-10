@@ -86,3 +86,12 @@ func paintMoon(b *buffer, cx, cy, r int, phase float64, p *paletteModel) {
 		}
 	}
 }
+
+// reducedAmp damps an oscillation amplitude hard under reduced motion
+// (still visible, but a quiet still rather than a lively scene).
+func reducedAmp(state SceneState, full float64) float64 {
+	if state.ReducedMotion {
+		return full * 0.15
+	}
+	return full
+}

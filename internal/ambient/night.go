@@ -152,7 +152,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	}
 	b.beginLayer(layerCelestial, int(mX-mR-2), int(mY-mR-2), int(mX+mR+3), int(mY+mR+3))
 	// halo: slow glow pulse (idle breathing)
-	haloPulse := 0.5 + 0.14*math.Sin(ts*0.42)
+	haloPulse := 0.5 + reducedAmp(state, 0.14)*math.Sin(ts*0.42)
 	b.fillCircleHexF(mX, mY, mR*1.9, blendHex(bright, base, 0.82), haloPulse, opAdd) // halo
 	// disc: limb shading in three tones
 	b.fillCircleHexF(mX, mY, mR, blendHex(bright, base, 0.62), 1, opNormal)

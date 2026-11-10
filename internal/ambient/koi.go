@@ -90,8 +90,8 @@ func (s *koiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, 
 	b.endLayer()
 
 	// --- the koi: two big fish on slow lissajous swim paths
-	drawKoi(b, state.Palette, ts, W, H, state.Seed, 0)
-	drawKoi(b, state.Palette, ts, W, H, state.Seed, 1)
+	drawKoi(b, state.Palette, ts, W, H, state.Seed, 0, state.ReducedMotion)
+	drawKoi(b, state.Palette, ts, W, H, state.Seed, 1, state.ReducedMotion)
 
 	// --- ripples expanding at beat slots
 	b.beginLayer(layerSea, 0, 0, sw(b), sh(b))
@@ -139,7 +139,11 @@ func (s *koiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, 
 // drawKoi renders one koi: a spine chain of body blobs that undulates
 // along its swim path, two-tone with patches, a fanned tail fin, eyes
 // and fluttering pectoral fins.
-func drawKoi(b *buffer, pal Palette, ts, W, H float64, seed int64, variant int) {
+func drawKoi(b *buffer, pal Palette, ts, W, H float64, seed int64, variant int, reduced bool) {
+	undAmp := 0.30
+	if reduced {
+		undAmp = 0.045
+	}
 	pathF := func(tt float64) (float64, float64) {
 		if variant == 0 {
 			return (0.5 + 0.33*math.Cos(tt*0.33+1.7)) * W, (0.42 + 0.26*math.Sin(tt*0.47+0.4)) * H
@@ -167,7 +171,7 @@ func drawKoi(b *buffer, pal Palette, ts, W, H float64, seed int64, variant int) 
 	for i := 1; i < pts; i++ {
 		prev := spine[i-1]
 		// undulation: perpendicular sine wave traveling head → tail
-		und := math.Sin(now*2.6-float64(i)*0.72+float64(variant)*1.9) * 0.30
+		und := math.Sin(now*2.6-float64(i)*0.72+float64(variant)*1.9) * undAmp
 		pa := prev.a + und*0.22
 		spine = append(spine, pt{prev.x - math.Cos(pa)*segLen, prev.y - math.Sin(pa)*segLen, pa})
 	}
