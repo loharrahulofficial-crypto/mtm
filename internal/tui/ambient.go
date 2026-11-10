@@ -287,6 +287,45 @@ func (m *Model) startSplashIfEnabled(isTTY bool) bool {
 	return true
 }
 
+// wordmarkGlyphs holds the block-letter glyphs for "mtm" as per-letter
+// blocks so tests can assert the letters render distinct, legible shapes.
+type wordmarkGlyphs struct{ letters [][]string }
+
+// wordmarkSmall is the 3-row wordmark; the t carries a top bar over a stem
+// (reads as a t, never as an I).
+var wordmarkSmall = wordmarkGlyphs{letters: [][]string{
+	{"█▄ ▄█", "█▀▄▀█", "█   █"}, // m
+	{"█████", "  █  ", "  █  "}, // t
+	{"█▄ ▄█", "█▀▄▀█", "█   █"}, // m
+}}
+
+// wordmarkLarge is the 5-row wordmark for roomy terminals.
+var wordmarkLarge = wordmarkGlyphs{letters: [][]string{
+	{"██   ██", "███ ███", "██▀█▀██", "██   ██", "██   ██"}, // m
+	{"███████", "  ███  ", "  ███  ", "  ███  ", "  ███  "}, // t
+	{"██   ██", "███ ███", "██▀█▀██", "██   ██", "██   ██"}, // m
+}}
+
+func (g wordmarkGlyphs) rows() []string {
+	rows := make([]string, 0, len(g.letters[0]))
+	for i := range g.letters[0] {
+		parts := make([]string, 0, len(g.letters))
+		for _, l := range g.letters {
+			parts = append(parts, l[i])
+		}
+		rows = append(rows, strings.Join(parts, "   "))
+	}
+	return rows
+}
+
+// wordmarkFor chooses the wordmark size the terminal can hold.
+func wordmarkFor(w, h int) (wordmarkGlyphs, bool) {
+	if w >= 110 && h >= 28 {
+		return wordmarkLarge, true
+	}
+	return wordmarkSmall, false
+}
+
 // renderSplash composes the startup splash: the current scene behind the
 // mtm wordmark. Any key skips.
 func (m Model) renderSplash() string {
@@ -298,11 +337,8 @@ func (m Model) renderSplash() string {
 	bright := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Bold(true)
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft))
 	accent := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Bold(true)
-	unit := []string{
-		"█▄ ▄█ █████ █▄ ▄█",
-		"█▀▄▀█   █   █▀▄▀█",
-		"█   █ █████ █   █",
-	}
+	glyphs, large := wordmarkFor(w, h)
+	unit := glyphs.rows()
 	out := append([]string{}, lines...)
 	cy := h / 2
 	place := func(y int, line string) {
@@ -311,11 +347,21 @@ func (m Model) renderSplash() string {
 		}
 		out[y] = strings.Repeat(" ", maxInt((w-lipgloss.Width(line))/2, 0)) + line
 	}
-	place(cy-2, bright.Render(unit[0]))
-	place(cy-1, bright.Render(unit[1]))
-	place(cy, bright.Render(unit[2]))
-	place(cy+2, accent.Render("✦  m t m  ✦"))
-	place(cy+4, muted.Render("a calmer desk for your courses"))
+	if large {
+		place(cy-3, bright.Render(unit[0]))
+		place(cy-2, bright.Render(unit[1]))
+		place(cy-1, bright.Render(unit[2]))
+		place(cy, bright.Render(unit[3]))
+		place(cy+1, bright.Render(unit[4]))
+		place(cy+3, accent.Render("✦  m t m  ✦"))
+		place(cy+5, muted.Render("a calmer desk for your courses"))
+	} else {
+		place(cy-2, bright.Render(unit[0]))
+		place(cy-1, bright.Render(unit[1]))
+		place(cy, bright.Render(unit[2]))
+		place(cy+2, accent.Render("✦  m t m  ✦"))
+		place(cy+4, muted.Render("a calmer desk for your courses"))
+	}
 	place(h-2, muted.Render("press any key to skip"))
 	return strings.Join(out, "\n")
 }
