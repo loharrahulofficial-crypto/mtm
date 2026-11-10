@@ -107,6 +107,19 @@ func (m Model) updateNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		s = m.keymap.Seq(aPageUp)
 	}
 
+	// The project page owns its navigation keys while open (j/k/h/l, tabs,
+	// pan, esc). Everything else (palette, sync, help, ctrl+c, ...) keeps
+	// flowing through the regular handlers — the page sits underneath the
+	// overlays.
+	if m.projectPage != "" {
+		switch s {
+		case "j", "k", "up", "down", "h", "l", "[", "]", "g", "G",
+			m.keymap.Seq(aPageDown), m.keymap.Seq(aPageUp),
+			"ctrl+d", "ctrl+u", "esc", "q", "enter":
+			return m.updateProjectPageKey(msg)
+		}
+	}
+
 	// Courses view: a bare grade key records a grade (gg's top-of-list
 	// binding is sacrificed there; the rest of the board keeps gg). The
 	// prefix check must not swallow it, so it runs before the multi-key

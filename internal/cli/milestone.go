@@ -210,7 +210,7 @@ func newMilestoneShowCmd() *cobra.Command {
 			if m.Target != "" {
 				fmt.Printf("target:      %s%s\n", m.Target, daysChip(m, now))
 			}
-			fmt.Printf("progress:    %s (%d/%d)\n", bar(core.Progress{Done: done, Total: total, Fraction: frac}, 24), done, total)
+			fmt.Printf("progress:    %s\n", bar(core.Progress{Done: done, Total: total, Fraction: frac}, 24))
 			if m.Description != "" {
 				fmt.Printf("description: %s\n", m.Description)
 			}

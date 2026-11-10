@@ -15,7 +15,8 @@ auto-sync between devices. No database.
 > CLI core, smart natural-language add, the TUI, academic features (courses,
 > exams, weighted grades, Pomodoro), stats and weekly review, export
 > (markdown/CSV/JSON), iCal export and serving, reminders, systemd timers,
-> Waybar integration, and shell completions. Not yet: Phase 6 ideas/milestones.
+> Waybar integration, and shell completions. Ideas/milestones and the dev-log
+> landed in the project-tools phase.
 
 ## Install
 
@@ -64,10 +65,17 @@ mtm review                                 # the weekly review ritual
 `mtm stats` (`--week|--month|--semester|--since DATE`), `review`
 (interactive weekly ritual), `summary` (shell status line)
 
+### Incubator and projects
+`mtm idea` / `ideas` (capture, list, rate, promote to a project),
+`mtm milestone` (`add|list|show|edit|done`; link tasks with `mtm add … --milestone <id>`),
+`mtm log` / `logs` (per-project dev-log),
+`mtm project link` (read-only GitHub stats: commit sparkline, last commit,
+streak; open issue/PR counts via `gh` when authenticated, cached 15 min)
+
 ### Import and export
 `mtm export` (`--format md|csv|json [--out FILE] [--project X] [--course X] [--since DATE]`),
 `mtm ical` (`--out FILE`, `--serve [--bind host:port] [--token SECRET]`,
-`--include tasks,exams`, `--alarm 30m`)
+`--include tasks,exams,milestones`, `--alarm 30m`)
 
 ### Shell and bars
 `mtm summary`, `mtm waybar` (Waybar `custom/` module JSON), `mtm completion bash|zsh|fish`
@@ -157,6 +165,52 @@ prints the plan without writing anything; `MTM_SYSTEMD_USER_DIR` overrides
 the unit directory (tests use it; the real `~/.config/systemd/user` is never
 touched unless you ask).
 
+## Ideas incubator, milestones and dev-log
+
+Half-formed ideas live in `ideas/` until they prove themselves:
+
+```sh
+mtm idea "local-first sync" --tag sync --rating 4
+mtm ideas                            # list (seed/exploring/parked live up top)
+mtm idea note ide0001 "check CRDT vs oplog"
+mtm idea status ide0001 exploring    # seed → exploring → parked → dropped
+mtm idea promote ide0001             # → project with todo/doing/done, an initial
+                                      #   milestone and a linked starter task list
+mtm idea promote ide0001 --template web  # starter tasks from templates/web.md
+```
+
+Projects carry milestones; tasks link to them with `--milestone`:
+
+```sh
+mtm milestone add college/dbms "v0.1 — study MVP" --target 2026-12-15
+mtm add "normalize the orders schema" --project college/dbms --milestone ms0001
+mtm milestone list college/dbms      # progress bar per milestone (tasks+subtasks)
+mtm milestone done ms0001
+```
+
+`mtm log <project>` appends to the project's dev-log
+(`projects/<project>/devlog/<YYYY-MM-DD>-<id>.md`):
+
+```sh
+mtm log college/dbms "3NF, then lossless joins"
+mtm log college/dbms                  # scaffold in $EDITOR (commits prefilled
+                                      #   with devlog.suggest_from_commits: true)
+mtm log college/dbms --with-timer "evening block"   # attach the running timer
+mtm log college/dbms --from-commits   # body prefilled with recent commits
+mtm logs college/dbms --since 7d
+```
+
+`mtm project link <project> --path ~/Projects/foo [--repo owner/name]` reads
+the linked repo read-only: a 12-week commit sparkline, last commit, last 5
+subjects and a commit streak (sidebar and Home chips); with `--repo` and an
+authenticated `gh` it also shows open issue/PR counts and the latest few
+(cached 15 minutes, in the cache dir, never in the data repo).
+
+The project page (`enter` on a project in the sidebar, or `:roadmap` in the
+TUI) has four tabs: **Overview** (description, combined progress, velocity,
+hours, GitHub section), **Tasks**, **Roadmap** (12-week timeline, milestone
+bars with progress, today marker, at-risk/overdue colours) and **Dev-log**.
+
 ## Import and export
 
 ```sh
@@ -171,24 +225,31 @@ mtm ical --serve --token secret --bind 0.0.0.0   # remote read access (warns lou
 
 - **Markdown** is a readable report grouped by course: grades, exams, task
   lists (nested subtasks), hours.
-- **JSON** carries a top-level `schema_version` (currently `1`), documented
-  below in *Export schema*. Ideas/milestones land in a later schema bump.
+- **JSON** carries a top-level `schema_version` (currently `2`), documented
+  below in *Export schema*. Since version 2 the `ideas`, `milestones` and
+  `devlog` arrays are fully populated.
 - **CSV** is a flat task table with stable columns (one row per task;
   subtasks included with `parent` set).
 - **iCal** events: timed tasks and exams are timed events (1h duration);
-  date-only tasks are all-day events. UIDs derive from task ids, so
-  re-imports update instead of duplicating. Dates stored local-naive export
-  as floating local times; set `ical.timezone` to emit `TZID` parameters.
-  `--alarm 30m` adds a VALARM to every event.
+  date-only tasks are all-day events. Milestones are all-day events on their
+  target date (`--include tasks,exams,milestones`). UIDs derive from task and
+  milestone ids, so re-imports update instead of duplicating. Dates stored
+  local-naive export as floating local times; set `ical.timezone` to emit
+  `TZID` parameters. `--alarm 30m` adds a VALARM to every event.
 - The `--serve` endpoint serves exactly `/mtm.ics` (or `/<token>/mtm.ics`
   with `--token`), GET/HEAD only, read-only, regenerated per request. The
   default bind is loopback; non-loopback prints a loud warning.
 
-## Export schema (version 1)
+## Export schema (version 2)
+
+Version 2 fills the reserved `ideas` and `milestones` arrays and adds a
+`devlog` array; `schema_version` bumps 1 → 2 accordingly. Everything else is
+unchanged from version 1. Version 1 consumers must tolerate new top-level
+keys — upgrade to version 2 for the new sections.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generated_at": "2026-11-09T10:43",
   "filters": { "project": "", "course": "", "since": "" },
   "tasks": [ ... ],        // id, title, project, status, priority, kind,
@@ -204,8 +265,13 @@ mtm ical --serve --token secret --bind 0.0.0.0   # remote read access (warns lou
                            // score_max, pct, scored, points
   "hours": [ ... ],        // course, logged_minutes, week_logged_minutes
   "totals": { "tasks": 73, "completed": 40, "hours_minutes": 620 },
-  "ideas": [],             // reserved for a later schema bump (Phase 6)
-  "milestones": []         // reserved for a later schema bump (Phase 6)
+  "ideas": [],             // since v2: id, title, status, tags, created,
+                           // updated, rating, links, promoted_to, body
+  "milestones": [],        // since v2: id, title, project, target, status,
+                           // description, created, updated, done, total,
+                           // frac, body — progress derived from linked tasks
+  "devlog": []             // since v2: id, title, project, mood,
+                           // time_spent_minutes, tags, created, body
 }
 ```
 
@@ -266,6 +332,9 @@ stats:
 ical:
   timezone: ""                  # IANA name (e.g. "Europe/London"); empty = floating local times
 
+devlog:
+  suggest_from_commits: false   # prefill `mtm log <project>` $EDITOR scaffold with recent commits
+
 reminders:
   due_soon_minutes: 0           # >0: also notify for tasks due within N minutes
   quiet_hours: ""               # "22:00-07:00" (spans midnight) — empty disables
@@ -276,12 +345,17 @@ reminders:
 ```
 ~/.local/share/mtm/                # the data repo (syncs)
 ├── projects/<project>/<id>-<slug>.md
-├── projects/<project>/project.yaml   # statuses, color, course block
+├── projects/<project>/project.yaml   # statuses, color, course block, github/repo_path (read-only link)
+├── projects/<project>/milestones/<id>-<slug>.md
+├── projects/<project>/devlog/<YYYY-MM-DD>-<id>.md
+├── ideas/<id>-<slug>.md               # incubator items (sync-safe, one per file)
 ├── archive/<project>/            # mtm archive moves done tasks here
+├── templates/<name>.md           # optional starter-task templates for `mtm idea promote`
 ├── .mtm-data                     # repo marker: UUID, creation date, kind: real|demo
 └── .git/
 
 ~/.cache/mtm/index.json           # index; never committed; safe to delete
+~/.cache/mtm/github.json          # gh issue/PR counts cache (15-minute TTL; never in the data repo)
 ~/.local/state/mtm/timer.json     # timer/Pomodoro state (outside the repo)
 ~/.local/state/mtm/timer.lock
 ~/.local/state/mtm/reminders.json # sent reminders (dedup; outside the repo)
@@ -304,10 +378,45 @@ estimate_minutes: 90
 time_logged_minutes: 45
 weight: 15              # grade weight %, for assignments and exams
 parent: abc123          # set for subtasks
+milestone: ms0001       # set when linked to a milestone
 completed: 2026-11-09T18:30   # set when done
 ---
 Free-form Markdown notes here.
 ```
+
+Ideas and milestones are Markdown files too:
+
+```markdown
+---                     # ideas/<id>-<slug>.md
+id: ide0001
+title: Local-first sync engine
+status: exploring        # seed | exploring | parked | promoted | dropped
+tags: [sync, go]
+created: 2026-10-01T10:00
+updated: 2026-11-02T10:00
+rating: 5                # 1-5; 0/absent = unrated
+links: []
+promoted_to: college/dbms   # set by `mtm idea promote`
+---
+
+---                     # projects/<project>/milestones/<id>-<slug>.md
+id: ms0001
+title: v0.1 — study MVP
+target: 2026-12-15      # local-naive date
+status: active          # planned | active | done | missed
+description: Course companion features
+created: 2026-10-20T09:00
+updated: 2026-11-05T10:00
+---
+
+---                     # projects/<project>/devlog/<YYYY-MM-DD>-<id>.md
+id: dl00001
+title: Week 2 wrap
+mood: flow              # optional
+time_spent_minutes: 90  # optional (--with-timer attaches the running timer)
+tags: [study]
+created: 2026-11-04T21:30
+---
 
 TUI panels derive their colors from the active Omarchy theme at runtime;
 themes, icons and layout scale changes apply immediately with no restart.
@@ -382,7 +491,7 @@ mtm completion fish > ~/.config/fish/completions/mtm.fish
 ## The TUI in short
 
 `mtm` opens the Study Desk dashboard. Views: `0` Home · `1` List · `2` Board ·
-`3` Calendar · `4` Courses · `5` Stats (all reachable with `tab`).
+`3` Calendar · `4` Courses · `5` Stats · `6` Ideas (all reachable with `tab`).
 
 - `a` add · `A` add subtask · `x` done/un-done
 - `/` filter · `ctrl+p` palette · `?` keybindings
@@ -390,6 +499,13 @@ mtm completion fish > ~/.config/fish/completions/mtm.fish
 - board: `h`/`l` move between columns · `D` toggle the Done filter
 - calendar: `h`/`l` move the day · `J`/`K` change months
 - courses: `g` record a grade · `e` add an exam
+- ideas: `a` capture · `r` rate 1–5 · `p` promote to a project · `s` cycle
+  status · `m`/`M` notes
+- project page (`enter` on a project in the sidebar, or `:roadmap`):
+  `[`/`]` switch tabs (Overview · Tasks · Roadmap · Dev-log) · `h`/`l` pan
+  the roadmap timeline · `j`/`k` move · `enter` opens the selected task ·
+  `esc` closes
+- help overlay shows every binding (`?`)
 
 All keybindings are overridable via `keys:` in the config; see `?` inside the
 TUI.

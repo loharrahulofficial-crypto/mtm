@@ -23,7 +23,7 @@ func newExportCmd() *cobra.Command {
 		Use:   "export",
 		Short: "Export tasks, courses, exams, grades and hours (md|csv|json)",
 		Long: `Export the data you own. JSON carries the full report with a
-top-level schema_version (1) and is the round-trip format. Markdown is a
+top-level schema_version (2) and is the round-trip format. Markdown is a
 readable report grouped by course with grades, exams and hours inline.
 CSV is a flat task table (one row per task, stable column order) for
 spreadsheets.

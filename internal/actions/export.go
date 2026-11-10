@@ -1,11 +1,11 @@
 package actions
 
 // Export engine (Phase 5, item 2): one read model, three serializers.
-// JSON carries the top-level schema_version (1) and is the round-trip
-// format; Markdown is a readable report grouped by course; CSV is a flat
-// task table with stable columns. Extensions for ideas and milestones
-// land as reserved top-level keys in a later phase — adding them then is
-// a one-line change here plus a schema_version bump.
+// JSON carries the top-level schema_version (2 as of Phase 4b-A) and is the
+// round-trip format; Markdown is a readable report grouped by course; CSV
+// is a flat task table with stable columns. schema_version 2 fills the
+// ideas/milestones arrays and adds the devlog array — see ExportIdea,
+// ExportMilestone and ExportDevLog. Markdown and CSV stay task-focused.
 
 import (
 	"sort"
@@ -17,7 +17,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 )
 
-// ExportReport is the top-level export read model (schema_version 1).
+// ExportReport is the top-level export read model (schema_version 2).
 type ExportReport struct {
 	SchemaVersion int           `json:"schema_version"`
 	GeneratedAt   string        `json:"generated_at"`
@@ -31,9 +31,11 @@ type ExportReport struct {
 
 	Totals ExportTotals `json:"totals"`
 
-	// Reserved for Phase 6 ideas and milestones; empty in schema_version 1.
-	Ideas      []any `json:"ideas"`
-	Milestones []any `json:"milestones"`
+	// Ideas and milestones are fully populated as of schema_version 2.
+	// DevLog carries the project dev-log entries (also since 2).
+	Ideas      []ExportIdea      `json:"ideas"`
+	Milestones []ExportMilestone `json:"milestones"`
+	DevLog     []ExportDevLog    `json:"devlog"`
 }
 
 type ExportFilters struct {
@@ -116,6 +118,45 @@ type ExportHours struct {
 	WeekLoggedMinutes int    `json:"week_logged_minutes"`
 }
 
+type ExportIdea struct {
+	ID         string   `json:"id"`
+	Title      string   `json:"title"`
+	Status     string   `json:"status"` // seed|exploring|parked|promoted|dropped
+	Tags       []string `json:"tags,omitempty"`
+	Created    string   `json:"created"`
+	Updated    string   `json:"updated"`
+	Rating     int      `json:"rating,omitempty"` // 1-5; 0/absent = unrated
+	Links      []string `json:"links,omitempty"`
+	PromotedTo string   `json:"promoted_to,omitempty"`
+	Body       string   `json:"body,omitempty"`
+}
+
+type ExportMilestone struct {
+	ID          string  `json:"id"`
+	Title       string  `json:"title"`
+	Project     string  `json:"project"`
+	Target      string  `json:"target,omitempty"` // 2006-01-02
+	Status      string  `json:"status"`           // planned|active|done|missed
+	Description string  `json:"description,omitempty"`
+	Created     string  `json:"created"`
+	Updated     string  `json:"updated"`
+	Done        int     `json:"done"`  // linked tasks (and subtasks) done
+	Total       int     `json:"total"` // linked scope size
+	Frac        float64 `json:"frac"`  // done/total; 0 when no linked tasks
+	Body        string  `json:"body,omitempty"`
+}
+
+type ExportDevLog struct {
+	ID               string   `json:"id"`
+	Title            string   `json:"title"`
+	Project          string   `json:"project"`
+	Mood             string   `json:"mood,omitempty"`
+	TimeSpentMinutes int      `json:"time_spent_minutes,omitempty"`
+	Tags             []string `json:"tags,omitempty"`
+	Created          string   `json:"created"`
+	Body             string   `json:"body,omitempty"`
+}
+
 // ExportOptions filters the report.
 type ExportOptions struct {
 	// Project restricts the export to one project (tasks, and the matching
@@ -131,7 +172,7 @@ type ExportOptions struct {
 // CollectExport assembles the export read model.
 func CollectExport(s *store.Store, now time.Time, opts ExportOptions) (*ExportReport, error) {
 	rep := &ExportReport{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		GeneratedAt:   now.Format(core.TimestampFormat),
 		Filters:       ExportFilters{Project: opts.Project, Course: opts.Course},
 		Tasks:         []ExportTask{},
@@ -139,8 +180,9 @@ func CollectExport(s *store.Store, now time.Time, opts ExportOptions) (*ExportRe
 		Exams:         []ExportExam{},
 		Grades:        []ExportGrade{},
 		Hours:         []ExportHours{},
-		Ideas:         []any{},
-		Milestones:    []any{},
+		Ideas:         []ExportIdea{},
+		Milestones:    []ExportMilestone{},
+		DevLog:        []ExportDevLog{},
 	}
 	if !opts.Since.IsZero() {
 		rep.Filters.Since = opts.Since.Format("2006-01-02")
@@ -330,6 +372,84 @@ func CollectExport(s *store.Store, now time.Time, opts ExportOptions) (*ExportRe
 		})
 	}
 	rep.Hours = append(rep.Hours, ExportHours{Course: "other", LoggedMinutes: otherHours, WeekLoggedMinutes: otherWeek})
+
+	// --- ideas ---------------------------------------------------------------
+	// Ideas are global (no project); --since filters on the updated stamp.
+	for _, i := range s.Ideas() {
+		if !opts.Since.IsZero() {
+			if ts, ok := dates.Parse(i.Updated, loc); ok && ts.Before(opts.Since) {
+				continue
+			}
+		}
+		rep.Ideas = append(rep.Ideas, ExportIdea{
+			ID:         i.ID,
+			Title:      i.Title,
+			Status:     i.Status,
+			Tags:       i.Tags,
+			Created:    i.Created,
+			Updated:    i.Updated,
+			Rating:     i.Rating,
+			Links:      i.Links,
+			PromotedTo: i.PromotedTo,
+			Body:       i.Body,
+		})
+	}
+	sort.SliceStable(rep.Ideas, func(i, j int) bool { return rep.Ideas[i].Updated > rep.Ideas[j].Updated })
+
+	// Milestones and dev-log entries follow the same project/course scope
+	// as tasks. --since filters on the updated stamp (created for entries).
+	docScope := opts.Project
+	if resolvedCourse != "" {
+		docScope = resolvedCourse
+	}
+	for _, m := range s.Milestones(docScope) {
+		if !opts.Since.IsZero() {
+			if ts, ok := dates.Parse(m.Updated, loc); ok && ts.Before(opts.Since) {
+				continue
+			}
+		}
+		done, total, frac := core.MilestoneProgress(s.Tasks(), m.ID, isDone)
+		rep.Milestones = append(rep.Milestones, ExportMilestone{
+			ID:          m.ID,
+			Title:       m.Title,
+			Project:     m.Project,
+			Target:      m.Target,
+			Status:      m.Status,
+			Description: m.Description,
+			Created:     m.Created,
+			Updated:     m.Updated,
+			Done:        done,
+			Total:       total,
+			Frac:        frac,
+			Body:        m.Body,
+		})
+	}
+	sort.SliceStable(rep.Milestones, func(i, j int) bool {
+		if rep.Milestones[i].Target == rep.Milestones[j].Target {
+			return rep.Milestones[i].Title < rep.Milestones[j].Title
+		}
+		return rep.Milestones[i].Target < rep.Milestones[j].Target
+	})
+
+	// --- dev-log --------------------------------------------------------------
+	for _, d := range s.DevLogs(docScope) {
+		if !opts.Since.IsZero() {
+			if ts, ok := dates.Parse(d.Created, loc); ok && ts.Before(opts.Since) {
+				continue
+			}
+		}
+		rep.DevLog = append(rep.DevLog, ExportDevLog{
+			ID:               d.ID,
+			Title:            d.Title,
+			Project:          d.Project,
+			Mood:             d.Mood,
+			TimeSpentMinutes: d.TimeSpentMinutes,
+			Tags:             d.Tags,
+			Created:          d.Created,
+			Body:             d.Body,
+		})
+	}
+	sort.SliceStable(rep.DevLog, func(i, j int) bool { return rep.DevLog[i].Created > rep.DevLog[j].Created })
 
 	// totals
 	for _, t := range tasks {

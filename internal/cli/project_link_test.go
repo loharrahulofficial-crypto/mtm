@@ -115,3 +115,27 @@ func TestProjectLinkValidation(t *testing.T) {
 		t.Fatal("link to an unknown project accepted")
 	}
 }
+
+func TestRepoSlugParsing(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"loharrahulofficial-crypto/mtm", true},
+		{"owner/repo.name_ok-1", true},
+		{"A/B", true},
+		{"owner", false},
+		{"owner/repo/extra", false},
+		{"/repo", false},
+		{"owner/", false},
+		{"ow ner/repo", false},
+		{"owner/repo!", false},
+		{"../repo", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := repoSlug.MatchString(tc.in); got != tc.want {
+			t.Errorf("repoSlug(%q) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}

@@ -277,7 +277,7 @@ cache dir for 15 minutes).
 	return cmd
 }
 
-var repoSlug = regexp.MustCompile(`^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`)
+var repoSlug = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 // relativeStamp renders a compact "2d ago"-style label for link output.
 func relativeStamp(now, ts time.Time) string {

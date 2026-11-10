@@ -41,7 +41,7 @@ local-naive are exported as floating local times (no TZID) unless
 ical.timezone is set in config.yaml.
 
   --out FILE          write to FILE instead of stdout (mode 0600)
-  --include LIST      tasks, exams (default both; either one alone ok)
+  --include LIST      tasks, exams, milestones (default tasks,exams; any subset ok)
   --project X         restrict to one project
   --alarm 30m         add a VALARM 30 minutes before each event
 
@@ -53,7 +53,7 @@ ical.timezone is set in config.yaml.
                       read the feed otherwise`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			includeTasks, includeExams, err := parseIcalInclude(include)
+			includeTasks, includeExams, includeMilestones, err := parseIcalInclude(include)
 			if err != nil {
 				return err
 			}
@@ -73,7 +73,7 @@ ical.timezone is set in config.yaml.
 					return nil, err
 				}
 				defer func() { _ = s.Close() }()
-				return collectIcalFeed(s, project, includeTasks, includeExams, alarmMinutes)
+				return collectIcalFeed(s, project, includeTasks, includeExams, includeMilestones, alarmMinutes)
 			}
 
 			if serve {
@@ -96,7 +96,7 @@ ical.timezone is set in config.yaml.
 	}
 	cmd.Flags().StringVar(&out, "out", "", "write to FILE instead of stdout (mode 0600)")
 	cmd.Flags().StringVar(&project, "project", "", "restrict to one project")
-	cmd.Flags().StringVar(&include, "include", "tasks,exams", "comma-separated: tasks, exams")
+	cmd.Flags().StringVar(&include, "include", "tasks,exams", "comma-separated: tasks, exams, milestones")
 	cmd.Flags().StringVar(&alarm, "alarm", "", "add a VALARM this far ahead of each event (e.g. 30m)")
 	cmd.Flags().BoolVar(&serve, "serve", false, "serve the feed read-only until interrupted")
 	cmd.Flags().StringVar(&bind, "bind", "127.0.0.1:8765", "listen address for --serve (loopback only by default)")
@@ -104,7 +104,7 @@ ical.timezone is set in config.yaml.
 	return cmd
 }
 
-func collectIcalFeed(s *store.Store, project string, includeTasks, includeExams bool, alarmMinutes int) ([]byte, error) {
+func collectIcalFeed(s *store.Store, project string, includeTasks, includeExams, includeMilestones bool, alarmMinutes int) ([]byte, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
@@ -121,29 +121,33 @@ func collectIcalFeed(s *store.Store, project string, includeTasks, includeExams 
 		tasks = filtered
 	}
 	events := ical.Collect(tasks, isDone, includeTasks, includeExams)
+	milestones := s.Milestones(project)
+	events = append(events, ical.CollectMilestones(milestones, includeMilestones)...)
 	return ical.Calendar(events, ical.Options{
 		Timezone:     cfg.ICal.Timezone,
 		AlarmMinutes: alarmMinutes,
 	})
 }
 
-func parseIcalInclude(s string) (tasks, exams bool, err error) {
-	tasks, exams = false, false
+func parseIcalInclude(s string) (tasks, exams, milestones bool, err error) {
+	tasks, exams, milestones = false, false, false
 	for _, part := range strings.Split(s, ",") {
 		switch strings.ToLower(strings.TrimSpace(part)) {
 		case "tasks":
 			tasks = true
 		case "exams":
 			exams = true
+		case "milestones":
+			milestones = true
 		case "":
 		default:
-			return false, false, fmt.Errorf("unknown --include %q (want tasks and/or exams)", part)
+			return false, false, false, fmt.Errorf("unknown --include %q (want tasks and/or exams and/or milestones)", part)
 		}
 	}
-	if !tasks && !exams {
-		return false, false, fmt.Errorf("--include must name at least one of tasks, exams")
+	if !tasks && !exams && !milestones {
+		return false, false, false, fmt.Errorf("--include must name at least one of tasks, exams, milestones")
 	}
-	return tasks, exams, nil
+	return tasks, exams, milestones, nil
 }
 
 func parseIcalAlarm(s string) (int, error) {

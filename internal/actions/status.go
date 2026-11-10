@@ -23,6 +23,13 @@ type StatusSnapshot struct {
 	Timer        core.TimerView // active timer view (phase idle = no session)
 	// ProjectProgress carries per-project done/total (by project name).
 	ProjectProgress []ProjectProgressRow
+	// OpenIdeas counts ideas that are not promoted or dropped (0 = hide the
+	// row in `mtm summary`).
+	OpenIdeas int
+	// NextMilestone is the nearest not-done milestone with a target date
+	// (nil when none) and its whole days remaining (negative = overdue).
+	NextMilestone     *core.Milestone
+	NextMilestoneDays int
 }
 
 // ProjectProgressRow is one project's done/total line.
@@ -81,6 +88,37 @@ func LoadStatusSnapshot(s *store.Store, now time.Time) StatusSnapshot {
 		snap.NextExam = best.task
 		snap.NextExamDays = best.days
 		snap.MoreExams = len(exams) - 1
+	}
+
+	// Ideas (open = not promoted/dropped). No network, cheap.
+	for _, i := range s.Ideas() {
+		switch strings.ToLower(i.Status) {
+		case core.IdeaPromoted, core.IdeaDropped:
+			continue
+		default:
+			snap.OpenIdeas++
+		}
+	}
+
+	// Next milestone (any project) with a target date.
+	var best *core.Milestone
+	bestDays := 0
+	for _, m := range s.Milestones("") {
+		if strings.EqualFold(m.Status, core.MilestoneDone) || m.Target == "" {
+			continue
+		}
+		day, err := time.ParseInLocation("2006-01-02", m.Target, now.Location())
+		if err != nil {
+			continue
+		}
+		days := int(dayStamp(day).Sub(today).Hours() / 24)
+		if best == nil || days < bestDays {
+			best, bestDays = m, days
+		}
+	}
+	if best != nil {
+		snap.NextMilestone = best
+		snap.NextMilestoneDays = bestDays
 	}
 
 	// Per-project progress, name-ordered.

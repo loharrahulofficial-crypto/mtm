@@ -138,3 +138,57 @@ func TestIcalBadIncludeAndBind(t *testing.T) {
 		t.Fatal("--token with spaces accepted")
 	}
 }
+
+func TestIcalMilestones(t *testing.T) {
+	seedIcalFixture(t)
+	// Seed a milestone into the default project.
+	_, s, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := time.Now().AddDate(0, 0, 12).Format("2006-01-02")
+	m := &core.Milestone{Title: "v0.1 cut", Target: target, Status: core.MilestonePlanned, Project: "inbox"}
+	if err := s.CreateMilestone(m); err != nil {
+		t.Fatal(err)
+	}
+	done := &core.Milestone{Title: "retro", Target: time.Now().AddDate(0, 0, 3).Format("2006-01-02"), Status: core.MilestoneDone, Project: "inbox"}
+	if err := s.CreateMilestone(done); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+
+	// Default include (tasks,exams) does NOT carry milestones.
+	out, err := runIcal(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "Milestone:") {
+		t.Fatalf("default feed leaked a milestone:\n%s", out)
+	}
+	// --include milestones carries the open milestone, all-day, UID from id.
+	out, err = runIcal(t, "--include", "milestones")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Milestone: v0.1 cut", "DTSTART;VALUE=DATE:", "UID:mtm-" + m.ID + "@mtm"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("milestone feed missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "retro") {
+		t.Errorf("done milestone leaked into the feed:\n%s", out)
+	}
+	if strings.Contains(out, "buy milk") || strings.Contains(out, "DBMS midterm") {
+		t.Errorf("--include milestones leaked tasks/exams:\n%s", out)
+	}
+	// Mixed include: all three.
+	out, err = runIcal(t, "--include", "tasks,exams,milestones")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"buy milk", "DBMS midterm", "Milestone: v0.1 cut"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("mixed include missing %q:\n%s", want, out)
+		}
+	}
+}

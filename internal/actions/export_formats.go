@@ -14,7 +14,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 )
 
-// ExportJSON renders the report as indented JSON with schema_version 1.
+// ExportJSON renders the report as indented JSON with schema_version 2.
 func ExportJSON(rep *ExportReport) ([]byte, error) {
 	return json.MarshalIndent(rep, "", "  ")
 }

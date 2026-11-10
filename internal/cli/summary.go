@@ -50,6 +50,22 @@ func newSummaryCmd() *cobra.Command {
 				line1 += " · " + chip
 			}
 
+			// Open ideas (only when non-zero) and the next milestone.
+			if snap.OpenIdeas > 0 {
+				line1 += fmt.Sprintf(" · %d ideas", snap.OpenIdeas)
+			}
+			if m := snap.NextMilestone; m != nil {
+				days := snap.NextMilestoneDays
+				chip := "today"
+				switch {
+				case days > 0:
+					chip = fmt.Sprintf("in %dd", days)
+				case days < 0:
+					chip = fmt.Sprintf("%dd overdue", -days)
+				}
+				line1 += fmt.Sprintf(" · ▸ %s · %s", truncateRunes(m.Title, 24), chip)
+			}
+
 			// Per-project progress.
 			stats := snap.ProjectProgress
 			parts := make([]string, 0, len(stats))

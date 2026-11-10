@@ -534,3 +534,165 @@ func TestMouseWheelMovesSelection(t *testing.T) {
 		t.Fatalf("cursor after wheel down = %d, want 2 (clamped to last row)", m.cursor)
 	}
 }
+
+func seedTestIdea(t *testing.T, s *store.Store, title, status string) *core.Idea {
+	t.Helper()
+	i := &core.Idea{Title: title, Status: status}
+	if err := s.CreateIdea(i); err != nil {
+		t.Fatal(err)
+	}
+	return i
+}
+
+func TestIdeasViewKeyFlows(t *testing.T) {
+	m, s := newTestModel(t, nil)
+	i := seedTestIdea(t, s, "sync brainstorm", core.IdeaSeed)
+
+	m = press(t, m, "6")
+	if m.view != viewIdeas {
+		t.Fatalf("view = %v, want ideas", m.view)
+	}
+	// s cycles the status seed -> exploring.
+	m = press(t, m, "s")
+	got, err := s.ResolveIdea(i.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != core.IdeaExploring {
+		t.Fatalf("status after s = %q, want exploring", got.Status)
+	}
+
+	// r opens the rating picker; enter accepts the highlighted value.
+	m = press(t, m, "r")
+	if m.mode != modePicker || m.picker != pickerRating {
+		t.Fatalf("after r: mode %v picker %v, want rating picker", m.mode, m.picker)
+	}
+	m = press(t, m, "enter")
+	got, err = s.ResolveIdea(i.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Rating != 1 {
+		t.Fatalf("rating after picker = %d, want 1", got.Rating)
+	}
+
+	// a opens the input bar wired to capture an idea.
+	m = press(t, m, "a")
+	if m.mode != modeInput || m.inputKind != inputIdea {
+		t.Fatalf("after a: mode %v kind %v, want idea input", m.mode, m.inputKind)
+	}
+	m = typeInto(t, m, "captured in the tui")
+	found := false
+	for _, ii := range s.Ideas() {
+		if ii.Title == "captured in the tui" && ii.Status == core.IdeaSeed {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("typed idea not captured")
+	}
+
+	// m opens the built-in notes editor bound to the idea; ctrl+s saves.
+	m = press(t, m, "m")
+	if m.mode != modeNotes || m.notesKind != "idea" {
+		t.Fatalf("after m: mode %v kind %v, want idea notes", m.mode, m.notesKind)
+	}
+	m = typeInto(t, m, "compare CRDT vs oplog")
+	// typeInto ends with enter; close with ctrl+s.
+	m = press(t, m, "ctrl+s")
+	captured := ""
+	for _, ii := range s.Ideas() {
+		if ii.Title == "captured in the tui" {
+			captured = ii.Body
+		}
+	}
+	if !strings.Contains(captured, "compare CRDT vs oplog") {
+		t.Fatalf("captured idea body missing typed notes:\n%s", captured)
+	}
+}
+
+func TestIdeasPromoteFromTUI(t *testing.T) {
+	m, s := newTestModel(t, nil)
+	i := seedTestIdea(t, s, "status page generator", core.IdeaSeed)
+	m = press(t, m, "6")
+	m = press(t, m, "p")
+	if m.mode != modeConfirm {
+		t.Fatalf("after p: mode %v, want confirm", m.mode)
+	}
+	m = press(t, m, "y")
+	got, err := s.ResolveIdea(i.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != core.IdeaPromoted {
+		t.Fatalf("status after promote = %q, want promoted", got.Status)
+	}
+	if !s.ProjectExists(got.PromotedTo) {
+		t.Fatalf("promoted project %q missing", got.PromotedTo)
+	}
+	if ms := s.Milestones(got.PromotedTo); len(ms) != 1 {
+		t.Fatalf("milestones on promoted project = %d, want 1", len(ms))
+	}
+}
+
+func TestProjectPageOpensAndTabs(t *testing.T) {
+	m, s := newTestModel(t, []*core.Task{
+		{Title: "scoped task", Project: "inbox", Status: "todo", Priority: "high", Kind: core.KindTask},
+	})
+	if err := s.SaveProject(core.DefaultProject("inbox")); err != nil {
+		t.Fatal(err)
+	}
+	m.sidebarItems = m.buildSidebar()
+	// Jump to the project entry in the sidebar (find it), then enter.
+	for i, it := range m.sidebarItems {
+		if it.Kind == "project" && it.Key == "inbox" {
+			m.sidebarSel = i
+			break
+		}
+	}
+	m.focus = focusSidebar
+	m = press(t, m, "enter")
+	if m.projectPage != "inbox" {
+		t.Fatalf("projectPage = %q, want inbox", m.projectPage)
+	}
+	if m.projectTab != projectTabOverview {
+		t.Fatalf("tab = %v, want overview", m.projectTab)
+	}
+	// [ ] tab cycles through all four tabs.
+	for _, step := range []struct {
+		tab int
+		key string
+	}{
+		{projectTabTasks, "]"},
+		{projectTabRoadmap, "]"},
+		{projectTabDevlog, "]"},
+		{projectTabOverview, "]"},
+	} {
+		m = press(t, m, step.key)
+		if m.projectTab != step.tab {
+			t.Fatalf("after %q tab = %v, want %v", step.key, m.projectTab, step.tab)
+		}
+	}
+	// esc closes the page.
+	m = press(t, m, "esc")
+	if m.projectPage != "" {
+		t.Fatalf("after esc projectPage = %q, want closed", m.projectPage)
+	}
+}
+
+func TestRoadmapKeyPansWindow(t *testing.T) {
+	m, _ := newTestModel(t, nil)
+	m.projectPage = "inbox"
+	m.projectTab = projectTabRoadmap
+	m.width, m.height = 120, 40
+	before := m.roadmapPan
+	m = press(t, m, "l")
+	if m.roadmapPan != before+28 {
+		t.Fatalf("roadmapPan after l = %d, want %d", m.roadmapPan, before+28)
+	}
+	m = press(t, m, "h")
+	m = press(t, m, "h")
+	if m.roadmapPan != before-28 {
+		t.Fatalf("roadmapPan after h,h = %d, want %d", m.roadmapPan, before-28)
+	}
+}

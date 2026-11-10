@@ -9,6 +9,7 @@ title: done item 1
 project: college/dbms
 status: done
 priority: medium
+milestone: ms0001
 kind: task
 created: @-2dT16:00@
 updated: @-2dT16:00@
@@ -324,6 +325,7 @@ title: Draw ER diagram for library system
 project: college/dbms
 status: todo
 priority: medium
+milestone: ms0001
 kind: task
 created: @-1dT09:30@
 updated: @-1dT09:30@
@@ -1257,6 +1259,7 @@ title: Normalize the orders table to 3NF
 project: college/dbms
 status: todo
 priority: high
+milestone: ms0001
 kind: assignment
 created: @-1dT09:15@
 updated: @-1dT09:15@
@@ -1271,6 +1274,7 @@ title: Reproduce the ER diagram in SQL Workbench
 project: college/dbms
 status: doing
 priority: medium
+milestone: ms0001
 kind: task
 created: @-1dT10:00@
 updated: @-1dT10:00@

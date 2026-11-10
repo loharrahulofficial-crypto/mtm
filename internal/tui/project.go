@@ -143,7 +143,8 @@ func (m Model) updateProjectPageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.closeProjectPage()
 		return m, nil
 	case "[", "h":
-		if m.projectTab == projectTabRoadmap {
+		// h/l pan the timeline in the roadmap; everywhere else they switch tabs.
+		if m.projectTab == projectTabRoadmap && s == "h" {
 			m.roadmapPan = clampRoadmapPan(m.roadmapPan - 28)
 			return m, nil
 		}
@@ -152,7 +153,7 @@ func (m Model) updateProjectPageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.projectScroll = 0
 		return m, nil
 	case "]", "l":
-		if m.projectTab == projectTabRoadmap {
+		if m.projectTab == projectTabRoadmap && s == "l" {
 			m.roadmapPan = clampRoadmapPan(m.roadmapPan + 28)
 			return m, nil
 		}

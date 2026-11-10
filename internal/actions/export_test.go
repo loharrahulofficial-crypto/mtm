@@ -57,11 +57,8 @@ func TestCollectExportShape(t *testing.T) {
 	}
 
 	// Top-level shape.
-	if rep.SchemaVersion != 1 {
-		t.Errorf("SchemaVersion = %d, want 1", rep.SchemaVersion)
-	}
-	if len(rep.Ideas) != 0 || len(rep.Milestones) != 0 {
-		t.Errorf("ideas/milestones must be present and empty in schema_version 1, got %d/%d", len(rep.Ideas), len(rep.Milestones))
+	if rep.SchemaVersion != 2 {
+		t.Errorf("SchemaVersion = %d, want 2", rep.SchemaVersion)
 	}
 	if rep.GeneratedAt == "" || rep.Filters.Since != "" {
 		t.Errorf("GeneratedAt/Filters.Since unexpected: %+v", rep.Filters)
@@ -181,6 +178,7 @@ func TestExportRoundTripJSON(t *testing.T) {
 		"totals":         "object",
 		"ideas":          "array",
 		"milestones":     "array",
+		"devlog":         "array",
 	}
 	for key, wantType := range schema {
 		value, present := doc[key]
@@ -210,7 +208,7 @@ func TestExportRoundTripJSON(t *testing.T) {
 	if err := json.Unmarshal(data, &back); err != nil {
 		t.Fatal(err)
 	}
-	if back.SchemaVersion != 1 || len(back.Tasks) != len(rep.Tasks) {
+	if back.SchemaVersion != 2 || len(back.Tasks) != len(rep.Tasks) {
 		t.Errorf("round trip mismatch")
 	}
 }
@@ -376,5 +374,80 @@ func jsonTypeOf(v any) string {
 		return "null"
 	default:
 		return "unknown"
+	}
+}
+
+func TestExportIdeasMilestonesDevLogRoundTrip(t *testing.T) {
+	s := openActionStore(t, "college/dbms")
+	if err := s.SaveProject(core.DefaultProject("inbox")); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 8, 14, 0, 0, 0, time.Local)
+	stamp := now.Format(core.TimestampFormat)
+
+	// A linked task so milestone progress derives non-trivially.
+	m := &core.Milestone{Title: "v0.1 cut", Target: "2026-12-01", Status: core.MilestoneActive, Project: "college/dbms", Created: stamp, Updated: stamp}
+	if err := s.CreateMilestone(m); err != nil {
+		t.Fatal(err)
+	}
+	task := &core.Task{ID: "t00001", Title: "scoped task", Project: "college/dbms", Status: "todo", Kind: core.KindTask, Created: stamp, Updated: stamp, Milestone: m.ID}
+	if err := s.Create(task); err != nil {
+		t.Fatal(err)
+	}
+	i := &core.Idea{Title: "incubation idea", Status: core.IdeaExploring, Rating: 4, Tags: []string{"sync", "go"}, PromotedTo: "", Created: stamp, Updated: stamp, Body: "compare CRDTs"}
+	if err := s.CreateIdea(i); err != nil {
+		t.Fatal(err)
+	}
+	d := &core.DevLogEntry{Title: "normal forms", Project: "college/dbms", TimeSpentMinutes: 45, Tags: []string{"study"}, Created: stamp, Body: "3NF, then lossless joins"}
+	if err := s.CreateDevLog(d); err != nil {
+		t.Fatal(err)
+	}
+
+	rep, err := CollectExport(s, now, ExportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Ideas) != 1 || len(rep.Milestones) != 1 || len(rep.DevLog) != 1 {
+		t.Fatalf("ideas/milestones/devlog = %d/%d/%d, want 1/1/1", len(rep.Ideas), len(rep.Milestones), len(rep.DevLog))
+	}
+	if rep.SchemaVersion != 2 {
+		t.Fatalf("schema_version = %d, want 2", rep.SchemaVersion)
+	}
+	got := rep.Milestones[0]
+	if got.Title != "v0.1 cut" || got.Project != "college/dbms" || got.Target != "2026-12-01" {
+		t.Errorf("milestone = %+v", got)
+	}
+	if got.Done != 0 || got.Total != 1 || got.Frac != 0 {
+		t.Errorf("milestone progress = %d/%d/%v, want 0/1/0", got.Done, got.Total, got.Frac)
+	}
+
+	data, err := ExportJSON(rep)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back ExportReport
+	if err := json.Unmarshal(data, &back); err != nil {
+		t.Fatal(err)
+	}
+	if len(back.Ideas) != 1 || back.Ideas[0].Title != "incubation idea" || back.Ideas[0].Rating != 4 {
+		t.Errorf("ideas round trip: %+v", back.Ideas)
+	}
+	if len(back.Milestones) != 1 || back.Milestones[0].Total != 1 {
+		t.Errorf("milestones round trip: %+v", back.Milestones)
+	}
+	if len(back.DevLog) != 1 || back.DevLog[0].TimeSpentMinutes != 45 || back.DevLog[0].Body != "3NF, then lossless joins" {
+		t.Errorf("devlog round trip: %+v", back.DevLog)
+	}
+
+	// Project filter scopes milestones and devlog; ideas are global.
+	rep, err = CollectExport(s, now, ExportOptions{Project: "inbox"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Milestones) != 0 || len(rep.DevLog) != 0 {
+		t.Errorf("project filter: milestones=%d devlog=%d, want 0/0", len(rep.Milestones), len(rep.DevLog))
+	}
+	if len(rep.Ideas) != 1 {
+		t.Errorf("project filter: ideas=%d, want 1 (ideas are global)", len(rep.Ideas))
 	}
 }

@@ -73,7 +73,7 @@ func TestExportJSONAndOutFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), `"schema_version": 1`) {
+	if !strings.Contains(string(data), `"schema_version": 2`) {
 		t.Fatalf("out file missing schema_version:\n%s", data)
 	}
 	// File mode is 0600 (owner-only — export carries your data).

@@ -39,6 +39,39 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   - `ui.density: comfortable|compact` for the board
   - `mtm version` (embedded version/commit/build date), `make man`
     (man pages via Cobra docs), `make install`
+- **Phase 6 — project tools**:
+  - Ideas incubator (`ideas/`, one Markdown file per item): `mtm idea`,
+    `mtm ideas`, `mtm idea show|edit|status|rate|note|rm|promote`;
+    `mtm idea promote` creates a project with the standard workflow, an
+    initial milestone and starter tasks from `templates/<name>.md`, records
+    `promoted_to`, keeps the idea file; new TUI view 6 (cards grouped by
+    status; `a` capture, `r` rate, `p` promote, `s` cycle status, `m`/`M`
+    notes) plus a small Home band
+  - Milestones (`projects/<p>/milestones/`): `mtm milestone
+    add|list|show|edit|done`; tasks link via `milestone:`; progress derives
+    from tasks and subtasks
+  - Project page in the TUI (`enter` on a sidebar project or `:roadmap`):
+    Overview (description, combined task+milestone progress, velocity
+    sparkline with 12-week window and an estimated finish date or an honest
+    "not enough data" state, hours logged), Tasks, Roadmap (12-week
+    timeline, month header, today marker, milestone bars filled by progress,
+    at-risk/overdue colours, linked tasks below) and Dev-log
+  - Dev-log (`projects/<p>/devlog/<YYYY-MM-DD>-<id>.md`): `mtm log
+    <project> [text]`, `--with-timer` (attaches the running timer's
+    elapsed time), `--from-commits` (prefilled with recent commits),
+    `devlog.suggest_from_commits` config; `mtm logs [--since 7d]`
+  - GitHub link (`mtm project link <project> [--repo owner/name] [--path
+    ~/Projects/foo]`): read-only — local git log for a 12-week commit
+    sparkline, last commit, last 5 subjects and a commit streak (sidebar and
+    Home chips); with `--repo` and an authenticated `gh`, open issue/PR
+    counts and the latest few, cached in the cache dir for 15 minutes,
+    never in the data repo, never writing to the linked repo
+  - `mtm export` now fills the reserved `ideas`/`milestones` arrays and adds
+    a `devlog` array; JSON top-level `schema_version` bumps 1 → 2
+  - `mtm ical` gains `--include milestones` (all-day events on milestone
+    target dates)
+  - `mtm summary` shows the open-idea count (when non-zero) and the next
+    milestone with days remaining; still <50 ms, no network
   - **Safety — sandboxed seeding and repo markers**: `mtm demo-seed`
     refuses to run unless `MTM_SANDBOX=1` *and* every mtm root plus the
     target resolve under a temp dir (the same admission `tui --dump`
@@ -56,8 +89,9 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
 - `mtm ical --serve` defaults to `127.0.0.1`; non-loopback requires an
   explicit `--bind` and prints a loud warning; with `--token` the feed
   moves to `/<token>/mtm.ics`.
-- JSON export is stable via `schema_version: 1`; ideas and milestones are
-  reserved for a later schema bump.
+- JSON export is stable via `schema_version: 2`; the reserved
+  `ideas`/`milestones` arrays are populated and a `devlog` array was added.
+  Version 1 consumers must tolerate the new top-level keys.
 - The sync timer only ever runs plain `mtm sync`, which refuses while the
   data repo is conflicted or paused.
 

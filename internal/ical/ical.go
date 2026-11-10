@@ -45,6 +45,38 @@ type Options struct {
 	IncludeExams bool
 }
 
+// CollectMilestones maps milestones to all-day feed events on their target
+// date. Done milestones and milestones without a target never appear (the
+// calendar is for what's ahead). UIDs derive from milestone ids.
+func CollectMilestones(ms []*core.Milestone, include bool) []FeedEvent {
+	var out []FeedEvent
+	if !include {
+		return out
+	}
+	for _, m := range ms {
+		if strings.EqualFold(m.Status, core.MilestoneDone) {
+			continue
+		}
+		if strings.TrimSpace(m.Target) == "" {
+			continue
+		}
+		notes := m.Body
+		if strings.TrimSpace(notes) == "" {
+			notes = m.Description
+		}
+		out = append(out, FeedEvent{
+			TaskID:  m.ID,
+			Title:   "Milestone: " + m.Title,
+			Notes:   notes,
+			Project: m.Project,
+			Due:     m.Target,
+			Updated: m.Updated,
+			Kind:    "milestone",
+		})
+	}
+	return out
+}
+
 // Collect maps tasks to feed events, honoring show/hide toggles. Done
 // items never appear (the calendar is for what's ahead).
 func Collect(tasks []*core.Task, isDone func(project, status string) bool, includeTasks, includeExams bool) []FeedEvent {

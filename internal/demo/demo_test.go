@@ -61,6 +61,15 @@ func TestSeedShiftsEverythingWithTheClock(t *testing.T) {
 		if err := Seed(dir, now); err != nil {
 			t.Fatal(err)
 		}
+		// Dev-log file NAMES carry the date (<YYYY-MM-DD>-<id>.md) and shift
+		// with the clock by design — normalize the date out of the rel path.
+		relNormRe := regexp.MustCompile(`^(.+/devlog/)\d{4}-\d{2}-\d{2}-(dl\d+\.md)$`)
+		normalize := func(rel string) string {
+			if m := relNormRe.FindStringSubmatch(filepath.ToSlash(rel)); m != nil {
+				return m[1] + m[2]
+			}
+			return rel
+		}
 		out := map[string]string{}
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
@@ -74,7 +83,7 @@ func TestSeedShiftsEverythingWithTheClock(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			out[rel] = string(b)
+			out[normalize(rel)] = string(b)
 			return nil
 		})
 		if err != nil {
