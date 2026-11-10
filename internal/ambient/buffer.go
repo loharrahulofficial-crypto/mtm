@@ -32,6 +32,7 @@ type buffer struct {
 	curLayer uint8
 	palette  *paletteModel
 	bytes    int
+	dither   bool
 }
 
 // layerRegion records the intended bounding rect of one painted layer.
@@ -240,6 +241,13 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 	px := b.fb.downsample()
 	for i := range px {
 		px[i] = p.clampHull(px[i])
+	}
+	if b.dither {
+		for y := 0; y < b.sh; y++ {
+			for x := 0; x < b.sw; x++ {
+				px[y*b.sw+x] = ditherQuantize(px[y*b.sw+x], x, y)
+			}
+		}
 	}
 	out := make([]Line, 0, h)
 	switch b.mode {

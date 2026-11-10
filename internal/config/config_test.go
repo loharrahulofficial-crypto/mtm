@@ -271,3 +271,42 @@ func TestHeatmapWeeksDefaultOverrideAndClamp(t *testing.T) {
 		t.Fatal("negative heatmap.weeks accepted")
 	}
 }
+
+func TestAmbientDitherValidation(t *testing.T) {
+	fixedXDG(t)
+	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	load := func() (Config, error) { return Load() }
+
+	// default is off
+	write("default_project: inbox\n")
+	cfg, err := load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.AmbientDither != "off" {
+		t.Fatalf("default ambient_dither = %q, want off", cfg.UI.AmbientDither)
+	}
+	// on accepted
+	write("ui:\n  ambient_dither: on\n")
+	cfg, err = load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.AmbientDither != "on" {
+		t.Fatalf("ambient_dither = %q, want on", cfg.UI.AmbientDither)
+	}
+	// bogus rejected
+	write("ui:\n  ambient_dither: maybe\n")
+	if _, err := load(); err == nil {
+		t.Fatal("ambient_dither: maybe was accepted")
+	}
+}

@@ -22,6 +22,7 @@ func newFrameBuffer(s paintable, mode string, t time.Duration, w, h int, state S
 	}
 	p := paletteFor(state.Palette)
 	b := newBuffer(mode, w, h, p)
+	b.dither = state.Dither
 	s.paint(b, p, t, w, h, state)
 	b.palette = p
 	return b

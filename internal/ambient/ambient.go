@@ -33,6 +33,7 @@ type SceneState struct {
 	Seed      int64 // per-launch or per-test seed; 0 = fixed default
 	Palette   Palette
 	Lightning bool // rain scene option; off by default
+	Dither    bool // quantize output to xterm-256 with ordered dithering
 }
 
 // Palette carries the resolved theme roles the scenes paint with.

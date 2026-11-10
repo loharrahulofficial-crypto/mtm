@@ -131,6 +131,9 @@ type UIConfig struct {
 	AmbientFPS int `yaml:"ambient_fps"`
 	// AmbientRender: auto | halfblock | braille | ascii.
 	AmbientRender string `yaml:"ambient_render"`
+	// AmbientDither: on | off (default off). On a terminal whose palette is
+	// limited, ambient quantizes to the xterm-256 cube with ordered dithering.
+	AmbientDither string `yaml:"ambient_dither"`
 	// RainLightning enables rare lightning in the rain scene (off default).
 	RainLightning bool `yaml:"rain_lightning"`
 }
@@ -175,6 +178,7 @@ func Default() Config {
 			RewardAnimation: true,
 			AmbientFPS:      10,
 			AmbientRender:   "auto",
+			AmbientDither:   "off",
 			RainLightning:   false,
 		},
 	}
@@ -294,6 +298,13 @@ func Load() (Config, error) {
 	}
 	if cfg.UI.AmbientFPS < 1 || cfg.UI.AmbientFPS > 30 {
 		return cfg, fmt.Errorf("config %s: ui.ambient_fps must be in [1, 30], got %d", Path(), cfg.UI.AmbientFPS)
+	}
+	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.AmbientDither)); r {
+	case "on", "off":
+	case "":
+		cfg.UI.AmbientDither = "off"
+	default:
+		return cfg, fmt.Errorf("config %s: ui.ambient_dither must be on|off, got %q", Path(), cfg.UI.AmbientDither)
 	}
 	// --no-ambient disables every surface for the run.
 	if os.Getenv("MTM_NO_AMBIENT") == "1" {
