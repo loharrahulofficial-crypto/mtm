@@ -123,7 +123,14 @@ func TestHomeExamCompactFallbackAtTinyHeight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plain := StripANSI(frame)
+	// Scene pixels in the sidebar window can contain the digit pattern;
+	// scope the check to the main pane.
+	sideW := sideWidth(120, false)
+	lines := strings.Split(frame, "\n")
+	for i, l := range lines {
+		lines[i] = stripAnsiPrefix(l, sideW+1)
+	}
+	plain := StripANSI(strings.Join(lines, "\n"))
 	// At 120x40 the EXAMS band cannot hold the card; every exam shows a
 	// compact row instead, and the digits are absent.
 	if strings.Contains(plain, "█▀▀▀") {

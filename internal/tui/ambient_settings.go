@@ -81,6 +81,18 @@ func ambientRows() []ambientSettingRow {
 			},
 		},
 		{
+			label: "sidebar window",
+			value: func(m Model) string {
+				if m.cfg.UI.AmbientSidebar {
+					return "on"
+				}
+				return "off"
+			},
+			adjust: func(m *Model, dir int) {
+				m.cfg.UI.AmbientSidebar = !m.cfg.UI.AmbientSidebar
+			},
+		},
+		{
 			label: "animations",
 			value: func(m Model) string {
 				if m.animations {

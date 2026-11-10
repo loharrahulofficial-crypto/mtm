@@ -41,7 +41,7 @@ func sidebarRows(items []sidebarItem) []sidebarRow {
 const brandLines = 2
 
 func renderSidebar(m Model, w, h int) string {
-	innerW := w - 2*1 // no border, padX = 1 each side (panel convention)
+	innerW := w - 2
 	if innerW < 1 {
 		innerW = 1
 	}
@@ -53,49 +53,43 @@ func renderSidebar(m Model, w, h int) string {
 	items := m.sidebarItems
 	rows := sidebarRows(items)
 
+	innerH := h - 2
+	if innerH < 0 {
+		innerH = 0
+	}
+	top, rendered, footerN, winH := sidebarRowPlan(m, innerW, innerH)
+
 	// Pinned nearest-exam chip at the bottom of the sidebar.
 	footer := []string{}
-	if chip := nearestExamChip(m, innerW-1); chip != "" {
-		footer = []string{"", chip}
-	}
-
-	// Budget for the scrollable part; selection stays visible.
-	selRow := 0
-	for i, r := range rows {
-		if r.sel == m.sidebarSel {
-			selRow = i
+	if footerN > 0 {
+		if chip := nearestExamChip(m, innerW-1); chip != "" {
+			footer = []string{"", chip}
 		}
 	}
-	avail := h - len(lines) - len(footer)
-	if avail < 1 {
-		avail = 1
-	}
-	top := 0
-	if selRow >= avail {
-		top = selRow - avail + 1
-	}
 
-	line := 0
-	for i, r := range rows {
-		if i < top {
-			continue
-		}
-		if line >= avail {
+	count := 0
+	for i := top; i < len(rows); i++ {
+		if count >= rendered {
 			break
 		}
+		r := rows[i]
 		if r.sel < 0 {
 			body = append(body, " "+sectionLabel(m, r.header, innerW-1))
-			line++
+			count++
 			continue
 		}
 		it := items[r.sel]
 		selected := r.sel == m.sidebarSel
 		body = append(body, sidebarItemLine(m, it, innerW, selected))
-		line++
+		count++
+	}
+
+	// Ambient window fills the free rows below the list (never the chip).
+	if win := m.ambientSidebarWindow(innerW, winH); win != nil {
+		body = append(body, win...)
 	}
 
 	if len(footer) > 0 {
-		innerH := h - 2 // panel border rows
 		for len(body) < innerH-len(footer) {
 			body = append(body, "")
 		}

@@ -138,6 +138,11 @@ type UIConfig struct {
 	// ReducedMotion honors NO_MOTION=1 too: no crossfades or dissolves,
 	// scenes crawl as slow low-amplitude stills (idle breathing only).
 	ReducedMotion bool `yaml:"reduced_motion"`
+	// AmbientSidebar shows a framed ambient window at the bottom of the
+	// sidebar, filling the rows the course list leaves free (minimum 8,
+	// collapses to nothing on short terminals). On by default; the Home
+	// corner hides while it is on unless ui.ambient opts into the corner.
+	AmbientSidebar bool `yaml:"ambient_sidebar"`
 	// RainLightning enables rare lightning in the rain scene (off default).
 	RainLightning bool `yaml:"rain_lightning"`
 }
@@ -185,6 +190,7 @@ func Default() Config {
 			AmbientDither:   "on",
 			ReducedMotion:   false,
 			RainLightning:   false,
+			AmbientSidebar:  true,
 		},
 	}
 }

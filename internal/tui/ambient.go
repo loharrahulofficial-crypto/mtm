@@ -69,6 +69,11 @@ func (m Model) ambientActive() bool {
 		// breathes slowly. An idle focus also breathes fully.
 		return true
 	}
+	if m.mode == modeNormal && m.projectPage == "" && m.ambientSidebarWindowWanted() {
+		if _, _, ok := sidebarFreeRows(m); ok {
+			return true
+		}
+	}
 	if m.mode == modeNormal && m.view == viewHome && m.ambientAllowHome() {
 		if _, ok := homeSceneCornerRect(m, m.mainW(), m.height-1); ok {
 			return true
