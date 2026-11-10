@@ -65,7 +65,9 @@ func (m Model) ambientActive() bool {
 		return true
 	}
 	if m.mode == modeFocus {
-		return !m.focusSceneFrozen()
+		// Gentle idle: a paused Pomodoro still wants frames — the scene
+		// breathes slowly. An idle focus also breathes fully.
+		return true
 	}
 	if m.mode == modeNormal && m.view == viewHome && m.ambientAllowHome() {
 		if _, ok := homeSceneCornerRect(m, m.mainW(), m.height-1); ok {
@@ -306,8 +308,10 @@ func (m *Model) sceneRewardFrame(t time.Duration, w, h int) []string {
 	return m.currentScene().Reward(t, w, h, st)
 }
 
-// ambientTick schedules the next frame when — and only when — a surface
+// armAmbient schedules the next frame when — and only when — a surface
 // wants it. The ticker stops entirely otherwise: zero work while idle.
+// A paused Pomodoro in Focus mode crawls instead: the scene breathes at
+// a gentle rate, progress-linked elements stay frozen.
 func (m Model) armAmbient() tea.Cmd {
 	if !m.ambientActive() {
 		m.ambientArmed = false
@@ -324,7 +328,28 @@ func (m Model) armAmbient() tea.Cmd {
 	if fps > 30 {
 		fps = 30
 	}
+	if m.slowIdleActive() {
+		return ambientTickCmd(slowIdleFPS(fps))
+	}
 	return ambientTickCmd(fps)
+}
+
+// slowIdleActive reports whether the scene is in gentle idle: a paused
+// Pomodoro shown full-screen in Focus mode.
+func (m Model) slowIdleActive() bool {
+	return m.mode == modeFocus && m.focusSceneFrozen()
+}
+
+// slowIdleFPS is the gentle-idle frame rate (quarter rate, clamped).
+func slowIdleFPS(full int) int {
+	f := full / 4
+	if f < 2 {
+		f = 2
+	}
+	if f > 8 {
+		f = 8
+	}
+	return f
 }
 
 func ambientTickCmd(fps int) tea.Cmd {
@@ -337,7 +362,8 @@ func splashTickCmd() tea.Cmd {
 }
 
 // handleAmbientTick advances the scene clock and keeps the ticker alive
-// only while a surface wants frames.
+// only while a surface wants frames. In gentle idle the clock crawls at
+// a quarter rate so scenes breathe without advancing progress-linked elements.
 func (m Model) handleAmbientTick() (tea.Model, tea.Cmd) {
 	if !m.ambientActive() {
 		m.ambientArmed = false
@@ -350,12 +376,22 @@ func (m Model) handleAmbientTick() (tea.Model, tea.Cmd) {
 	if fps > 30 {
 		fps = 30
 	}
+	slow := m.slowIdleActive()
+	if slow {
+		fps = slowIdleFPS(fps)
+	}
 	d := time.Second / time.Duration(fps)
 	now := m.clock.Now()
+	var elapsed time.Duration
 	if m.lastAmbientTick.IsZero() {
-		m.ambientT += d
+		elapsed = d
 	} else {
-		m.ambientT += now.Sub(m.lastAmbientTick)
+		elapsed = now.Sub(m.lastAmbientTick)
+	}
+	if slow {
+		m.ambientT += elapsed / 4
+	} else {
+		m.ambientT += elapsed
 	}
 	m.lastAmbientTick = now
 	if m.mode == modeSplash && m.ambientT >= m.splashTotal {

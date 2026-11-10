@@ -211,8 +211,10 @@ func TestAltSCyclesScene(t *testing.T) {
 	}
 }
 
-// TestAmbientTickFreezesWhenPaused: Focus pausing freezes the scene clock.
-func TestAmbientTickFreezesWhenPaused(t *testing.T) {
+// TestAmbientTickCrawlsWhenPaused: a paused Pomodoro slows the scene
+// clock to a gentle crawl (progress-linked elements frozen) but keeps
+// breathing instead of freezing.
+func TestAmbientTickCrawlsWhenPaused(t *testing.T) {
 	m, s := newTestModel(t, []*core.Task{testTask("deep work", core.KindStudy)})
 	defer func() { _ = s.Close() }()
 	m2, _ := m.enterFocusTask(s.Tasks()[0])
@@ -232,13 +234,14 @@ func TestAmbientTickFreezesWhenPaused(t *testing.T) {
 	up, _ = m1.Update(keyMsg(" ")) // pause
 	m3 := up.(Model)
 	m3.ambientT = t1
-	m3.lastAmbientTick = m3.clock.Now()
+	m3.lastAmbientTick = m3.clock.Now().Add(-time.Second) // pretend a second elapsed
 	up2, _ := m3.Update(ambientTickMsg{})
 	m3 = up2.(Model)
-	if m3.ambientT != t1 {
-		t.Fatalf("paused focus advanced the scene clock to %v from %v", m3.ambientT, t1)
+	advanced := m3.ambientT - t1
+	if advanced < 245*time.Millisecond || advanced > 255*time.Millisecond {
+		t.Fatalf("paused focus advanced the scene clock by %v, want ~250ms (gentle crawl)", advanced)
 	}
-	if m3.ambientArmed {
-		t.Fatal("paused focus keeps the ambient ticker armed — zero-work expected")
+	if !m3.ambientArmed {
+		t.Fatal("paused focus stopped the ticker — gentle breathing expected")
 	}
 }
