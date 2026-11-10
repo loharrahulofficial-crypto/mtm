@@ -208,34 +208,28 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	}
 	b.endLayer()
 
-	// --- horizon: far hazy ridge, then the near pine line
+	// --- horizon: far hazy ridge, then a jagged near pine line. The near
+	// band is one continuous noise-driven silhouette — sparse spires where
+	// the tree noise crests — never individual stripy columns.
 	sil := cachedPerlin(state.Seed, 101)
 	farY := H * 0.74
 	nearY := H * 0.84
+	pine := blendHex(base, surfaceStrong, 0.08)
 	b.beginLayer(layerLand, 0, int(H*0.55), sw(b), sh(b))
 	for x := 0.0; x < W; x += 0.75 {
 		fy := farY + sil.At(x*0.016+3.1, 7.3)*H*0.055
 		ny := nearY + sil.At(x*0.021+11.7, 1.9)*H*0.045
 		fc := rmp.ApplyHaze(surfaceStrong, 0.72)
-		nc := blendHex(base, surfaceStrong, 0.28)
 		// far ridge fill
 		b.fillRectHexF(x, fy, x+0.75, H, fc, 1, opNormal)
-		// near ground fill
-		b.fillRectHexF(x, ny, x+0.75, H, nc, 1, opNormal)
-		// pines on the near line
+		// jagged pine silhouette: low rolling teeth with occasional spires
 		tree := sil.At(x*0.09+40, 3.3)
-		if tree > 0.28 {
-			pineH := H*0.13*(tree-0.28) + H*0.055
-			pw := pineH * 0.36
-			pc := blendHex(base, surfaceStrong, 0.08)
-			// stepped pine: three stacked widening triangles
-			for i := 0; i < 3; i++ {
-				tb := float64(i) / 3
-				width := pw * (tb*0.9 + 0.28)
-				yC := ny - pineH*(1-tb) + pineH*0.16
-				b.fillRectHexF(x+0.35-width, yC, x+0.35+width, yC+pineH*0.24, pc, 1, opNormal)
-			}
+		hgt := H * 0.030
+		if tree > 0.30 {
+			hgt += (tree - 0.30) * (tree - 0.30) * H * 0.85
 		}
+		hgt += sil.At(x*0.35+77, 5.1) * H * 0.022
+		b.fillRectHexF(x, ny-hgt, x+0.75, H, pine, 1, opNormal)
 	}
 	b.endLayer()
 }
