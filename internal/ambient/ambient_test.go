@@ -218,6 +218,32 @@ func TestFrameExactDimensions(t *testing.T) {
 	}
 }
 
+// TestFramesAdvanceWithTime asserts every scene actually animates: across
+// four points in its arc, at least one pair of frames must differ.
+func TestFramesAdvanceWithTime(t *testing.T) {
+	for _, sceneName := range Registered() {
+		s := New(sceneName, ModeHalfblock)
+		st := stateFor(0.45, PhaseWork)
+		times := []time.Duration{0, 3 * time.Second, 8 * time.Second, 20 * time.Second}
+		frames := make([]string, 0, len(times))
+		for _, ft := range times {
+			frames = append(frames, strings.Join(s.Frame(ft, 60, 18, st), "\n"))
+		}
+		found := false
+		for i := 0; i < len(frames) && !found; i++ {
+			for j := i + 1; j < len(frames); j++ {
+				if frames[i] != frames[j] {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s: frame identical at t=0,3,8,20 — scene does not animate", sceneName)
+		}
+	}
+}
+
 func TestDeterministic(t *testing.T) {
 	for _, scene := range Registered() {
 		s := New(scene, ModeHalfblock)

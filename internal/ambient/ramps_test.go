@@ -14,6 +14,20 @@ func adjacentPairs(r Ramps) [][2]string {
 	}
 }
 
+func lightPalette() Palette {
+	p := DefaultPalette()
+	p.Base = "#f4f1e8"
+	p.Surface = "#eae6da"
+	p.SurfaceRaised = "#dedacd"
+	p.SurfaceStrong = "#cfcaba"
+	p.Border = "#b8b3a2"
+	p.Text = "#3a382f"
+	p.BrightText = "#141410"
+	p.MutedSoft = "#6b675a"
+	p.Accent = "#8a5a00"
+	return p
+}
+
 func TestRampsAdjacentContrast(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -21,6 +35,7 @@ func TestRampsAdjacentContrast(t *testing.T) {
 	}{
 		{"default", DefaultPalette()},
 		{"monochrome", monochromePalette()},
+		{"light", lightPalette()},
 	} {
 		r := BuildRamps(tc.p)
 		for i, pair := range adjacentPairs(r) {
