@@ -131,6 +131,13 @@ type Model struct {
 	splashTotal       time.Duration // splash lifetime (ui.splash_seconds)
 	ambientSceneName  string        // currently active scene
 	scene             ambient.Scene
+	scenePrev         ambient.Scene // crossfade source (nil when no fade is active)
+	crossfadeStart    time.Time
+	crossfadeDur      time.Duration
+	phaseFadeStart    time.Time
+	phaseFadeFrom     float64
+	phaseFadeTo       float64
+	phaseFadeActive   bool
 	sceneName         string
 	ambientSeed       int64
 	rewardUntil       time.Time

@@ -52,6 +52,15 @@ func (m Model) ambientActive() bool {
 	if m.mode == modeSplash {
 		return true
 	}
+	if m.crossfadeActive() {
+		return true
+	}
+	if m.phaseFadeActive {
+		if m.clock.Now().Sub(m.phaseFadeStart) < 1500*time.Millisecond {
+			return true
+		}
+		// fade window is over; intensity holds at phaseFadeTo
+	}
 	if m.rewardUntil.After(time.Now()) {
 		return true
 	}
@@ -114,6 +123,43 @@ func abs64(v int64) int64 {
 	return v
 }
 
+// reducedMotionActive honors ui.reduced_motion and NO_MOTION=1: no
+// crossfades or dissolves, scenes crawl as slow low-amplitude stills.
+func (m Model) reducedMotionActive() bool {
+	if m.cfg.UI.ReducedMotion {
+		return true
+	}
+	return os.Getenv("NO_MOTION") == "1"
+}
+
+// crossfadeActive reports whether a scene crossfade is running.
+func (m Model) crossfadeActive() bool {
+	return m.scenePrev != nil && m.clock.Now().Sub(m.crossfadeStart) < m.crossfadeDur
+}
+
+// beginCrossfade arms a scene crossfade, keeping the previous scene alive
+// as the blend source. Reduced motion switches instantly.
+func (m *Model) beginCrossfade() {
+	if m.reducedMotionActive() {
+		m.scenePrev = nil
+		return
+	}
+	prev := m.scene
+	if prev == nil && m.sceneName != "" {
+		prev = ambient.New(m.sceneName, m.cfg.UI.AmbientRender)
+	}
+	m.scenePrev = prev
+	m.crossfadeStart = m.clock.Now()
+	m.crossfadeDur = 600 * time.Millisecond
+}
+
+// endCrossfadeIfDone drops the previous scene once the fade completes.
+func (m *Model) endCrossfadeIfDone() {
+	if m.scenePrev != nil && m.clock.Now().Sub(m.crossfadeStart) >= m.crossfadeDur {
+		m.scenePrev = nil
+	}
+}
+
 func (m *Model) currentScene() ambient.Scene {
 	name := m.ambientSceneName
 	if name == "" {
@@ -143,6 +189,12 @@ func (m *Model) cycleScene(dir int) {
 	}
 	idx = (idx + dir + len(names)) % len(names)
 	m.ambientSceneName = names[idx]
+	if m.scene != nil && m.sceneName == m.ambientSceneName {
+		// "cycle" onto the same scene rebuild is unnecessary but harmless
+	}
+	if m.scene != nil && m.sceneName != m.ambientSceneName {
+		m.beginCrossfade()
+	}
 	m.sceneName = "" // force rebuild
 	m.statusMsg = "scene: " + m.ambientSceneName
 }
@@ -159,6 +211,21 @@ func (m Model) scenePalette() ambient.Palette {
 	}
 }
 
+// sceneIntensity eases through a Pomodoro phase change (work↔break):
+// palettes and particle intensity crossfade over 1.5s rather than switch.
+func (m Model) sceneIntensity() float64 {
+	if !m.phaseFadeActive {
+		return 1
+	}
+	el := m.clock.Now().Sub(m.phaseFadeStart)
+	const dur = 1500 * time.Millisecond
+	if el >= dur {
+		return m.phaseFadeTo
+	}
+	e := ambient.EaseInOutCubic(float64(el) / float64(dur))
+	return m.phaseFadeFrom + (m.phaseFadeTo-m.phaseFadeFrom)*e
+}
+
 // sceneState builds the deterministic scene input from the live model.
 func (m Model) sceneState() ambient.SceneState {
 	v := m.timer
@@ -169,12 +236,26 @@ func (m Model) sceneState() ambient.SceneState {
 	if m.mode == modeFocus && m.timer.Phase == core.TimerPhaseIdle {
 		progress = 0 // an idle focus should sit at the beginning of the arc
 	}
+	pal := m.scenePalette()
+	if k := 1 - m.sceneIntensity(); k > 0.004 {
+		blend := func(c string) string { return ambient.BlendHex(c, pal.Base, k*0.62) }
+		pal = ambient.Palette{
+			Base: pal.Base, Surface: blend(pal.Surface), SurfaceRaised: blend(pal.SurfaceRaised),
+			SurfaceStrong: blend(pal.SurfaceStrong), Border: blend(pal.Border), Text: blend(pal.Text),
+			BrightText: blend(pal.BrightText), MutedSoft: blend(pal.MutedSoft),
+			Accent: blend(pal.Accent), AccentSoft: blend(pal.AccentSoft), Success: blend(pal.Success),
+			Warning: blend(pal.Warning), Danger: blend(pal.Danger),
+			HeatWarm: blend(pal.HeatWarm), HeatHot: blend(pal.HeatHot), HeatOverdue: blend(pal.HeatOverdue),
+			Blue: blend(pal.Blue), Cyan: blend(pal.Cyan), Yellow: blend(pal.Yellow),
+			Magenta: blend(pal.Magenta), Orange: blend(pal.Orange), Brown: blend(pal.Brown),
+		}
+	}
 	return ambient.SceneState{
 		Progress:  progress,
 		Phase:     ambient.Phase(v.Phase),
 		Now:       m.clock.Now(),
 		Seed:      42,
-		Palette:   m.scenePalette(),
+		Palette:   pal,
 		Lightning: m.cfg.UI.RainLightning,
 		Dither:    m.cfg.UI.AmbientDither != "off" && caps.Current().LimitedPalette,
 	}
@@ -200,7 +281,21 @@ func (m *Model) sceneFrame(t time.Duration, w, h int, dim bool) []string {
 	if dim {
 		st.Palette = m.dimScenePalette()
 	}
-	return m.currentScene().Frame(t, w, h, st)
+	cur := m.currentScene()
+	blend := m.crossfadeActive()
+	if !blend {
+		return cur.Frame(t, w, h, st)
+	}
+	stOld := st
+	stOld.Seed = m.ambientSeed
+	oldFrame := m.scenePrev.Frame(t, w, h, stOld)
+	newFrame := cur.Frame(t, w, h, st)
+	prog := float64(m.clock.Now().Sub(m.crossfadeStart)) / float64(m.crossfadeDur)
+	if prog >= 1 {
+		m.scenePrev = nil
+		return newFrame
+	}
+	return ambient.Crossfade(oldFrame, newFrame, prog)
 }
 
 // sceneRewardFrame renders the celebration overlay frame.

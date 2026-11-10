@@ -135,6 +135,9 @@ type UIConfig struct {
 	// applies where a limited palette forces it — on truecolor terminals the
 	// renderer emits 24-bit color unchanged.
 	AmbientDither string `yaml:"ambient_dither"`
+	// ReducedMotion honors NO_MOTION=1 too: no crossfades or dissolves,
+	// scenes crawl as slow low-amplitude stills (idle breathing only).
+	ReducedMotion bool `yaml:"reduced_motion"`
 	// RainLightning enables rare lightning in the rain scene (off default).
 	RainLightning bool `yaml:"rain_lightning"`
 }
@@ -180,6 +183,7 @@ func Default() Config {
 			AmbientFPS:      10,
 			AmbientRender:   "auto",
 			AmbientDither:   "on",
+			ReducedMotion:   false,
 			RainLightning:   false,
 		},
 	}

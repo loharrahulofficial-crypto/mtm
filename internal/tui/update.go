@@ -22,6 +22,7 @@ type syncDoneMsg struct {
 // refreshes the cached view every second. Phase-transition events fire the
 // desktop notification themselves.
 func (m Model) handleTimerTick() (tea.Model, tea.Cmd) {
+	prevPhase := m.timer.Phase
 	v, _, auto, err := actions.TickTimer(m.store, m.cfg, true)
 	switch {
 	case err != nil:
@@ -34,6 +35,12 @@ func (m Model) handleTimerTick() (tea.Model, tea.Cmd) {
 		m.timer = core.TimerView{Phase: core.TimerPhaseIdle}
 	default:
 		m.timer = v
+	}
+	if phaseChanged := m.timer.Phase != prevPhase; phaseChanged {
+		m.phaseFadeStart = m.clock.Now()
+		m.phaseFadeFrom = phaseIntensity(prevPhase)
+		m.phaseFadeTo = phaseIntensity(m.timer.Phase)
+		m.phaseFadeActive = true
 	}
 	return m, tea.Batch(tea.Tick(time.Second, func(time.Time) tea.Msg { return timerTickMsg{} }), m.armAmbient())
 }
@@ -271,4 +278,17 @@ func easedFrac(m Model, frac float64) float64 {
 	}
 	e := float64(animFrames-m.animFrame) / float64(animFrames)
 	return frac * e
+}
+
+// phaseIntensity maps a timer phase to its ambient palette intensity:
+// breaks sit calmer (0.6) than work (1.0); idle is fully vivid.
+func phaseIntensity(p string) float64 {
+	switch p {
+	case core.TimerPhaseBreak:
+		return 0.6
+	case core.TimerPhaseIdle:
+		return 1.0
+	default:
+		return 1.0
+	}
 }

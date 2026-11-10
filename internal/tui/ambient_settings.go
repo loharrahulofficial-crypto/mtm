@@ -156,17 +156,25 @@ func (m Model) commandScene(arg string) (Model, tea.Cmd) {
 		m.statusMsg = "scenes: " + strings.Join(names, "  ")
 		return m, nil
 	case "auto", "random":
+		prev := m.ambientSceneName
 		m.cfg.UI.Scene = arg
 		m.ambientSceneName = m.sceneForLaunch()
 		m.sceneName = ""
+		if prev != "" && prev != m.ambientSceneName {
+			m.beginCrossfade()
+		}
 		m.statusMsg = "scene: " + arg
 		return m, m.armAmbient()
 	}
 	for _, n := range names {
 		if n == arg {
+			prev := m.ambientSceneName
 			m.cfg.UI.Scene = n
 			m.ambientSceneName = n
 			m.sceneName = ""
+			if prev != "" && prev != n {
+				m.beginCrossfade()
+			}
 			m.statusMsg = "scene: " + n
 			return m, m.armAmbient()
 		}
