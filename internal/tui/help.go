@@ -14,7 +14,7 @@ func renderHelpBox(km KeyMap, s styles, width int) string {
 		actions []string
 	}
 	groups := []group{
-		{"view", []string{aViewHome, aViewList, aViewBoard, aViewCalendar, aViewCourses, aViewStats, aViewIdeas, aCycleView, aFocus, aEnter}},
+		{"view", []string{aViewHome, aViewList, aViewBoard, aViewCalendar, aViewCourses, aViewStats, aViewIdeas, aCycleView, aFocus, aCycleScene, aEnter}},
 		{"move", []string{aUp, aDown, aLeft, aRight, aJumpLeft, aJumpRight, aMonthPrev, aMonthNext, aTop, aBottom, aPageDown, aPageUp, aFocusLeft, aFocusRight, aSidebar}},
 		{"filter", []string{aSearch, aSearchNext, aSearchPrev, aPalette}},
 		{"task", []string{aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle, aArchive, aToggleCalendarDone, aGrade, aRate}},

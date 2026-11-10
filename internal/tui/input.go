@@ -403,6 +403,12 @@ func (m Model) execCommand(value string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.openProjectPage(project, projectTabRoadmap)
+	case "scene":
+		return m.commandScene(arg)
+	case "ambient":
+		m.mode = modeAmbient
+		m.ambientSettingSel = 0
+		return m, m.armAmbient()
 	case "quit", "q":
 		return m.quitWithFlush()
 	case "help":

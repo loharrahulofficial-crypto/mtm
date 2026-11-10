@@ -31,6 +31,8 @@ func (m Model) buildPaletteItems() []paletteItem {
 		{id: "view:stats", label: "Go to Stats", hint: m.keymap.Seq(aViewStats), group: "Commands"},
 		{id: "view:ideas", label: "Go to Ideas", hint: m.keymap.Seq(aViewIdeas), group: "Commands"},
 		{id: "focus", label: "Focus current task", hint: m.keymap.Seq(aFocus), group: "Commands"},
+		{id: "scene:next", label: "Ambient: cycle scene", hint: m.keymap.Seq(aCycleScene), group: "Commands"},
+		{id: "ambient:settings", label: "Ambient: settings screen", hint: ":ambient", group: "Commands"},
 		{id: "toggle:sidebar", label: "Toggle sidebar", hint: m.keymap.Seq(aSidebar), group: "Commands"},
 		{id: "toggle:detail", label: "Toggle detail pane", hint: m.keymap.Seq(aDetail), group: "Commands"},
 		{id: "sync", label: "Sync now", hint: m.keymap.Seq(aSync), group: "Commands"},
@@ -333,6 +335,7 @@ var knownCommands = map[string]bool{
 	"home": true, "view0": true, "focus": true, "exam": true,
 	"courses": true, "view4": true, "timer": true, "pomo": true, "grade": true,
 	"idea": true, "ideas": true, "view6": true, "roadmap": true,
+	"scene": true, "ambient": true,
 }
 
 func filterOut(ids []string, drop string) []string {
@@ -419,6 +422,13 @@ func (m Model) executePaletteAction(id string) (Model, tea.Cmd) {
 		m.refreshTasks()
 		m.sidebarItems = m.buildSidebar()
 		m.statusMsg = "tasks reloaded"
+	case "scene:next":
+		m.cycleScene(1)
+		return m, m.armAmbient()
+	case "ambient:settings":
+		m.mode = modeAmbient
+		m.ambientSettingSel = 0
+		return m, m.armAmbient()
 	case "help":
 		m.mode = modeHelp
 		m.helpSel = 0
