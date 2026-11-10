@@ -76,7 +76,7 @@ func (m Model) renderProjectPage(w, h int) string {
 	if len(slab) > h-1 {
 		slab = slab[:h-1]
 	}
-	slab = append(slab, truncatePlain(hint, w))
+	slab = append(slab, clipStyled(hint, w))
 	return paint(strings.Join(slab, "\n"), w, h, base)
 }
 
@@ -105,15 +105,18 @@ func (m Model) renderProjectTabs() string {
 // projectPageHint is the muted bottom line for the active tab.
 func (m Model) projectPageHint() string {
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Base))
+	key := m.styles.footerKey
+	// Tab keys shown as two keys individually (not one ambiguous "[ ]" token).
+	tabs := key.Render("[") + muted.Render(" ") + key.Render("]") + muted.Render(" tabs")
 	switch m.projectTab {
 	case projectTabRoadmap:
-		return muted.Render(" [ ] tabs · j/k milestone · h/l pan timeline · esc close")
+		return muted.Render(" ") + tabs + muted.Render(" · j/k milestone · h/l pan timeline · esc close")
 	case projectTabDevlog:
-		return muted.Render(" [ ] tabs · j/k · ctrl+d/ctrl+u scroll · esc close")
+		return muted.Render(" ") + tabs + muted.Render(" · j/k · ctrl+d/ctrl+u scroll · esc close")
 	case projectTabTasks:
-		return muted.Render(" [ ] tabs · j/k move · enter open task · esc close")
+		return muted.Render(" ") + tabs + muted.Render(" · j/k move · enter open task · esc close")
 	default:
-		return muted.Render(" [ ] tabs · j/k scroll · esc close")
+		return muted.Render(" ") + tabs + muted.Render(" · j/k scroll · esc close")
 	}
 }
 

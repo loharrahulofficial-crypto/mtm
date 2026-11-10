@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/glamour"
+	glamourstyles "github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
@@ -50,8 +51,14 @@ func (m *Model) detailTask() *core.Task {
 func (m *Model) glamourRender(body string, width int) string {
 	// Fixed dark style: WithAutoStyle() queries the terminal (OSC 11) and blocks.
 	if m.glamourRenderer == nil || m.glamourBodyID != body+fmt.Sprint(width) {
+		style := glamourstyles.DarkStyleConfig
+		// glamour's built-in dark style keeps the source syntax ("### "
+		// prefix, "--------" hr), which reads as a broken render in the
+		// dev-log and notes panes. Drop the H3 marker and use a thin rule.
+		style.H3.Prefix = ""
+		style.HorizontalRule.Format = "\n────────\n"
 		r, err := glamour.NewTermRenderer(
-			glamour.WithStandardStyle("dark"),
+			glamour.WithStyles(style),
 			glamour.WithWordWrap(width),
 		)
 		if err != nil {
