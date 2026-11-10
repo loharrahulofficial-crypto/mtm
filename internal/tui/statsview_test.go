@@ -18,7 +18,7 @@ func TestStatsDetailScrollReachesBottom(t *testing.T) {
 	bottom := m.statsScroll
 	frames := 0
 	for i := 0; i < 40; i++ {
-		updated, _ := m.updateStatsKey(aPageDown)
+		updated, _ := m.Update(keyMsg("ctrl+d"))
 		m = updated.(Model)
 		frames++
 		if m.statsScroll == bottom {
@@ -35,7 +35,7 @@ func TestStatsDetailScrollReachesBottom(t *testing.T) {
 	}
 	// Back up to the top.
 	for i := 0; i < 40; i++ {
-		updated, _ := m.updateStatsKey(aPageUp)
+		updated, _ := m.Update(keyMsg("ctrl+u"))
 		m = updated.(Model)
 		if m.statsScroll == 0 {
 			break

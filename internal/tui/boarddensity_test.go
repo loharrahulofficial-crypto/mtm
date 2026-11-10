@@ -94,7 +94,7 @@ func TestBoardCompactHitTestFollowsCardHeights(t *testing.T) {
 	if got := slots[0][1]; got != 4 {
 		t.Fatalf("slot height = %d, want 4 (compact)", got)
 	}
-	updated, _ := m.updateMouse(tea.MouseMsg{X: sidebarW + 3, Y: 1 + slots[0][0] + 3, Type: tea.MouseLeft})
+	updated, _ := m.Update(tea.MouseMsg{X: sidebarW + 3, Y: 1 + slots[0][0] + 3, Type: tea.MouseLeft})
 	m = updated.(Model)
 	if m.boardCol != 0 || m.boardRow != 0 {
 		t.Fatalf("click on the compact badge row: boardCol=%d boardRow=%d, want 0/0", m.boardCol, m.boardRow)

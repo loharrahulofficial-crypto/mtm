@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
@@ -19,30 +20,59 @@ type syncDoneMsg struct {
 }
 
 // handleTimerTick advances the shared timer, finalizes stale sessions and
-// refreshes the cached view every second. Phase-transition events fire the
-// desktop notification themselves.
+// refreshes the cached view. The tick rate adapts: once a second only while
+// a timer or Focus is visible (the pomodoro chip renders mm:ss), otherwise
+// once a minute, aligned to the minute rollover (the footer clock). A tick
+// that changes nothing visible leaves viewStamp alone — no repaint.
 func (m Model) handleTimerTick() (tea.Model, tea.Cmd) {
+	prevChip := timerChip(m.timer)
 	prevPhase := m.timer.Phase
+	prevMinute := m.lastClockMinute
+	now := m.clock.Now()
+	minute := now.Minute()
+
 	v, _, auto, err := actions.TickTimer(m.store, m.cfg, true)
 	switch {
 	case err != nil:
 		m.statusMsg = "timer: " + err.Error()
+		m.viewStamp++
 	case auto != nil:
 		m.statusMsg = fmt.Sprintf("timer ended while away — logged %s%s", actions.FormatMinutes(auto.Minutes), capSuffix(auto.Capped))
 		m.refreshTasks()
 		m.sidebarItems = m.buildSidebar()
 		m.clampCursor()
 		m.timer = core.TimerView{Phase: core.TimerPhaseIdle}
+		m.viewStamp++
 	default:
 		m.timer = v
 	}
-	if phaseChanged := m.timer.Phase != prevPhase; phaseChanged {
+	if m.timer.Phase != prevPhase {
 		m.phaseFadeStart = m.clock.Now()
 		m.phaseFadeFrom = phaseIntensity(prevPhase)
 		m.phaseFadeTo = phaseIntensity(m.timer.Phase)
 		m.phaseFadeActive = true
+		m.viewStamp++
 	}
-	return m, tea.Batch(tea.Tick(time.Second, func(time.Time) tea.Msg { return timerTickMsg{} }), m.armAmbient())
+	if chip := timerChip(m.timer); chip != prevChip {
+		m.viewStamp++ // pomodoro counts down (or paused/stale flipped)
+	}
+	if minute != prevMinute {
+		m.lastClockMinute = minute
+		m.viewStamp++ // the footer clock ticks over
+	}
+	return m, tea.Batch(tea.Tick(timerTickInterval(m), func(time.Time) tea.Msg { return timerTickMsg{} }), m.armAmbient())
+}
+
+// timerTickInterval returns how long until the next tick: 1s while a timer
+// chip is visible (mm:ss countdown) or Focus is on screen, otherwise the
+// wall time until the next minute rollover (+ a small offset so the repaint
+// lands just after it).
+func timerTickInterval(m Model) time.Duration {
+	if m.mode == modeFocus || timerChip(m.timer) != "" {
+		return time.Second
+	}
+	now := time.Now()
+	return time.Until(now.Truncate(time.Minute).Add(time.Minute).Add(25 * time.Millisecond))
 }
 
 func capSuffix(capped bool) string {
@@ -65,15 +95,16 @@ const (
 	pendingKeyTimeout = 700 * time.Millisecond
 )
 
-// Init starts the background sync, the theme poll, the 1-second timer tick
+// Init starts the background sync, the theme poll, the adaptive timer tick
 // and — for every linked project (bounded) — the GitHub load that feeds the
 // sidebar/Home streak chips and the project Overview.
 func (m Model) Init() tea.Cmd {
+	// The spinner is armed only while a sync is actually in flight
+	// (debounce path); it must not tick at rest.
 	return tea.Batch(
 		m.kickSyncCmd(),
 		tea.Tick(themePollInterval, func(t time.Time) tea.Msg { return themeTickMsg(t) }),
-		m.spinner.Tick,
-		tea.Tick(time.Second, func(time.Time) tea.Msg { return timerTickMsg{} }),
+		tea.Tick(timerTickInterval(m), func(time.Time) tea.Msg { return timerTickMsg{} }),
 		m.kickGitHubAll(),
 	)
 }
@@ -143,10 +174,18 @@ func (m Model) flushPendingCommits() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Every message that can change the screen bumps viewStamp, which
+	// invalidates the cached frame. Benign ticks (see frameBenign) leave it
+	// alone so they never trigger a repaint.
+	if !frameBenign(m, msg) {
+		m.viewStamp++
+	}
 	switch msg := msg.(type) {
 
 	case themeTickMsg:
-		m.maybeReloadTheme()
+		if m.maybeReloadTheme() {
+			m.viewStamp++
+		}
 		return m, tea.Tick(themePollInterval, func(t time.Time) tea.Msg { return themeTickMsg(t) })
 
 	case debounceMsg:
@@ -163,7 +202,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.syncSt = syncOK
 			return m, nil
 		}
-		return m, m.flushWith(msgs)
+		// Spin the indicator only while this sync is in flight.
+		return m, tea.Batch(m.spinner.Tick, m.flushWith(msgs))
 
 	case syncDoneMsg:
 		return m.handleSyncDone(msg)
@@ -200,6 +240,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m.dispatch(msg)
+}
+
+// frameBenign reports whether msg is guaranteed not to change anything
+// visible. Benign messages never invalidate the cached frame; the handlers
+// for themeTickMsg and timerTickMsg bump viewStamp themselves on the (rare)
+// ticks where the clock, a timer chip or the theme file actually moved.
+func frameBenign(m Model, msg tea.Msg) bool {
+	switch msg.(type) {
+	case themeTickMsg, timerTickMsg:
+		return true // handlers bump viewStamp themselves when the screen moved
+	case spinner.TickMsg:
+		return m.syncSt != syncSyncing // the spinner renders only during a sync
+	default:
+		return false
+	}
 }
 
 func (m Model) flushWith(msgs []string) tea.Cmd {
@@ -244,21 +299,25 @@ func (m *Model) bumpPending() tea.Cmd {
 }
 
 // maybeReloadTheme re-reads the Omarchy theme if it changed on disk.
-func (m *Model) maybeReloadTheme() {
+// Returns true only when the palette actually changed (callers bump
+// viewStamp on a true return).
+func (m *Model) maybeReloadTheme() bool {
 	cur := theme.PollModTime(theme.StateDir())
 	if !cur.After(m.themeMod) {
-		return
+		return false
 	}
 	pal, err := theme.Load()
 	if err != nil {
 		m.statusMsg = "theme reload failed: " + err.Error()
-		return
+		// The error text itself is visible; treat it as a (rare) change.
+		return true
 	}
 	m.palette = pal
 	m.styles = newStyles(pal)
 	m.themeMod = cur
 	m.glamourRenderer = nil // glamour rebuilt lazily
 	m.statusMsg = "theme: " + pal.Name
+	return true
 }
 
 // animTickMsg advances the checkbox-pop / bar-ease animation.

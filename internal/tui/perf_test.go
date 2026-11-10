@@ -78,6 +78,7 @@ func BenchmarkView2000(b *testing.B) {
 	m = updated.(Model)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		m.viewStamp++ // force a real rebuild; cache hits measure nothing
 		_ = m.View()
 	}
 }

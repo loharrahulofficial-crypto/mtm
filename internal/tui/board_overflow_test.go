@@ -57,9 +57,9 @@ func TestBoardOverflowIndicatorsAndHLScroll(t *testing.T) {
 				t.Fatalf("DONE column fits at %dx%d — fixture expected it to hide:\n%s", tc.w, tc.h, hdr)
 			}
 			// Two l presses reach the hidden DONE column.
-			updated, _ := m.updateNormalKey(keyMsg("l"))
+			updated, _ := m.Update(keyMsg("l"))
 			m = updated.(Model)
-			updated, _ = m.updateNormalKey(keyMsg("l"))
+			updated, _ = m.Update(keyMsg("l"))
 			m = updated.(Model)
 			if m.boardCol != 2 {
 				t.Fatalf("boardCol = %d after l l, want 2 (done)", m.boardCol)
@@ -74,9 +74,9 @@ func TestBoardOverflowIndicatorsAndHLScroll(t *testing.T) {
 				t.Fatalf("DONE column is not visible after l l at %dx%d:\n%s", tc.w, tc.h, hdr)
 			}
 			// h h comes back.
-			updated, _ = m.updateNormalKey(keyMsg("h"))
+			updated, _ = m.Update(keyMsg("h"))
 			m = updated.(Model)
-			updated, _ = m.updateNormalKey(keyMsg("h"))
+			updated, _ = m.Update(keyMsg("h"))
 			m = updated.(Model)
 			if m.boardCol != 0 {
 				t.Fatalf("boardCol = %d after h h, want 0", m.boardCol)
@@ -105,7 +105,7 @@ func TestBoardOverflowMouseScroll(t *testing.T) {
 
 	click := func(x, y int) Model {
 		msg := tea.MouseMsg{X: x, Y: y, Type: tea.MouseLeft}
-		updated, _ := m.updateMouse(msg)
+		updated, _ := m.Update(msg)
 		return updated.(Model)
 	}
 
@@ -129,7 +129,7 @@ func TestBoardOverflowMouseScroll(t *testing.T) {
 	}
 	// Wheel right/left on any board row moves the column selection.
 	wheel := func(typ tea.MouseEventType) Model {
-		updated, _ := m.updateMouse(tea.MouseMsg{X: sidebarW + 10, Y: 6, Type: typ})
+		updated, _ := m.Update(tea.MouseMsg{X: sidebarW + 10, Y: 6, Type: typ})
 		return updated.(Model)
 	}
 	m = wheel(tea.MouseWheelRight)
@@ -142,7 +142,7 @@ func TestBoardOverflowMouseScroll(t *testing.T) {
 	}
 	// Wheel down on the header row slides the window forward as well.
 	m.boardCol = 0
-	updated, _ := m.updateMouse(tea.MouseMsg{X: sidebarW + 10, Y: 1, Type: tea.MouseWheelDown})
+	updated, _ := m.Update(tea.MouseMsg{X: sidebarW + 10, Y: 1, Type: tea.MouseWheelDown})
 	m = updated.(Model)
 	if m.boardCol != 1 {
 		t.Fatalf("boardCol = %d after wheel down on the header, want 1", m.boardCol)

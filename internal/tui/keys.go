@@ -33,6 +33,11 @@ func (m Model) dispatchRaw(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampDetailAndSidebar()
 		return m, m.armAmbient()
 	case spinner.TickMsg:
+		// The spinner renders only while a sync is in flight; anywhere else
+		// the tick is dropped and the chain stops instead of ticking forever.
+		if m.syncSt != syncSyncing {
+			return m, nil
+		}
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -10,9 +11,26 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/perf"
 )
 
+// frameBuilds counts actual viewInner() rebuilds (not cache hits).
+// Tests read it to assert that a no-op tick repaints nothing.
+var frameBuilds int64
+
 // View renders the whole screen (and counts it for the profiling harness).
+// When nothing visible changed since the last call, the cached block is
+// returned without touching Render/Join/paint — Bubble Tea's line diff then
+// flushes zero bytes.
 func (m Model) View() string {
+	fc := m.frame
+	if fc != nil && fc.view != "" && fc.stamp == m.viewStamp &&
+		fc.w == m.width && fc.h == m.height {
+		perf.CountView(len(fc.view))
+		return fc.view
+	}
 	s := m.viewInner()
+	atomic.AddInt64(&frameBuilds, 1)
+	if fc != nil {
+		fc.view, fc.stamp, fc.w, fc.h = s, m.viewStamp, m.width, m.height
+	}
 	perf.CountView(len(s))
 	return s
 }

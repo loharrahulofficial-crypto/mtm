@@ -48,7 +48,7 @@ func TestCoursesDetailScrollReachesEverySection(t *testing.T) {
 					}
 				}
 				before := m.coursesScroll
-				updated, _ := m.updateCoursesKey(aPageDown)
+				updated, _ := m.Update(keyMsg("ctrl+d"))
 				m = updated.(Model)
 				if m.coursesScroll == before {
 					bottom = true
@@ -87,7 +87,7 @@ func TestCoursesDetailScrollResetAndTop(t *testing.T) {
 		t.Fatalf("coursesScroll = %d after paging up at the top, want 0", m.coursesScroll)
 	}
 	// Moving the course selection resets the scroll to the top.
-	updated, _ = m.updateCoursesKey(aPageDown)
+	updated, _ = m.Update(keyMsg("ctrl+d"))
 	m = updated.(Model)
 	if m.coursesScroll == 0 {
 		t.Fatal("ctrl+d did not scroll the dashboard")

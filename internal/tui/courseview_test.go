@@ -312,7 +312,7 @@ func TestCoursesDrillOutRestoresSelection(t *testing.T) {
 	if m.view != viewList {
 		t.Fatal("enter did not drill into the course")
 	}
-	m4, _ := m.updateNormalKey(keyMsg("esc"))
+	m4, _ := m.Update(keyMsg("esc"))
 	m = m4.(Model)
 	if m.view != viewCourses {
 		t.Fatalf("after esc: view = %v, want courses", m.view)
@@ -373,7 +373,7 @@ func TestCoursesExamTopicsChecklist(t *testing.T) {
 // keeps its gg prefix meaning.
 func TestCoursesBareGPrefillsGradePalette(t *testing.T) {
 	m := coursesModel(t, 200)
-	m2, _ := m.updateNormalKey(keyMsg("g"))
+	m2, _ := m.Update(keyMsg("g"))
 	m3 := m2.(Model)
 	if m3.mode != modePalette {
 		t.Fatal("g did not open the palette in Courses view")
@@ -388,7 +388,7 @@ func TestCoursesBareGPrefillsGradePalette(t *testing.T) {
 func TestListBareGStaysPrefix(t *testing.T) {
 	m := coursesModel(t, 200)
 	m.view = viewList
-	m2, _ := m.updateNormalKey(keyMsg("g"))
+	m2, _ := m.Update(keyMsg("g"))
 	m3 := m2.(Model)
 	if m3.mode != modeNormal {
 		t.Fatal("g opened a mode outside Courses view")

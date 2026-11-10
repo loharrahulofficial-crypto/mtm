@@ -26,6 +26,15 @@ import (
 
 type viewID int
 
+// frameCache holds the last block View() produced. The model is copied by
+// value across every message, so the cache lives behind a pointer shared by
+// all copies. Single-goroutine UI: no lock.
+type frameCache struct {
+	view  string
+	stamp int64
+	w, h  int
+}
+
 const (
 	viewHome viewID = iota
 	viewList
@@ -120,6 +129,16 @@ type Model struct {
 	mode  modeID
 	view  viewID
 	focus focusID
+
+	// frame shares the frame cache across value copies of Model (the event
+	// loop passes the model by value through every message). View() returns
+	// the cached block verbatim while viewStamp (bumped by every message
+	// that can change the screen) is unchanged. A tick that changes nothing
+	// visible therefore costs a string compare in the renderer, never a
+	// rebuild. Ambient ticks bump viewStamp like anything else.
+	viewStamp       int64
+	frame           *frameCache
+	lastClockMinute int // minute-of-hour at the last clock-driven redraw; -1 = unset
 
 	// Phase 4b-B ambient state
 	ambientSettingSel int
@@ -300,34 +319,36 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 	sp.Spinner = spinner.Dot
 
 	m := Model{
-		cfg:            cfg,
-		store:          s,
-		repo:           repo,
-		root:           s.Root,
-		clock:          clk,
-		mode:           modeNormal,
-		view:           viewHome,
-		focus:          focusMain,
-		keymap:         DefaultKeyMap(),
-		styles:         newStyles(pal),
-		palette:        pal,
-		themeMod:       theme.PollModTime(theme.StateDir()),
-		detailOn:       true,
-		input:          input,
-		notes:          notes,
-		pickerItems:    []string{},
-		calMonth:       day,
-		calDay:         time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()),
-		conflictDone:   map[string]bool{},
-		conflictReturn: modeNormal,
-		hasRemote:      repo.HasRemote(cfg.Sync.Remote),
-		github:         map[string]*actions.GitHubInfo{},
-		spinner:        sp,
-		lastSync:       time.Time{},
-		icons:          buildIcons(cfg.UI.Icons),
-		animations:     cfg.UI.Animations,
-		ambientFocused: true,
-		paletteInput:   textinput.New(),
+		cfg:             cfg,
+		store:           s,
+		repo:            repo,
+		root:            s.Root,
+		clock:           clk,
+		mode:            modeNormal,
+		view:            viewHome,
+		focus:           focusMain,
+		keymap:          DefaultKeyMap(),
+		styles:          newStyles(pal),
+		palette:         pal,
+		themeMod:        theme.PollModTime(theme.StateDir()),
+		frame:           &frameCache{},
+		lastClockMinute: now.Minute(),
+		detailOn:        true,
+		input:           input,
+		notes:           notes,
+		pickerItems:     []string{},
+		calMonth:        day,
+		calDay:          time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()),
+		conflictDone:    map[string]bool{},
+		conflictReturn:  modeNormal,
+		hasRemote:       repo.HasRemote(cfg.Sync.Remote),
+		github:          map[string]*actions.GitHubInfo{},
+		spinner:         sp,
+		lastSync:        time.Time{},
+		icons:           buildIcons(cfg.UI.Icons),
+		animations:      cfg.UI.Animations,
+		ambientFocused:  true,
+		paletteInput:    textinput.New(),
 	}
 	if unknown := m.keymap.ApplyOverrides(cfg.Keys); len(unknown) > 0 {
 		m.statusMsg = fmt.Sprintf("ignoring unknown keys: entries: %s", strings.Join(unknown, ", "))
