@@ -294,14 +294,22 @@ func renderHomeBody(m Model, w, h int) []string {
 		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(lipgloss.Color(m.palette.Base)).Render(sparseHint(m)))
 	}
 	// Ambient corner: overlay the scene onto the free rows below the
-	// last band, right-anchored. The left part stays blank base.
+	// last band, right-anchored. The rect from homeSceneCornerRect is the
+	// single source of truth: pad the body to the rect's y (full-width
+	// Surface fill), then write the panel rows over it — the panel ends up
+	// entirely inside the free-rows band, never straddling the hint strip
+	// above it.
 	if cornerBody != nil {
+		fill := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface)).Render(strings.Repeat(" ", w))
+		y0 := 3 + corner.y
+		for len(lines) < y0 {
+			lines = append(lines, fill)
+		}
 		fullRows := make([]string, 0, len(cornerBody))
 		for _, row := range cornerBody {
-			left := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base)).Render(strings.Repeat(" ", w-corner.w))
+			left := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Surface)).Render(strings.Repeat(" ", w-corner.w))
 			fullRows = append(fullRows, left+row)
 		}
-		y0 := 3 + corner.y
 		for i, row := range fullRows {
 			idx := y0 + i
 			if idx < len(lines) {
@@ -314,21 +322,30 @@ func renderHomeBody(m Model, w, h int) []string {
 	return lines
 }
 
-// renderSceneCorner builds the bordered ambient panel for the Home
-// corner: title row, then the scene. Returns corner.h rows.
+// renderSceneCorner builds the ambient panel for the Home free rows. The
+// panel paints entirely on the Surface slab band it sits in — chrome, pads
+// and scene base all derive from Surface — so it never punches Base-colored
+// cells into that band and never straddles the Base strips above (Home
+// header/greeting/hint) or the Surface padding below.
 func renderSceneCorner(m Model, r homeRect) []string {
-	edge := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.AccentSoft)).Background(lipgloss.Color(m.palette.Base))
+	surface := lipgloss.Color(m.palette.Surface)
+	edge := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.AccentSoft)).Background(surface)
+	pad := lipgloss.NewStyle().Background(surface)
 	title := "AMBIENT · " + strings.ToUpper(m.currentSceneName())
 	top := titledBorder(m, title, r.w, true, edge)
 	bot := titledBorder(m, "", r.w, false, edge)
 	right := edge.Render("│")
-	body := m.sceneFrame(m.ambientT, r.w-2, r.h-2, false)
+	slab := m.scenePalette()
+	slab.Base = m.palette.Surface
+	st := m.sceneState()
+	st.Palette = slab
+	body := m.currentScene().Frame(m.ambientT, r.w-2, r.h-2, st)
 	out := []string{top}
 	for _, l := range body {
 		if w := lipgloss.Width(l); w > r.w-2 {
 			l = clipStyled(l, r.w-2)
 		} else if w < r.w-2 {
-			l += lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base)).Render(strings.Repeat(" ", r.w-2-w))
+			l += pad.Render(strings.Repeat(" ", r.w-2-w))
 		}
 		out = append(out, edge.Render("│")+l+right)
 	}
