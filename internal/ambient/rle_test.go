@@ -28,7 +28,7 @@ func TestBytesPerFrameReported(t *testing.T) {
 		// render produces sane sizes through the buffer directly.
 		st := stateFor(0.5, PhaseWork)
 		st2 := st
-		b := newFrameBuffer(mustPaint(t, s), ModeHalfblock, 3*time.Second, 40, 14, st2)
+		b := newFrameBuffer(mustPaint(t, s), ModeHalfblock, 3*time.Second, 40, 14, st2, false)
 		b.render(b.palette, 40, 14)
 		if b.bytesOut() <= 0 {
 			t.Fatalf("%s: bytes = 0", scene)

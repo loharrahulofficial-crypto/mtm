@@ -29,7 +29,7 @@ func ReportBytes(mode string, w, h int) map[string]int {
 		if !ok {
 			continue
 		}
-		b := newFrameBuffer(p, mode, 3*time.Second, w, h, st)
+		b := newFrameBuffer(p, mode, 3*time.Second, w, h, st, false)
 		b.render(b.palette, w, h)
 		out[name] = b.bytesOut()
 	}

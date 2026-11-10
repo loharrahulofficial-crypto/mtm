@@ -135,7 +135,7 @@ func TestLayerRegionsRespected(t *testing.T) {
 					}
 					st := stateFor(0.35, PhaseWork)
 					st.Lightning = true // exercise the lightning bolt layer
-					b := newFrameBuffer(p, mode, ft, size[0], size[1], st)
+					b := newFrameBuffer(p, mode, ft, size[0], size[1], st, false)
 					type rect struct{ x0, y0, x1, y1 int }
 					union := map[uint8]rect{}
 					for _, r := range b.regions {
