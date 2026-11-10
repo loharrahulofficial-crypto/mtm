@@ -632,7 +632,7 @@ func (m Model) renderProjectOverview(w, h int) []string {
 	lines = append(lines, "")
 
 	// PROGRESS ---------------------------------------------------------------
-	lines = append(lines, section(m, "P R O G R E S S"))
+	lines = append(lines, section(m, "PROGRESS"))
 	done, total, loggedMin, weekH := projectTaskStats(m)
 	mDone, mTotal := 0, 0
 	for _, ms := range m.store.Milestones(m.projectPage) {
@@ -663,7 +663,7 @@ func (m Model) renderProjectOverview(w, h int) []string {
 	lines = append(lines, "")
 
 	// VELOCITY ---------------------------------------------------------------
-	lines = append(lines, section(m, "V E L O C I T Y · 12 WEEKS"))
+	lines = append(lines, section(m, "VELOCITY · 12 WEEKS"))
 	isDoneFn := projectIsDone(m)
 	v := core.VelocityReport(projectTasksFlat(m), isDoneFn, now, core.VelocityWindow)
 	vals := make([]float64, len(v.Weeks))
@@ -688,7 +688,7 @@ func (m Model) renderProjectOverview(w, h int) []string {
 	lines = append(lines, "")
 
 	// NEXT MILESTONE ----------------------------------------------------------
-	lines = append(lines, section(m, "N E X T   M I L E S T O N E"))
+	lines = append(lines, section(m, "NEXT MILESTONE"))
 	best, bestDays, ok := nextMilestoneIn(m, m.projectPage)
 	if !ok {
 		lines = append(lines, "  "+muted.Render("none pending — mtm milestone add "+m.projectPage+" \"title\""))
@@ -702,7 +702,7 @@ func (m Model) renderProjectOverview(w, h int) []string {
 	lines = append(lines, "")
 
 	// GITHUB ------------------------------------------------------------------
-	lines = append(lines, section(m, "G I T H U B"))
+	lines = append(lines, section(m, "GITHUB"))
 	lines = append(lines, m.githubSectionLines(w)...)
 
 	offset := clampScroll(m.projectScroll, len(lines), h)

@@ -387,6 +387,25 @@ func TestSectionLabelTextLetterspacesLabelWordOnly(t *testing.T) {
 	}
 }
 
+// TestSectionLabelTextKeepsWordGaps pins spec 0.3: multi-word labels keep
+// exactly three spaces between words after letterspacing — the project page
+// previously passed hand-spaced strings that collapsed the gap.
+func TestSectionLabelTextKeepsWordGaps(t *testing.T) {
+	s := emptyFixture(t)
+	defer func() { _ = s.Close() }()
+	m := New(dumpConfig(), s, sync.New(s.Root))
+	for _, tc := range []struct{ label, want string }{
+		{"NEXT MILESTONE", "N\u2009E\u2009X\u2009T   M\u2009I\u2009L\u2009E\u2009S\u2009T\u2009O\u2009N\u2009E"},
+		{"VELOCITY · 12 WEEKS", "V\u2009E\u2009L\u2009O\u2009C\u2009I\u2009T\u2009Y · 12 WEEKS"},
+		{"THIS WEEK", "T\u2009H\u2009I\u2009S   W\u2009E\u2009E\u2009K"},
+	} {
+		got := StripANSI(sectionLabelText(m, tc.label))
+		if got != tc.want {
+			t.Errorf("label %q:\n got %q\nwant %q", tc.label, got, tc.want)
+		}
+	}
+}
+
 // TestCalendarFrameShowsMonthSuffix pins the calendar panel title:
 // "C A L E N D A R · Nov 2026" — letterspaced label, normal-case month.
 func TestCalendarFrameShowsMonthSuffix(t *testing.T) {
