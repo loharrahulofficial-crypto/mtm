@@ -245,3 +245,38 @@ func TestAmbientTickCrawlsWhenPaused(t *testing.T) {
 		t.Fatal("paused focus stopped the ticker — gentle breathing expected")
 	}
 }
+
+// TestAmbientFPSCappedPerSurface: the frame budget is ≤ 24 FPS on the
+// focus surface (and splash), ≤ 12 FPS behind Home/sidebar.
+func TestAmbientFPSCappedPerSurface(t *testing.T) {
+	set := func(m Model, v int) Model { m.cfg.UI.AmbientFPS = v; return m }
+	normal := freshAmbientModel(t)
+	focus := freshAmbientModel(t)
+	splash := freshAmbientModel(t)
+	normal.mode = modeNormal
+	focus.mode = modeFocus
+	splash.mode = modeSplash
+	for _, tc := range []struct {
+		cfg   int
+		home  int
+		focus int
+	}{
+		{30, 12, 24},
+		{20, 12, 20},
+		{8, 8, 8},
+		{0, 10, 10},
+	} {
+		m := set(normal, tc.cfg)
+		if got := ambientFPS(m); got != tc.home {
+			t.Errorf("cfg %d: home/sidebar cap = %d, want %d", tc.cfg, got, tc.home)
+		}
+		m = set(focus, tc.cfg)
+		if got := ambientFPS(m); got != tc.focus {
+			t.Errorf("cfg %d: focus cap = %d, want %d", tc.cfg, got, tc.focus)
+		}
+		m = set(splash, tc.cfg)
+		if got := ambientFPS(m); got != tc.focus {
+			t.Errorf("cfg %d: splash cap = %d, want %d", tc.cfg, got, tc.focus)
+		}
+	}
+}

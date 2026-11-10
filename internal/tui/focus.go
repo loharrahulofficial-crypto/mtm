@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
+	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
@@ -99,29 +100,44 @@ func formatFocusDuration(d time.Duration) string {
 	return fmt.Sprintf("%02d:%02d", total/60, total%60)
 }
 
-// renderFocus renders the full-screen focus surface.
+// renderFocus renders the full-screen focus surface. With ambient on, the
+// scene fills the whole backdrop under a theme-tuned dark scrim and the
+// timer content draws on top.
 func (m Model) renderFocus() string {
 	base := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(lipgloss.Color(m.palette.Base))
-	body := m.renderFocusBody()
 	if m.ambientAllowFocus() {
-		scene := m.sceneFrame(m.ambientT, m.width, m.height, false)
-		content := verticalCenter(body, m.height, m.width, base)
-		blankFill := base.Render(strings.Repeat(" ", m.width))
-		flines := strings.Split(content, "\n")
-		for i, l := range flines {
-			if l == blankFill && i < len(scene) {
-				flines[i] = scene[i] // reveal the scene where the body is blank
-			}
+		alpha := focusScrimAlpha(m.palette.BrightText, m.scenePalette())
+		scene := m.sceneFrameWith(m.ambientT, m.width, m.height, func(p ambient.Palette) ambient.Palette {
+			return scrimPalette(p, alpha, focusScrimDir(m.palette.BrightText))
+		})
+		grid := m.renderFocusBody(true)
+		for len(grid) < m.height {
+			grid = append(grid, "")
 		}
-		return strings.Join(flines, "\n")
+		return strings.Join(overlayFrame(scene, grid, m.width), "\n")
 	}
+	body := m.renderFocusBody(false)
 	return verticalCenter(body, m.height, m.width, base)
 }
 
-func (m Model) renderFocusBody() []string {
+// renderFocusBody builds the focus content lines. transparent drops every
+// Base background in favor of bare glyphs — the Focus backdrop splices
+// these ink runs over the scene (spec 5.3).
+func (m Model) renderFocusBody(transparent bool) []string {
 	s := m.styles
-	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Base))
-	bright := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(lipgloss.Color(m.palette.Base)).Bold(true)
+	sty := func(fg string, bold bool) lipgloss.Style {
+		st := lipgloss.NewStyle().Foreground(lipgloss.Color(fg))
+		if !transparent {
+			st = st.Background(lipgloss.Color(m.palette.Base))
+		}
+		if bold {
+			st = st.Bold(true)
+		}
+		return st
+	}
+	muted := sty(m.palette.MutedSoft, false)
+	bright := sty(m.palette.BrightText, true)
+	section := sty(m.palette.MutedSoft, true)
 
 	w := m.width
 	pad := 4
@@ -137,7 +153,11 @@ func (m Model) renderFocusBody() []string {
 	meta := s.pillActive.Render(" FOCUS ")
 	if t != nil {
 		color := theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))
-		meta += "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(lipgloss.Color(m.palette.Base)).Render("▌"+t.Project)
+		chip := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+		if !transparent {
+			chip = chip.Background(lipgloss.Color(m.palette.Base))
+		}
+		meta += "  " + chip.Render("▌"+t.Project)
 	}
 	body = append(body, "")
 	body = append(body, strings.Repeat(" ", pad)+meta)
@@ -184,8 +204,10 @@ func (m Model) renderFocusBody() []string {
 	frac := v.Progress
 	barW := clampInt(inner-22, 16, 44)
 	barFill, barTrack := gauges.Bar(frac, barW)
-	fill := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(lipgloss.Color(m.palette.Base)).Render(barFill)
-	track := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Border)).Background(lipgloss.Color(m.palette.Base)).Render(barTrack)
+	fillSty := sty(m.palette.Accent, false)
+	trackSty := sty(m.palette.Border, false)
+	fill := fillSty.Render(barFill)
+	track := trackSty.Render(barTrack)
 	body = append(body, "")
 	body = append(body, "")
 	if idle {
@@ -206,8 +228,8 @@ func (m Model) renderFocusBody() []string {
 
 	// Notes preview.
 	body = append(body, "")
-	body = append(body, strings.Repeat(" ", pad)+s.sectionLabel.Render(letterspace("N O T E S")))
-	mutedNotes := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Base))
+	body = append(body, strings.Repeat(" ", pad)+section.Render(letterspace("N O T E S")))
+	mutedNotes := muted
 	bodyText := strings.TrimRight(t.Body, "\n")
 	if bodyText == "" {
 		body = append(body, strings.Repeat(" ", pad)+mutedNotes.Render("No notes yet. Press m to write."))

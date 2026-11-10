@@ -293,11 +293,23 @@ func (m Model) dimScenePalette() ambient.Palette {
 
 // sceneFrame renders one ambient frame for the place being drawn.
 func (m *Model) sceneFrame(t time.Duration, w, h int, dim bool) []string {
+	if dim {
+		return m.sceneFrameWith(t, w, h, func(ambient.Palette) ambient.Palette {
+			return m.dimScenePalette()
+		})
+	}
+	return m.sceneFrameWith(t, w, h, nil)
+}
+
+// sceneFrameWith renders one frame through an optional palette adjustment
+// (the Focus scrim, spec 5.3). Deterministic: same t, seed and palette,
+// same frame.
+func (m *Model) sceneFrameWith(t time.Duration, w, h int, adjust func(ambient.Palette) ambient.Palette) []string {
 	start := time.Now()
 	defer func() { ambient.ObserveFrameCost(time.Since(start)) }()
 	st := m.sceneState()
-	if dim {
-		st.Palette = m.dimScenePalette()
+	if adjust != nil {
+		st.Palette = adjust(st.Palette)
 	}
 	cur := m.currentScene()
 	blend := m.crossfadeActive()
@@ -327,6 +339,27 @@ func (m *Model) sceneRewardFrame(t time.Duration, w, h int) []string {
 	return m.currentScene().Reward(t, w, h, st)
 }
 
+// ambientFPS resolves the configured cap against the per-surface budget:
+// ≤ 24 FPS while a scene is the focus surface (or the splash), ≤ 12 FPS
+// behind Home/sidebar. Adaptive quality halves on top of this.
+func ambientFPS(m Model) int {
+	fps := m.cfg.UI.AmbientFPS
+	if fps < 1 {
+		fps = 10
+	}
+	cap := 12
+	if m.mode == modeFocus || m.mode == modeSplash {
+		cap = 24
+	}
+	if fps > cap {
+		fps = cap
+	}
+	if fps > 30 {
+		fps = 30
+	}
+	return fps
+}
+
 // armAmbient schedules the next frame when — and only when — a surface
 // wants it. The ticker stops entirely otherwise: zero work while idle.
 // A paused Pomodoro in Focus mode crawls instead: the scene breathes at
@@ -340,13 +373,7 @@ func (m Model) armAmbient() tea.Cmd {
 		return nil
 	}
 	m.ambientArmed = true
-	fps := m.cfg.UI.AmbientFPS
-	if fps < 1 {
-		fps = 10
-	}
-	if fps > 30 {
-		fps = 30
-	}
+	fps := ambientFPS(m)
 	if m.slowIdleActive() {
 		return ambientTickCmd(slowIdleFPS(fps))
 	}
@@ -395,13 +422,7 @@ func (m Model) handleAmbientTick() (tea.Model, tea.Cmd) {
 		m.ambientArmed = false
 		return m, nil
 	}
-	fps := m.cfg.UI.AmbientFPS
-	if fps < 1 {
-		fps = 10
-	}
-	if fps > 30 {
-		fps = 30
-	}
+	fps := ambientFPS(m)
 	slow := m.slowIdleActive()
 	if slow {
 		fps = slowIdleFPS(fps)
@@ -710,14 +731,7 @@ func (m *Model) fireReward(title string) tea.Cmd {
 	m.rewardUntil = m.clock.Now().Add(rewardDuration)
 	m.rewardTitle = title
 	m.armAmbient()
-	fps := m.cfg.UI.AmbientFPS
-	if fps < 1 {
-		fps = 10
-	}
-	if fps > 30 {
-		fps = 30
-	}
-	return ambientTickCmd(fps)
+	return ambientTickCmd(ambientFPS(*m))
 }
 
 // skipSplash fast-forwards the splash into its dissolve tail: the next

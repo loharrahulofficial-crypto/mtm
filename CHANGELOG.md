@@ -29,6 +29,14 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   (`ui.reward_animation: true`, rate-limited to 3 per minute). `home` keeps
   the larger optional panel in Home free space (hidden while the sidebar
   window is on), `sidebar` is the window only, `both` is splash + window
+
+- **Focus backdrop (v2)**: the scene fills the whole Focus frame (was:
+  revealed only behind blank pads) under a soft dark scrim blended from the
+  scene palette. The scrim alpha is computed per theme: it rises until
+  BrightText vs the brightest scene role passes WCAG 4.5 (light themes
+  scrim toward white instead). The timer renders on top of the scene.
+  Frame budget is per-surface: ≤ 24 FPS on Focus/splash, ≤ 12 FPS behind
+  Home/sidebar
 - **Controls**: `alt+s` cycles scenes; `:scene <name>` switches (koi, snow,
   campfire …); `:ambient` opens a live full-screen preview with a mood
   picker (`:ambient` also reachable from the palette and `:scene list`);
