@@ -95,7 +95,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 				aura.At(fx*3.4+float64(ribbon)*13.7, ts*0.07+float64(ribbon)*7.3)*H*0.13
 			thick := 0.7 + aura.At(fx*5.3+float64(ribbon)*29.1, ts*0.11+3.0+float64(ribbon)*17.0)*0.85
 			intensity := 0.16 + 0.26*(0.5+0.5*aura.At(fx*2.3+float64(ribbon)*41.0, ts*0.05+float64(ribbon)*23.0))
-			for y := cen - thick; y < cen + thick; y += 0.5 {
+			for y := cen - thick; y < cen+thick; y += 0.5 {
 				d := math.Abs(y-cen) / thick
 				// vertical shimmer: the curtain breathes edge-to-edge
 				shimmer := 0.55 + 0.45*math.Sin(ts*1.35+y*1.7+float64(ribbon)*2.1+x*0.06)
@@ -145,7 +145,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	prog := clampf(state.Progress, 0, 1)
 	phase := moonPhase(state.Now)
 	mX := W * (0.10 + 0.80*prog)
-	mY := H * 0.60 - math.Sin(math.Pi*prog)*H*0.44
+	mY := H*0.60 - math.Sin(math.Pi*prog)*H*0.44
 	mR := math.Min(W, H*1.6) * 0.072
 	if mR < 1.6 {
 		mR = 1.6
@@ -208,8 +208,8 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 
 	// --- horizon: far hazy ridge, then the near pine line
 	sil := cachedPerlin(state.Seed, 101)
-	farY := H*0.74
-	nearY := H*0.84
+	farY := H * 0.74
+	nearY := H * 0.84
 	b.beginLayer(layerLand, 0, int(H*0.55), sw(b), sh(b))
 	for x := 0.0; x < W; x += 0.75 {
 		fy := farY + sil.At(x*0.016+3.1, 7.3)*H*0.055

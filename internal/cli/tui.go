@@ -46,6 +46,8 @@ func newTuiCmd() *cobra.Command {
 	var frameT time.Duration
 	var progress float64
 	var renderMode, phase string
+	var ppmPath string
+	var ppmScale int
 	cmd := &cobra.Command{
 		Use:   "tui",
 		Short: "Launch the interactive TUI (or, hidden, render one frame)",
@@ -82,6 +84,16 @@ func newTuiCmd() *cobra.Command {
 					Palette:  dumpPalette(),
 				}
 				s := ambient.New(sceneName, renderMode)
+				if ppmPath != "" {
+					if ppmScale < 1 || ppmScale > 20 {
+						return fmt.Errorf("--ppm-scale %d out of range (1..20)", ppmScale)
+					}
+					if err := ambient.WritePPM(ppmPath, s.Frame(frameT, w, h, st), ppmScale); err != nil {
+						return err
+					}
+					fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", ppmPath)
+					return nil
+				}
 				frame := strings.Join(s.Frame(frameT, w, h, st), "\n")
 				out := cmd.OutOrStdout()
 				fmt.Fprint(out, frame)
@@ -116,6 +128,8 @@ func newTuiCmd() *cobra.Command {
 	cmd.Flags().Float64Var(&progress, "progress", 0.5, "scene progress 0..1 (pomodoro / tide / growth / clearing)")
 	cmd.Flags().StringVar(&renderMode, "render", "halfblock", "ambient render mode: auto|halfblock|braille|ascii")
 	cmd.Flags().StringVar(&phase, "phase", "work", "scene phase: work|break|idle")
+	cmd.Flags().StringVar(&ppmPath, "ppm", "", "also write the frame as a binary PPM image to FILE (tool-only)")
+	cmd.Flags().IntVar(&ppmScale, "ppm-scale", 6, "PPM pixel scale per subcell (1..20)")
 	_ = cmd.Flags().MarkHidden("dump")
 	_ = cmd.Flags().MarkHidden("view")
 	_ = cmd.Flags().MarkHidden("size")
@@ -125,5 +139,7 @@ func newTuiCmd() *cobra.Command {
 	_ = cmd.Flags().MarkHidden("progress")
 	_ = cmd.Flags().MarkHidden("render")
 	_ = cmd.Flags().MarkHidden("phase")
+	_ = cmd.Flags().MarkHidden("ppm")
+	_ = cmd.Flags().MarkHidden("ppm-scale")
 	return cmd
 }

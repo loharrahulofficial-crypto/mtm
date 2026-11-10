@@ -6,7 +6,7 @@ COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X $(MODULE)/internal/cli.version=$(VERSION) -X $(MODULE)/internal/cli.commit=$(COMMIT) -X $(MODULE)/internal/cli.buildDate=$(DATE)
 
-.PHONY: build install uninstall test vet fmt man demo smoke check clean
+.PHONY: build install uninstall test vet fmt man demo smoke check clean scenes-gallery
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/mtm
@@ -56,3 +56,10 @@ uninstall:
 
 clean:
 	rm -rf bin man
+
+# Write one PPM per scene and time into $(OUT) (default: a temp dir).
+# Never writes outside the sandbox; pnm2png/ImageMagick can convert.
+OUT ?= $(shell mktemp -d /tmp/mtm-scenes-XXXXXX)
+scenes-gallery: build
+	@sh contrib/scenes-gallery.sh $(CURDIR)/bin/mtm $(OUT)
+	@echo "gallery written to $(OUT)"
