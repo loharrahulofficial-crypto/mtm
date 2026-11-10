@@ -34,6 +34,8 @@ func renderFrame(s paintable, mode string, t time.Duration, w, h int, state Scen
 func New(name, mode string) Scene {
 	mode = resolveMode(mode)
 	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "ocean":
+		return &oceanScene{mode: mode}
 	case "bonsai":
 		return &bonsaiScene{mode: mode}
 	case "night":
@@ -45,7 +47,7 @@ func New(name, mode string) Scene {
 
 // Registered lists every scene name in stable order.
 func Registered() []string {
-	return []string{"night", "bonsai"}
+	return []string{"night", "bonsai", "ocean"}
 }
 
 // paintReward draws staggered cross-shaped bursts. Multi-cell bursts read
