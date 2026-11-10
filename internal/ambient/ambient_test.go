@@ -17,16 +17,6 @@ import (
 
 var goldenUpdate = os.Getenv("MTM_UPDATE_GOLDEN") == "1"
 
-func defaultPalette() Palette {
-	return Palette{
-		Base: "#14282d", Surface: "#253c41", SurfaceRaised: "#2f4a50", SurfaceStrong: "#3d5960",
-		Border: "#a1afa9", Text: "#e8dfc4", BrightText: "#fff2d5", MutedSoft: "#a1afa9",
-		Accent: "#d3ae78", AccentSoft: "#8a744f", Success: "#a8b887", Warning: "#dfc181",
-		Danger: "#d78f79", HeatWarm: "#dfc181", HeatHot: "#d3ae78", HeatOverdue: "#d78f79",
-		Blue: "#91afc5", Cyan: "#86b8b5", Yellow: "#dfc181", Magenta: "#b5a0ba",
-		Orange: "#d7a06c", Brown: "#b79b7f",
-	}
-}
 
 func stateFor(progress float64, phase Phase) SceneState {
 	return SceneState{
@@ -34,7 +24,7 @@ func stateFor(progress float64, phase Phase) SceneState {
 		Phase:    phase,
 		Now:      time.Date(2026, 11, 7, 21, 30, 0, 0, time.Local),
 		Seed:     42,
-		Palette:  defaultPalette(),
+		Palette:  DefaultPalette(),
 	}
 }
 
@@ -246,7 +236,7 @@ func TestThemeRolesOnly(t *testing.T) {
 			if len(found) == 0 {
 				t.Fatalf("%s %s: no colors in frame — renderer broken?", scene, mode)
 			}
-			pm := buildPalette(defaultPalette())
+			pm := buildPalette(DefaultPalette())
 			// convex hull of the raw theme roles (blends and gradients live inside it)
 			hull := func(ch func(rgb) int) [2]int {
 				lo, hi := 255, 0

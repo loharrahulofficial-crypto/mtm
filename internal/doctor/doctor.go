@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/demo"
 	"github.com/loharrahulofficial-crypto/mtm/internal/marker"
@@ -43,6 +44,9 @@ type Report struct {
 	Kind     string    `json:"kind"` // marker kind: real|demo|"unmarked"
 	OK       bool      `json:"ok"`
 	Findings []Finding `json:"findings"`
+	// AmbientBytesPerFrame reports the SGR byte count of one halfblock
+	// frame per scene at 100x30 (deterministic, default theme).
+	AmbientBytesPerFrame map[string]int `json:"ambient_bytes_per_frame,omitempty"`
 }
 
 // Options carries the inputs Run needs; zero values default to the
@@ -88,6 +92,9 @@ func Run(opts Options) Report {
 	default:
 		rep.add(LevelWarn, "marker", filepath.Join(opts.Root, marker.Filename), "unreadable marker: %v", merr)
 	}
+
+	// --- ambient render cost (deterministic; one frame per scene) ---
+	rep.AmbientBytesPerFrame = ambient.ReportBytes(ambient.ModeHalfblock, 100, 30)
 
 	// --- git repo ---
 	repo := sync.New(opts.Root)

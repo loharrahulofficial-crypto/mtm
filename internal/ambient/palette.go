@@ -6,6 +6,19 @@ import (
 	"strings"
 )
 
+// DefaultPalette returns the built-in demo/test palette (matches the
+// Omarchy defaults). Used for deterministic frames in tests and reports.
+func DefaultPalette() Palette {
+	return Palette{
+		Base: "#14282d", Surface: "#253c41", SurfaceRaised: "#2f4a50", SurfaceStrong: "#3d5960",
+		Border: "#a1afa9", Text: "#e8dfc4", BrightText: "#fff2d5", MutedSoft: "#a1afa9",
+		Accent: "#d3ae78", AccentSoft: "#8a744f", Success: "#a8b887", Warning: "#dfc181",
+		Danger: "#d78f79", HeatWarm: "#dfc181", HeatHot: "#d3ae78", HeatOverdue: "#d78f79",
+		Blue: "#91afc5", Cyan: "#86b8b5", Yellow: "#dfc181", Magenta: "#b5a0ba",
+		Orange: "#d7a06c", Brown: "#b79b7f",
+	}
+}
+
 // Palette model for scenes: every paintable color is a resolved hex in a
 // fixed table, built once per frame-render from the theme roles. The table
 // holds the roles themselves plus quantized blends toward Base. Goldens and

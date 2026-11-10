@@ -326,3 +326,24 @@ func TestNotAGitRepoFails(t *testing.T) {
 		t.Fatal("report ok on a non-repo")
 	}
 }
+
+func TestAmbientBytesPerFrameReported(t *testing.T) {
+	gitEnv(t)
+	root := t.TempDir()
+	initRepo(t, root, "a1b2c3")
+	writeMarker(t, root, "real")
+	rep := runDoctor(t, root)
+	if len(rep.AmbientBytesPerFrame) == 0 {
+		t.Fatal("doctor did not report ambient bytes per frame")
+	}
+	for scene, b := range rep.AmbientBytesPerFrame {
+		if b <= 0 {
+			t.Errorf("%s: bytes = %d", scene, b)
+		}
+	}
+	for _, want := range []string{"night", "bonsai", "ocean", "rain", "koi", "snow", "campfire"} {
+		if rep.AmbientBytesPerFrame[want] <= 0 {
+			t.Errorf("scene %q missing from ambient_bytes_per_frame", want)
+		}
+	}
+}

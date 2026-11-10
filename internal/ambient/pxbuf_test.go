@@ -6,7 +6,7 @@ import (
 )
 
 // testPalette returns a small palette built from the default theme roles.
-func testPalette() *paletteModel { return buildPalette(defaultPalette()) }
+func testPalette() *paletteModel { return buildPalette(DefaultPalette()) }
 
 func lumOf(c rgb) int { return int(0.2126*float64(c.r) + 0.7152*float64(c.g) + 0.0722*float64(c.b)) }
 
