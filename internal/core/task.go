@@ -48,6 +48,7 @@ type Task struct {
 	Reminder          string   `yaml:"reminder,omitempty"`
 	Recurrence        string   `yaml:"recurrence,omitempty"`
 	Parent            string   `yaml:"parent,omitempty"`
+	Milestone         string   `yaml:"milestone,omitempty"`
 	Created           string   `yaml:"created"`
 	Updated           string   `yaml:"updated"`
 	Completed         string   `yaml:"completed,omitempty"`

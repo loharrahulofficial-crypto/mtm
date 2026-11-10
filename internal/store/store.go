@@ -25,6 +25,12 @@ type Store struct {
 	tasks       []*core.Task
 	paths       map[string]string // task id -> path relative to Root
 	projects    map[string]*core.Project
+	ideas       []*core.Idea
+	iPaths      map[string]string // idea id -> path relative to Root
+	milestones  []*core.Milestone
+	mPaths      map[string]string // milestone id -> path relative to Root
+	devlogs     []*core.DevLogEntry
+	dPaths      map[string]string // dev-log id -> path relative to Root
 	diagnostics []string
 	// Clock stamps created/updated (local-naive, D-004/D-011). Zero value
 	// means the real system clock.
@@ -88,10 +94,15 @@ func Open(root, cachePath string, includeArchived ...bool) (*Store, error) {
 		cachePath: cachePath,
 		paths:     map[string]string{},
 		projects:  map[string]*core.Project{},
+		iPaths:    map[string]string{},
+		mPaths:    map[string]string{},
+		dPaths:    map[string]string{},
 		id:        storeIDs.Add(1),
 	}
 	cache := s.loadCache()
-	walk := func(base string, archived bool) {
+	// walk visits every .md file under base; when prune is set, matching
+	// directories are skipped entirely.
+	walk := func(base string, prune func(d fs.DirEntry) bool, visit func(path, rel string)) {
 		baseAbs := filepath.Join(abs, base)
 		if _, statErr := os.Stat(baseAbs); statErr != nil {
 			return
@@ -101,39 +112,105 @@ func Open(root, cachePath string, includeArchived ...bool) (*Store, error) {
 				s.diagnostics = append(s.diagnostics, fmt.Sprintf("%s: %v", path, err))
 				return nil
 			}
-			if d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
+			if d.IsDir() {
+				if prune != nil && prune(d) {
+					return fs.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(d.Name(), ".md") {
 				return nil
 			}
 			rel, err := filepath.Rel(abs, path)
 			if err != nil {
 				return nil
 			}
-			key := filepath.ToSlash(rel)
-			if t, ok := cache[key]; ok && t != nil {
-				s.register(t, key)
+			visit(path, filepath.ToSlash(rel))
+			return nil
+		})
+	}
+	visitTask := func(archived bool) func(path, rel string) {
+		return func(path, rel string) {
+			if t, ok := cache[rel]; ok && t != nil {
+				s.register(t, rel)
 				if archived {
 					t.Archived = true
 				}
-				return nil
+				return
 			}
 			data, err := os.ReadFile(path)
 			if err != nil {
 				s.diagnostics = append(s.diagnostics, fmt.Sprintf("read %s: %v", rel, err))
-				return nil
+				return
 			}
 			t, err := ParseTask(data)
 			if err != nil {
 				s.diagnostics = append(s.diagnostics, fmt.Sprintf("parse %s: %v", rel, err))
-				return nil
+				return
 			}
 			t.Archived = archived
-			s.register(t, key)
-			return nil
-		})
+			s.register(t, rel)
+		}
 	}
-	walk("projects", false)
+	visitDoc := func(path, rel string) {
+		parts := strings.Split(rel, "/")
+		// Only projects/<project...>/milestones|devlog/<file>.md is a doc;
+		// everything else under projects/ is a task.
+		if len(parts) >= 4 {
+			kind := parts[len(parts)-2]
+			project := strings.Join(parts[1:len(parts)-2], "/")
+			switch kind {
+			case "milestones":
+				data, err := os.ReadFile(path)
+				if err != nil {
+					s.diagnostics = append(s.diagnostics, fmt.Sprintf("read %s: %v", rel, err))
+					return
+				}
+				m, err := ParseMilestone(data)
+				if err != nil {
+					s.diagnostics = append(s.diagnostics, fmt.Sprintf("parse %s: %v", rel, err))
+					return
+				}
+				m.Project = project
+				s.milestones = append(s.milestones, m)
+				s.mPaths[m.ID] = rel
+				return
+			case "devlog":
+				data, err := os.ReadFile(path)
+				if err != nil {
+					s.diagnostics = append(s.diagnostics, fmt.Sprintf("read %s: %v", rel, err))
+					return
+				}
+				d, err := ParseDevLog(data)
+				if err != nil {
+					s.diagnostics = append(s.diagnostics, fmt.Sprintf("parse %s: %v", rel, err))
+					return
+				}
+				d.Project = project
+				s.devlogs = append(s.devlogs, d)
+				s.dPaths[d.ID] = rel
+				return
+			}
+		}
+		visitTask(false)(path, rel)
+	}
+	walk("projects", nil, visitDoc)
+	walk("ideas", nil, func(path, rel string) {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			s.diagnostics = append(s.diagnostics, fmt.Sprintf("read %s: %v", rel, err))
+			return
+		}
+		i, err := ParseIdea(data)
+		if err != nil {
+			s.diagnostics = append(s.diagnostics, fmt.Sprintf("parse %s: %v", rel, err))
+			return
+		}
+		s.ideas = append(s.ideas, i)
+		s.iPaths[i.ID] = rel
+	})
 	if len(includeArchived) > 0 && includeArchived[0] {
-		walk("archive", true)
+		walk("archive", nil, visitTask(true))
 	}
 	return s, nil
 }
@@ -450,9 +527,19 @@ func (s *Store) Reparse(t *core.Task) error {
 func (s *Store) uniqueID() string {
 	for {
 		id := core.NewID()
-		if _, exists := s.paths[id]; !exists {
-			return id
+		if _, exists := s.paths[id]; exists {
+			continue
 		}
+		if _, exists := s.iPaths[id]; exists {
+			continue
+		}
+		if _, exists := s.mPaths[id]; exists {
+			continue
+		}
+		if _, exists := s.dPaths[id]; exists {
+			continue
+		}
+		return id
 	}
 }
 
