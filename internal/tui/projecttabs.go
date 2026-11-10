@@ -108,7 +108,7 @@ func daysUntilTarget(m Model, target string) (int, bool) {
 		return 0, false
 	}
 	now := m.clock.Now()
-	day, err := time.ParseInLocation("2006-01-02", target, now.Location())
+	day, err := parseMilestoneDay(target, now.Location())
 	if err != nil {
 		return 0, false
 	}
@@ -369,8 +369,11 @@ func (m Model) renderProjectRoadmap(w, h int) []string {
 		// Bar cell.
 		bar := strings.Repeat(" ", gridW)
 		if ms.Target != "" {
-			createdDay, _ := time.ParseInLocation("2006-01-02", ms.Created, now.Location())
-			targetDay, err := time.ParseInLocation("2006-01-02", ms.Target, now.Location())
+			createdDay, cerr := parseMilestoneDay(ms.Created, now.Location())
+			if cerr != nil {
+				createdDay = windowStart // born at the window start
+			}
+			targetDay, err := parseMilestoneDay(ms.Target, now.Location())
 			if err == nil {
 				startX, endX := 0, 0
 				dayOff := func(day time.Time) int {
@@ -400,6 +403,12 @@ func (m Model) renderProjectRoadmap(w, h int) []string {
 					}
 				}
 				fillCells := int(frac * float64(endX-startX))
+				// A completed milestone (status done) is a full bar: no
+				// track cells inside it, wherever the today marker lands.
+				milestoneDone := strings.EqualFold(ms.Status, core.MilestoneDone) || frac >= 1
+				if milestoneDone && endX > startX {
+					fillCells = endX - startX
+				}
 				cells := []rune{}
 				for x := 0; x < gridW; x++ {
 					switch {
@@ -709,6 +718,19 @@ func (m Model) renderProjectOverview(w, h int) []string {
 	return sliceLines(lines, offset, h)
 }
 
+// parseMilestoneDay parses a milestone day from the date-only form used by
+// mtm milestone add ("2006-01-02") or the timestamp form the store keeps in
+// frontmatter ("2006-01-02T15:04"). A zero day means "missing".
+func parseMilestoneDay(s string, loc *time.Location) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	for _, layout := range []string{"2006-01-02", "2006-01-02T15:04", "2006-01-02 15:04"} {
+		if day, err := time.ParseInLocation(layout, s, loc); err == nil {
+			return day, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unparseable milestone day %q", s)
+}
+
 // projectTasksFlat returns the project's tasks (parents + subtasks).
 func projectTasksFlat(m Model) []*core.Task {
 	out := []*core.Task{}
@@ -730,7 +752,7 @@ func nextMilestoneIn(m Model, project string) (*core.Milestone, int, bool) {
 		if strings.EqualFold(ms.Status, core.MilestoneDone) || ms.Target == "" {
 			continue
 		}
-		day, err := time.ParseInLocation("2006-01-02", ms.Target, now.Location())
+		day, err := parseMilestoneDay(ms.Target, now.Location())
 		if err != nil {
 			continue
 		}
