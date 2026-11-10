@@ -5,7 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/clock"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 )
@@ -23,6 +25,9 @@ func openActionStore(t *testing.T, courseName string) *store.Store {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	// Pin the clock: store.Create stamps Updated from it, and the tests
+	// compare against stamps frozen at 2026-11-08T14:00.
+	s.Clock = clock.Fixed(time.Date(2026, 11, 8, 14, 0, 0, 0, time.Local))
 	p := &core.Project{Name: courseName, Statuses: []core.ProjectStatus{
 		{Name: "todo"}, {Name: "doing"}, {Name: "done", Done: true},
 	}, Course: &core.Course{Code: "DBMS", Name: "Database Systems"}}
