@@ -5,8 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
+	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/spf13/cobra"
 )
@@ -16,7 +20,7 @@ func newProjectCmd() *cobra.Command {
 		Use:   "project",
 		Short: "Manage projects and their custom statuses",
 	}
-	cmd.AddCommand(newProjectAddCmd(), newProjectListCmd(), newProjectEditCmd(), newProjectRmCmd())
+	cmd.AddCommand(newProjectAddCmd(), newProjectListCmd(), newProjectEditCmd(), newProjectRmCmd(), newProjectLinkCmd())
 	return cmd
 }
 
@@ -171,6 +175,123 @@ func newProjectEditCmd() *cobra.Command {
 			fmt.Printf("updated project %q\n", name)
 			return nil
 		},
+	}
+}
+
+func newProjectLinkCmd() *cobra.Command {
+	var (
+		repo string
+		path string
+	)
+	cmd := &cobra.Command{
+		Use:   "link <project>",
+		Short: "Link a project to a git repo for read-only stats (never writes to the repo)",
+		Long: `Link a project to the repository that implements it. The data repo is
+never written — mtm only reads: git log for a 12-week commit sparkline, the
+last commit time, the last 5 subjects and a commit streak. When the linked
+repo has an 'owner/name' slug and gh is installed and authenticated, mtm
+also shows open issue and PR counts and the latest few (cached in the
+cache dir for 15 minutes).
+
+  mtm project link college/dbms --path ~/Projects/dbms        # local only
+  mtm project link college/dbms --repo you/dbms --path ~/Projects/dbms`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, s, err := openStore()
+			if err != nil {
+				return err
+			}
+			defer func() { _ = s.Close() }()
+
+			project, err := actions.ResolveProject(s, args[0])
+			if err != nil {
+				return err
+			}
+			repo = strings.TrimSpace(repo)
+			path = strings.TrimSpace(path)
+			if repo == "" && path == "" {
+				return fmt.Errorf("nothing to link — pass --repo owner/name and/or --path <dir>")
+			}
+			if repo != "" && !repoSlug.MatchString(repo) {
+				return fmt.Errorf("--repo %q must look like owner/name (letters, digits, . _ -)", repo)
+			}
+			if path != "" {
+				expanded := config.ExpandPath(path)
+				if info, err := os.Stat(expanded); err != nil || !info.IsDir() {
+					return fmt.Errorf("--path %q is not a directory", path)
+				}
+				gitDir := filepath.Join(expanded, ".git")
+				if info, err := os.Stat(gitDir); err != nil || !info.IsDir() {
+					// Worktrees and submodules have .git as a file.
+					if info, err := os.Stat(gitDir); err != nil || !info.Mode().IsRegular() {
+						return fmt.Errorf("--path %q is not a git repository (no .git found)", path)
+					}
+				}
+			}
+
+			p, err := s.GetProject(project)
+			if err != nil {
+				return err
+			}
+			if repo != "" {
+				p.GitHub = repo
+			}
+			if path != "" {
+				p.RepoPath = path // stored as given (~ expands on read)
+			}
+			if err := s.SaveProject(p); err != nil {
+				return err
+			}
+			commitAndSync(cfg, s.Root, "project link: "+project)
+
+			fmt.Printf("project %q linked\n", project)
+			if p.GitHub != "" {
+				fmt.Printf("  github:    %s\n", p.GitHub)
+			}
+			if p.RepoPath != "" {
+				fmt.Printf("  repo_path: %s\n", p.RepoPath)
+			}
+			// Summarize what the link unlocks (local always; remote best effort).
+			now := s.Now()
+			if info, err := actions.LoadGitHub(s, project, now, true); err == nil {
+				if info.LocalOK {
+					total := 0
+					for _, n := range info.Weeks {
+						total += int(n)
+					}
+					fmt.Printf("local:     %d commits/12w · last %s · %dd streak\n", total, relativeStamp(now, info.LastCommit), info.Streak)
+				} else if info.LocalNote != "" {
+					fmt.Printf("local:     %s\n", info.LocalNote)
+				}
+				if info.RemoteOK {
+					fmt.Printf("remote:    %d open issues · %d open PRs\n", info.OpenIssues, info.OpenPRs)
+				} else if info.RemoteNote != "" {
+					fmt.Printf("remote:    %s\n", info.RemoteNote)
+				}
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&repo, "repo", "", "owner/name slug (enables open issue/PR counts via gh)")
+	cmd.Flags().StringVar(&path, "path", "", "local path of the repository (enables commit reads; ~ expands)")
+	return cmd
+}
+
+var repoSlug = regexp.MustCompile(`^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`)
+
+// relativeStamp renders a compact "2d ago"-style label for link output.
+func relativeStamp(now, ts time.Time) string {
+	if ts.IsZero() {
+		return "never"
+	}
+	days := int(now.Sub(ts).Hours() / 24)
+	switch {
+	case days <= 0:
+		return "today"
+	case days == 1:
+		return "yesterday"
+	default:
+		return fmt.Sprintf("%dd ago", days)
 	}
 }
 

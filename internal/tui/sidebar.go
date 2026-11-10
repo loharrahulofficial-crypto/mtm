@@ -261,8 +261,16 @@ func sidebarItemLine(m Model, it sidebarItem, w int, selected bool) string {
 		bar := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(fill.GetBackground()).Render(barFill) +
 			subtleRow.Render(barTrack)
 		left = left + " " + bar
+		// Linked project with a live commit streak: flame chip after the open
+		// count (e.g. "12✦2d"). Only shown once the background load lands.
+		streak, ok := m.githubStreak(it.Key)
+		right = ""
 		if it.Count > 0 {
 			right = fmt.Sprint(it.Count)
+		}
+		if ok && streak > 0 {
+			flame := fmt.Sprintf("✦%dd", streak)
+			right = right + flame
 		}
 	}
 	pad := w - lipgloss.Width(left) - lipgloss.Width(right) - 1

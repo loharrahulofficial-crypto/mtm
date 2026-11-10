@@ -782,6 +782,11 @@ func coursesBody(m Model, w, h int, d homeData) []string {
 			chip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bgSurface).Bold(true).
 				Render(padRightPlain("✦"+t, 5))
 		}
+		streakChip := ""
+		if n, ok := m.githubStreak(c.name); ok && n > 0 {
+			streakChip = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.HeatHot)).Background(bgSurface).Bold(true).
+				Render(padRightPlain(fmt.Sprintf("✦%dd", n), 5))
+		}
 		hours := muted.Render("     ")
 		if c.weekHours > 0 {
 			h := fmt.Sprintf("%.1fh", c.weekHours)
@@ -790,7 +795,11 @@ func coursesBody(m Model, w, h int, d homeData) []string {
 			}
 			hours = muted.Render(padRightPlain(h, 5))
 		}
-		lines = append(lines, " "+stripe+" "+name+" "+bar+" "+muted.Render(pct)+" "+chip+" "+hours)
+		row := " " + stripe + " " + name + " " + bar + " " + muted.Render(pct) + " " + chip
+		if streakChip != "" {
+			row += " " + streakChip
+		}
+		lines = append(lines, row+" "+hours)
 	}
 	if overflow > 0 {
 		lines = append(lines, muted.Render(fmt.Sprintf(" +%d more", overflow)))

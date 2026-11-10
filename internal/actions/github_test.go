@@ -71,9 +71,9 @@ func linkedStoreWithRepo(t *testing.T, commitDates []time.Time) (*store.Store, s
 func TestLoadGitHubLocalStats(t *testing.T) {
 	now := time.Date(2026, 11, 7, 14, 0, 0, 0, time.Local)
 	dates := []time.Time{
-		now.AddDate(0, 0, -1),  // yesterday — streak 2
+		now.AddDate(0, 0, -1), // yesterday — streak 2
 		now.AddDate(0, 0, -2),
-		now.AddDate(0, 0, -8),  // 1 week back
+		now.AddDate(0, 0, -8), // 1 week back
 		now.AddDate(0, 0, -9),
 		now.AddDate(0, 0, -30), // 4 weeks back
 	}
@@ -319,4 +319,3 @@ func TestLoadGitHubRemoteUnavailableDegrades(t *testing.T) {
 		t.Fatalf("note = %q, want auth note", info.RemoteNote)
 	}
 }
-
