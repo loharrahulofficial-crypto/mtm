@@ -324,6 +324,17 @@ ui:
                                 # blank line between a card's title and badges)
   semester_start: ""            # "2026-09-01" — enables the brand-header week chip
   semester_weeks: 16
+  ambient: both                 # off | splash | home | both — ambient scenes
+                                # (splash at startup, corner on a wide Home,
+                                # behind Focus, reward burst on completion)
+  scene: auto                   # auto (by local hour) | random | night |
+                                # bonsai | ocean | rain | koi | snow | campfire
+  splash_seconds: 2.5           # startup splash length
+  reward_animation: true        # 1.5s scene burst when a task is completed
+                                # (rate-limited to 3 per minute)
+  ambient_fps: 10               # animation cap (max 30)
+  ambient_render: auto          # auto | halfblock (▀▄ 2x vertical) | braille | ascii
+  rain_lightning: false         # rare lightning in the rain scene
 
 stats:
   streak_min_minutes: 15        # a day is active with ≥1 completion OR this many logged minutes
@@ -496,6 +507,9 @@ mtm completion fish > ~/.config/fish/completions/mtm.fish
 - `a` add · `A` add subtask · `x` done/un-done
 - `/` filter · `ctrl+p` palette · `?` keybindings
 - `F` focus mode (pomodoro on the selected task)
+- ambient scenes (auto by time of day, or `ui.scene:`): `alt+s` cycle scenes
+  · `:scene <name>` switch · `:ambient` opens the live preview + mood picker
+  · `--no-ambient` disables for one run · `--no-splash` skips the splash
 - board: `h`/`l` move between columns · `D` toggle the Done filter
 - calendar: `h`/`l` move the day · `J`/`K` change months
 - courses: `g` record a grade · `e` add an exam

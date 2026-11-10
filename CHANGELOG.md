@@ -3,6 +3,59 @@
 All notable changes to mtm. Format based on Keep a Changelog; versions
 follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
 
+## [Unreleased] — 2026-11-10
+
+### Added
+
+- **Phase 4b-B — ambient scenes** (`internal/ambient`): deterministic seeded
+  animations in the TUI — night sky (magnitude-ramped parallax starfield, a
+  moon in its real phase computed locally, shooting stars, a noise-ribboned
+  aurora), procedural bonsai (recursive branching with seeded vigor, grows
+  across a pomodoro; idle shows the swaying full tree), ocean (parallax wave
+  crests, drifting clouds, sun or moon by local hour, specular glint path,
+  gulls, seeded fish leaps), rain and cabin (braille-streak rain, ripples,
+  pine silhouettes, a lit flickering window, chimney smoke and fog, optional
+  lightning off by default), plus three extras — koi pond (segment-jointed
+  fish), snowfall (three parallax flake depths) and campfire (breathing
+  radial glow, sparks, smoke)
+- **Where they appear** (`ui.ambient: off|splash|home|both`, default both):
+  startup splash (default 2.5s, any key skips; skipped on non-TTY,
+  `--no-splash`, or when disabled), a bordered `AMBIENT` corner panel on a
+  wide Home (right-anchored in free space — hidden when it can't fit without
+  breaking the IDEAS band or the blank-ratio invariant), behind the Focus
+  surface (progress follows the Pomodoro; pausing freezes the scene; breaks
+  switch to a calm phase), and a 1.5s task-complete reward burst
+  (`ui.reward_animation: true`, rate-limited to 3 per minute)
+- **Controls**: `alt+s` cycles scenes; `:scene <name>` switches (koi, snow,
+  campfire …); `:ambient` opens a live full-screen preview with a mood
+  picker (`:ambient` also reachable from the palette and `:scene list`);
+  `--no-ambient` disables all surfaces for one run
+- **`ui.ambient*` config**: `ambient`, `scene` (`auto` picks by local hour,
+  `random` per launch), `splash_seconds`, `reward_animation`,
+  `ambient_fps` (default 10, max 30), `ambient_render`
+  (`auto` | `halfblock` | `braille` | `ascii`), `rain_lightning` (default off)
+- Static layers cached (perlin tables, palette LUT); the ambient ticker does
+  zero work when no surface is visible or the terminal is unfocused
+- Hidden verification path: `mtm tui --dump --scene <name> --t <dur>
+  --progress <0..1> --render <mode> --phase <work|break|idle>`
+
+### Fixed
+
+- `mtm doctor` demo-data check no longer flags a repo's history — it detects
+  demo data in the current tree only (task IDs / demo project names), treats
+  a demo-looking commit message as at most an info line, never reports a
+  reverted demo commit, and stops false-flagging real repos that contain
+  milestones/dev-log entries
+- Project page letterspaced section labels keep their word gaps
+  (`NEXT MILESTONE`, `VELOCITY · 12 WEEKS`)
+- Roadmap: a completed milestone no longer renders a stray track glyph
+  inside its bar next to the today marker; milestone days with timestamps
+  in frontmatter parse correctly
+- Dev-log tab renders entries via Glamour (no raw `###`/`--------`); the
+  project page footer shows the tab keys as `[` `]`, not `[ ]`
+- Letterspaced labels on the project page keep word gaps via the shared
+  sectionLabelText path
+
 ## [Unreleased] — 2026-11-09
 
 ### Added

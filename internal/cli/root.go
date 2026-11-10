@@ -25,6 +25,9 @@ var buildDate = "unknown"
 // noAmbientFlag disables every ambient surface for the run (ui.ambient=off).
 var noAmbientFlag bool
 
+// noSplashFlag skips the startup splash for the run.
+var noSplashFlag bool
+
 // Execute runs the root command and returns the process exit error.
 func Execute() error {
 	root := NewRootCmd()
@@ -49,6 +52,9 @@ func NewRootCmd() *cobra.Command {
 			if noAmbientFlag {
 				_ = os.Setenv("MTM_NO_AMBIENT", "1")
 			}
+			if noSplashFlag {
+				_ = os.Setenv("MTM_NO_SPLASH", "1")
+			}
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Bare `mtm` launches the TUI, but only on a terminal; otherwise
@@ -60,6 +66,7 @@ func NewRootCmd() *cobra.Command {
 		},
 	}
 	root.PersistentFlags().BoolVar(&noAmbientFlag, "no-ambient", false, "disable all ambient scenes for this run")
+	root.PersistentFlags().BoolVar(&noSplashFlag, "no-splash", false, "skip the startup ambient splash for this run")
 	root.AddCommand(
 		newInitCmd(),
 		newAddCmd(),
