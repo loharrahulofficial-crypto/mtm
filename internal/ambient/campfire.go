@@ -5,9 +5,11 @@ import (
 	"time"
 )
 
-// campfireScene is a small fire under the stars: rising flame tongues
-// (noise-shaped columns), popping sparks, a leaning smoke column, stones,
-// crossed logs, and a warm radial glow that breathes with the flame.
+// campfireScene paints a big bold campfire: layered noise-driven flame
+// tongues (outer ember red, mid orange, inner gold with a white-hot
+// core) reaching high, an ember bed, crossed logs in a stone ring,
+// rising sparks with twinkle, and a warm pool of light cast on the
+// surroundings that breathes with the fire.
 type campfireScene struct {
 	mode string
 }
@@ -23,125 +25,162 @@ func (s *campfireScene) Reward(t time.Duration, w, h int, state SceneState) []Li
 }
 
 func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
-	tSec := tSecF(t)
-	// Night sky with stars and a dim moon
-	for y := 0; y < sh(b)*62/100; y++ {
-		f := float64(y) / float64(maxInt(sh(b)*62/100-1, 1))
-		b.glowBlock(0, y, sw(b), y+1, mixIndex(p, cBase, p.base, f*0.15))
-	}
-	for _, st := range sceneStars(state.Seed, sw(b), sh(b)) {
-		if st.layer >= 1 && st.mag > 0.6 {
-			b.mark(st.x, st.y, '·', mixIndex(p, cBrightText, p.base, 0.4))
-		}
+	W := float64(sw(b))
+	H := float64(sh(b))
+	base := state.Palette.Base
+	rmp := BuildRamps(state.Palette)
+	ts := tSecF(t)
+
+	// --- sky: a dark ramp gradient with a dim moon and stars
+	b.fillGradientHex(0, 0, W, H, blendHex(rmp.SkyTop, base, 0.2), blendHex(rmp.SkyHorizon, base, 0.45), 1, opNormal)
+
+	moonX := W * 0.2
+	moonY := H * 0.14
+	moonR := H * 0.06
+	if moonR < 1.8 {
+		moonR = 1.8
 	}
 	phase := moonPhase(state.Now)
-	moonYr := maxInt(sh(b)/6, 1)
-	moonRr := maxInt(minInt(sw(b), sh(b))/9, 1)
-	b.beginLayer(layerCelestial, sw(b)/4-moonRr-1, maxInt(0, moonYr-moonRr-1), sw(b)/4+moonRr+2, moonYr+moonRr+2)
-	paintMoon(b, sw(b)/4, moonYr, moonRr, phase, p)
-	b.endLayer()
-
-	// Ground line only — the fire glow carries the rest
-	fireY := sh(b) * 78 / 100
-	flameTopF := fireY - 2 - sh(b)*34/100
-	b.beginLayer(layerLand, 0, fireY+2, sw(b), minInt(sh(b), fireY+4))
-	for x := 0; x < sw(b); x++ {
-		b.glow(x, fireY+2, mixIndex(p, cBrown, p.base, 0.5))
-		b.glow(x, fireY+3, mixIndex(p, cBrown, p.base, 0.35))
+	b.fillCircleHexF(moonX, moonY, moonR*1.6, blendHex(state.Palette.BrightText, base, 0.8), 0.4, opAdd)
+	b.fillCircleHexF(moonX, moonY, moonR, blendHex(state.Palette.BrightText, base, 0.62), 1, opNormal)
+	shadowCol := blendHex(state.Palette.Surface, base, 0.35)
+	term := math.Cos(2*math.Pi*phase) * moonR
+	if moonWaxing(phase) {
+		b.fillCircleHexF(moonX-term, moonY, moonR, shadowCol, 0.9, opNormal)
+	} else {
+		b.fillCircleHexF(moonX+term, moonY, moonR, shadowCol, 0.9, opNormal)
+	}
+	for _, st := range nightStars(state.Seed, sw(b), sh(b)) {
+		if st.mag < 0.55 {
+			continue
+		}
+		tw := 0.5 + 0.5*math.Sin(ts*st.speed+st.phase)
+		if tw < 0.3 {
+			continue
+		}
+		b.fillCircleHexF(st.x, st.y, 0.26, blendHex(state.Palette.BrightText, base, 0.55), tw*0.85, opNormal)
 	}
 
-	b.endLayer()
-	// Warm radial glow around the fire, breathing with noise
+	// --- ground: dark band at the base
+	groundY := H * 0.80
+	b.fillGradientHex(0, groundY, W, H+1, blendHex(base, state.Palette.SurfaceStrong, 0.35), blendHex(base, "#000000", 0.25), 1, opNormal)
+
+	// --- the fire pit
+	fx := W * 0.5
+	fireY := H * 0.78
+	// light cast: a breathing warm pool over the whole lower scene
 	glowN := cachedPerlin(state.Seed, 701)
-	fx0 := sw(b) / 2
-	breath := 0.85 + 0.3*glowN.At(tSec*0.55, 0.5)
-	for y := fireY - sh(b)*45/100; y < fireY+2; y++ {
-		for x := 0; x < sw(b); x++ {
-			dx := float64(x-fx0) / float64(maxInt(sw(b)/2, 1))
-			dy := float64(y-fireY) / float64(maxInt(sh(b)/2, 1))
-			d2 := dx*dx*1.4 + dy*dy*2.6
-			intensity := clampf((1.15-d2)*breath*0.9, 0, 1)
-			if intensity > 0.05 {
-				b.glow(x, y, mixIndex(p, cWarning, p.base, 1-intensity*0.85))
-			}
-		}
+	breath := 0.78 + 0.3*glowN.At(ts*0.5, 0.5)
+	b.beginLayer(layerFire, 0, int(H*0.28), sw(b), sh(b))
+	// ground pool of light
+	b.fillEllipseHexF(fx, groundY+H*0.1, W*0.52, H*0.17, state.Palette.Warning, 0.16*breath, opAdd)
+	b.fillEllipseHexF(fx, fireY, W*0.3, H*0.10, state.Palette.Orange, 0.13*breath, opAdd)
+	// sky glow directly above the fire
+	b.fillEllipseHexF(fx, fireY-H*0.10, W*0.17, H*0.16, state.Palette.Warning, 0.05*breath, opAdd)
+
+	// --- stone ring: a dozen rocks with lit inner edges
+	stones := []struct {
+		dx, dy, r float64
+	}{
+		{-4.6, 0.9, 0.8}, {-3.9, 1.6, 0.62}, {-2.9, 1.9, 0.7}, {-1.8, 2.1, 0.55},
+		{1.8, 2.1, 0.55}, {2.9, 1.9, 0.7}, {3.9, 1.6, 0.62}, {4.6, 0.9, 0.8},
+		{-1.0, 2.2, 0.5}, {0.0, 2.25, 0.58}, {1.0, 2.2, 0.5},
+	}
+	for _, st := range stones {
+		sx, sy := fx+st.dx, fireY+st.dy
+		// rock: dark body with a warm rim on the fire side
+		b.fillCircleHexF(sx, sy, st.r, blendHex(base, state.Palette.SurfaceRaised, 0.35), 1, opNormal)
+		b.fillCircleHexF(sx*0.94+fx*0.06, sy-st.r*0.35, st.r*0.62, blendHex(state.Palette.Warning, base, 0.68), 0.5*breath, opAdd)
 	}
 
-	b.beginLayer(layerFire, maxInt(0, sw(b)/2-12), maxInt(0, flameTopF-1), minInt(sw(b), sw(b)/2+13), sh(b))
-	// Stone ring
-	stones := [][2]int{{-7, 1}, {-5, 2}, {-3, 2}, {-1, 3}, {1, 3}, {3, 2}, {5, 2}, {7, 1}}
-	for _, sPos := range stones {
-		x := fx0 + sPos[0]
-		y := fireY + sPos[1] - 2
-		if x >= 0 && x < sw(b) && y >= 0 && y < sh(b) {
-			b.mark(x, y, 'o', mixIndex(p, cSurfaceRaised, p.base, 0.25))
+	// --- crossed logs: three strokes with a lit top edge
+	log := blendHex(base, state.Palette.Brown, 0.5)
+	logTop := blendHex(state.Palette.Brown, state.Palette.BrightText, 0.28)
+	b.strokeHexF(fx-3.3, fireY-0.7, fx+3.0, fireY+1.15, 0.85, log, 1, opNormal)
+	b.strokeHexF(fx+3.3, fireY-0.7, fx-3.0, fireY+1.15, 0.85, log, 1, opNormal)
+	b.strokeHexF(fx-2.2, fireY-1.35, fx+2.6, fireY+0.55, 0.7, log, 1, opNormal)
+	b.strokeHexF(fx-3.1, fireY-0.95, fx+2.9, fireY+0.9, 0.16, logTop, 0.7, opNormal)
+
+	// --- ember bed: pulsing coals along the pit
+	for i := 0; i < 9; i++ {
+		lr := newRNG(state.Seed, uint64(i)*383+7)
+		ex := fx + (float64(i)-4)*0.42 + lr.rangeF(-0.15, 0.15)
+		pulse := 0.5 + 0.45*math.Sin(ts*1.35+float64(i)*1.7+lr.float64()*3)
+		col := state.Palette.Orange
+		if i%3 == 1 {
+			col = state.Palette.Danger
 		}
-	}
-	// Crossed logs
-	logCols := mixIndex(p, cBrown, p.base, 0.15)
-	for dx := -4; dx <= 4; dx++ {
-		b.glow(fx0+dx, fireY-2, logCols)
-		b.glow(fx0+dx, fireY-1, mixIndex(p, cBrown, p.base, 0.25))
-	}
-	for dx := -3; dx <= 3; dx += 1 {
-		if dx%2 == 0 {
-			b.glow(fx0+dx, fireY-3, mixIndex(p, cBrown, p.base, 0.3))
+		if i%4 == 3 {
+			col = state.Palette.Yellow
 		}
+		b.fillCircleHexF(ex, fireY+0.35+lr.rangeF(-0.15, 0.15), 0.3+lr.float64()*0.16, col, pulse, opNormal)
 	}
 
-	// Flame tongues: columns of rising noise-shaped cells
+	// --- flames: three layered tongues of noise-driven columns
 	flame := cachedPerlin(state.Seed, 719)
-	flameTop := fireY - 2 - sh(b)*34/100
-	for x := fx0 - 3; x <= fx0+3; x++ {
-		lateral := absF(float64(x-fx0)) / 3.5
-		for y := fireY - 3; y > flameTop; y-- {
-			height := float64(fireY-3-y) / float64(maxInt(fireY-flameTop, 1))
-			colN := flame.At(tSec*1.35+float64(x)*0.71, float64(y)*0.16+31.0)
-			density := 1.35 - height*1.15 - lateral*0.8 + colN*0.65
-			if density > 0.18 {
-				ci := cWarning
-				switch {
-				case height < 0.33:
-					ci = cDanger
-				case height < 0.62:
-					ci = cWarning
-				default:
-					ci = cYellow
+	layers := []struct {
+		halfW  float64
+		height float64
+		ci     string
+		alpha  float64
+		noiseX float64
+	}{
+		{2.6, H * 0.30, state.Palette.Danger, 0.9, 0.9},
+		{1.9, H * 0.225, state.Palette.Orange, 0.9, 1.3},
+		{1.15, H * 0.155, state.Palette.Yellow, 0.95, 1.75},
+		{0.55, H * 0.085, state.Palette.BrightText, 0.95, 2.3},
+	}
+	for li, layer := range layers {
+		for x := fx - layer.halfW*2.1; x <= fx+layer.halfW*2.1; x += 0.45 {
+			center := 1 - math.Abs(x-fx)/(layer.halfW*2.1)
+			if center <= 0 {
+				continue
+			}
+			// per-column flame height: parabolic envelope + noise wobble
+			colNoise := flame.At(ts*1.5+x*0.55+float64(li)*11.3, float64(li)*3.7)*0.32 + flame.At(ts*0.8+x*0.23+float64(li)*5.1, 31.0)*0.22
+			height := (center * center) * (1 - center*0.15) * layer.height * (0.8 + colNoise) * (0.9 + 0.22*math.Sin(ts*2.1+x*1.4+float64(li)*2.6))
+			if height < 1.0 {
+				continue
+			}
+			top := fireY - height
+			if top < 0 {
+				top = 0
+			}
+			// column: alpha fades toward the tip
+			for y := fireY; y > top; y -= 0.5 {
+				frac := (fireY - y) / height
+				a := layer.alpha * (1 - frac*frac*0.85)
+				width := layer.halfW * (1 - frac*0.72) * (0.9 + 0.2*math.Sin(x*3.1+ts*3.3))
+				if width <= 0.1 {
+					continue
 				}
-				b.glow(x, y, mixIndex(p, ci, p.base, height*0.55+0.05))
+				b.fillEllipseHexF(x, y, width, 0.62, layer.ci, a, opNormal)
 			}
 		}
 	}
 
-	// Sparks: slotted pops above the flame
+	// --- sparks: slotted pops that rise and twinkle out
 	sparkSlot := int64(wrapT(t, 24*time.Hour)/time.Millisecond) / 700
-	for k := 0; k < 3; k++ {
+	for k := 0; k < 5; k++ {
 		slot := sparkSlot - int64(k)
 		sr := newRNG(state.Seed, uint64(slot)*383+13)
 		frac := (float64(wrapT(t, 24*time.Hour)/time.Millisecond) / 1000.0) - float64(slot)*0.7
 		if frac < 0 || frac >= 0.7 {
 			continue
 		}
-		spx := float64(fx0) + sr.rangeF(-2.5, 2.5) + math.Sin(frac*9+float64(slot))*1.2
-		spy := float64(fireY-4) - frac/0.7*float64(sh(b))*0.3
-		ci := cYellow
-		if frac > 0.4 {
-			ci = mixIndex(p, cWarning, p.base, 0.35)
+		prog := frac / 0.7
+		spx := float64(fx) + sr.rangeF(-2.6, 2.6) + math.Sin(prog*9+float64(slot))*1.1
+		spy := fireY - 3 - prog*H*0.42
+		tw := 0.5 + 0.5*math.Sin(prog*22+float64(slot)*3.1)
+		fade := (1 - prog) * (0.35 + 0.65*tw)
+		col := state.Palette.BrightText
+		if prog > 0.55 {
+			col = state.Palette.Warning
 		}
-		b.mark(int(spx), int(spy), '*', ci)
-	}
-
-	b.endLayer()
-	b.beginLayer(layerSmoke, maxInt(0, sw(b)/2-9), 0, minInt(sw(b), sw(b)/2+16), minInt(sh(b), flameTopF+1))
-	// Smoke: rising, leaning column of fading dots
-	smoke := cachedPerlin(state.Seed, 733)
-	for k := 0; k < 6; k++ {
-		ff := float64(wrapT(t, 24*time.Hour)/time.Millisecond)*0.24 + float64(k)*0.17
-		fp := math.Mod(ff, 1.7) / 1.7
-		py := float64(flameTop) - fp*float64(sh(b))*0.38
-		lean := smoke.At(fp*2.2+float64(k)*1.3, 0)*3.4*fp + fp*2.2
-		ci := mixIndex(p, cText, p.base, 0.35+fp*0.55)
-		b.mark(int(float64(fx0)+lean), int(py), '·', ci)
+		b.fillCircleHexF(spx, spy, 0.26, col, fade, opNormal)
+		if tw > 0.8 {
+			b.fillCircleHexF(spx, spy, 0.42, col, fade*0.5, opAdd)
+		}
 	}
 	b.endLayer()
 }
