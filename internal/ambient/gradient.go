@@ -27,13 +27,13 @@ func (b *fbuf) fillGradientF(x0, y0, x1, y1 float64, r0, g0, b0, r1, g1, b1 floa
 		bl := b0 + (b1-b0)*t32
 		for px := px0; px < px1; px++ {
 			cx, cy := float64(px)+0.5, float64(py)+0.5
-			dx := math.Max(math.Max(fx0-cx, cx-fx1), 0)
-			dy := math.Max(math.Max(fy0-cy, cy-fy1), 0)
-			d := math.Hypot(dx, dy)
-			cov := clampf((feather-d)/feather, 0, 1)
-			if cov <= 0 {
+			ddx := math.Max(math.Max(fx0-cx, cx-fx1), 0)
+			ddy := math.Max(math.Max(fy0-cy, cy-fy1), 0)
+			d2 := ddx*ddx + ddy*ddy
+			if d2 >= feather*feather {
 				continue
 			}
+			cov := clampf((feather-math.Sqrt(d2))/feather, 0, 1)
 			b.blendPx(px, py, fpix{r, g, bl, float32(alpha * cov)}, o)
 		}
 	}

@@ -343,6 +343,8 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 		total += len(l) + 1
 	}
 	b.bytes = total
+	b.fb.release()
+	releaseDownsample(px)
 	return out
 }
 

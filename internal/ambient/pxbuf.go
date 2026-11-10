@@ -2,6 +2,7 @@ package ambient
 
 import (
 	"math"
+	"sync"
 )
 
 // pxbuf.go — the supersampled float pixel buffer every scene renders into.
@@ -46,6 +47,11 @@ type fbuf struct {
 
 const fSS = 2 // supersampling factor per axis
 
+// fbPool reuses the supersampled raster across frames (the app renders at
+// most a handful of fixed sizes; holding them avoids ~1 MB of alloc
+// churn per frame).
+var fbPool sync.Pool
+
 func newFBuffer(sw, sh int) *fbuf {
 	if sw < 1 {
 		sw = 1
@@ -54,8 +60,19 @@ func newFBuffer(sw, sh int) *fbuf {
 		sh = 1
 	}
 	pw, ph := sw*fSS, sh*fSS
-	return &fbuf{sw: sw, sh: sh, pw: pw, ph: ph, px: make([]fpix, pw*ph)}
+	need := pw * ph
+	if v, ok := fbPool.Get().(*fbuf); ok && cap(v.px) >= need {
+		fb := &fbuf{sw: sw, sh: sh, pw: pw, ph: ph, px: v.px[:need]}
+		for i := range fb.px {
+			fb.px[i] = fpix{}
+		}
+		return fb
+	}
+	return &fbuf{sw: sw, sh: sh, pw: pw, ph: ph, px: make([]fpix, need)}
 }
+
+// release returns the raster to the pool.
+func (b *fbuf) release() { fbPool.Put(b) }
 
 // rgbF resolves a palette index to float channels (0..1).
 func (m *paletteModel) rgbF(i int) (float32, float32, float32) {
@@ -114,13 +131,13 @@ func (b *fbuf) fillRectF(x0, y0, x1, y1 float64, r, g, bl float32, alpha float64
 	for py := py0; py < py1; py++ {
 		for px := px0; px < px1; px++ {
 			cx, cy := float64(px)+0.5, float64(py)+0.5
-			dx := math.Max(math.Max(fx0-cx, cx-fx1), 0)
-			dy := math.Max(math.Max(fy0-cy, cy-fy1), 0)
-			d := math.Hypot(dx, dy)
-			cov := clampf((feather-d)/feather, 0, 1)
-			if cov <= 0 {
+			ddx := math.Max(math.Max(fx0-cx, cx-fx1), 0)
+			ddy := math.Max(math.Max(fy0-cy, cy-fy1), 0)
+			d2 := ddx*ddx + ddy*ddy
+			if d2 >= feather*feather {
 				continue
 			}
+			cov := clampf((feather-math.Sqrt(d2))/feather, 0, 1)
 			b.blendPx(px, py, fpix{r, g, bl, float32(alpha * cov)}, o)
 		}
 	}
@@ -142,8 +159,10 @@ func (b *fbuf) fillCircleF(cx, cy, radius float64, r, g, bl float32, alpha float
 	feather := float64(fSS) * 0.7
 	for py := py0; py < py1; py++ {
 		for px := px0; px < px1; px++ {
-			d := math.Hypot(float64(px)+0.5-fcx, float64(py)+0.5-fcy) - fr
-			cov := clampf((feather-d)/feather, 0, 1)
+			dx := float64(px) + 0.5 - fcx
+			dy := float64(py) + 0.5 - fcy
+			d2 := dx*dx + dy*dy
+			cov := clampf((feather-(math.Sqrt(d2)-fr))/feather, 0, 1)
 			if cov <= 0 {
 				continue
 			}
@@ -166,11 +185,11 @@ func (b *fbuf) fillEllipseF(cx, cy, rx, ry float64, r, g, bl float32, alpha floa
 		for px := px0; px < px1; px++ {
 			dx := (float64(px) + 0.5 - fxcx) / frx
 			dy := (float64(py) + 0.5 - fxcy) / fry
-			d := (math.Hypot(dx, dy) - 1) * scale
-			cov := clampf((feather-d)/feather, 0, 1)
-			if cov <= 0 {
+			d := (math.Sqrt(dx*dx+dy*dy) - 1) * scale
+			if d >= feather {
 				continue
 			}
+			cov := clampf((feather-d)/feather, 0, 1)
 			b.blendPx(px, py, fpix{r, g, bl, float32(alpha * cov)}, o)
 		}
 	}
@@ -245,9 +264,17 @@ func (b *fbuf) boxBlur(radius int) {
 	}
 }
 
+var downPool sync.Pool
+
 // downsample box-averages each supersampled block into one subcell pixel.
+// The returned slice is borrowed — callers must return it to the pool.
 func (b *fbuf) downsample() []fpix {
-	out := make([]fpix, b.sw*b.sh)
+	v, ok := downPool.Get().([]fpix)
+	need := b.sw * b.sh
+	if !ok || cap(v) < need {
+		v = make([]fpix, need)
+	}
+	out := v[:need]
 	for sy := 0; sy < b.sh; sy++ {
 		for sx := 0; sx < b.sw; sx++ {
 			var acc fpix
@@ -261,3 +288,6 @@ func (b *fbuf) downsample() []fpix {
 	}
 	return out
 }
+
+// releaseDownsample returns the downsample scratch buffer to the pool.
+func releaseDownsample(px []fpix) { downPool.Put(px) }
