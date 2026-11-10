@@ -81,8 +81,29 @@ func goldenCases() []goldenCase {
 	return out
 }
 
+// §6.1: each scene × halfblock/braille at the three reference sizes.
+func sizeCases() []goldenCase {
+	out := []goldenCase{}
+	for _, scene := range Registered() {
+		for _, mode := range []string{ModeHalfblock, ModeBraille} {
+			for _, size := range [][2]int{{40, 14}, {100, 30}, {200, 50}} {
+				out = append(out, goldenCase{
+					name:     fmt.Sprintf("%s-work_p05-%dx%d-%s", scene, size[0], size[1], mode),
+					scene:    scene,
+					mode:     mode,
+					progress: 0.5,
+					phase:    PhaseWork,
+					frameT:   12 * time.Second,
+					size:     size,
+				})
+			}
+		}
+	}
+	return out
+}
+
 func TestGoldenSceneFrames(t *testing.T) {
-	for _, tc := range goldenCases() {
+	for _, tc := range append(goldenCases(), sizeCases()...) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := New(tc.scene, tc.mode)
 			st := stateFor(tc.progress, tc.phase)
@@ -171,7 +192,7 @@ func TestLayerRegionsRespected(t *testing.T) {
 }
 
 func TestFrameExactDimensions(t *testing.T) {
-	sizes := [][2]int{{1, 1}, {2, 2}, {5, 3}, {10, 6}, {40, 12}, {60, 18}, {100, 30}}
+	sizes := [][2]int{{1, 1}, {2, 2}, {5, 3}, {10, 6}, {40, 12}, {40, 14}, {60, 18}, {100, 30}, {200, 50}}
 	for _, scene := range Registered() {
 		for _, mode := range []string{ModeHalfblock, ModeASCII, ModeBraille} {
 			for _, size := range sizes {
@@ -310,5 +331,31 @@ func BenchmarkScenes(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+// TestGoldenCrossfadeMidpoint pins the 50% midpoint of a scene crossfade
+// (spec 6.1): per-cell ANSI mean of the two source frames at 100x30.
+func TestGoldenCrossfadeMidpoint(t *testing.T) {
+	st := stateFor(0.5, PhaseWork)
+	a := New("night", ModeHalfblock).Frame(12*time.Second, 100, 30, st)
+	b := New("ocean", ModeHalfblock).Frame(12*time.Second, 100, 30, st)
+	got := strings.Join(Crossfade(a, b, 0.5), "\n") + "\n"
+	golden := filepath.Join("testdata", "crossfade-mid-night-ocean-halfblock.golden")
+	if goldenUpdate {
+		if err := os.MkdirAll("testdata", 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatalf("missing golden %s (run MTM_UPDATE_GOLDEN=1): %v", golden, err)
+	}
+	if string(want) != got {
+		t.Fatalf("crossfade midpoint mismatch — got:\n%s", got)
 	}
 }
