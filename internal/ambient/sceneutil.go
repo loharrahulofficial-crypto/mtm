@@ -1,5 +1,7 @@
 package ambient
 
+import "math"
+
 // sceneutil.go — shared low-level helpers for the scenes (kept small;
 // each scene inlines its own composition).
 
@@ -37,4 +39,50 @@ func sceneStars(seed int64, w, h int) []star {
 		})
 	}
 	return out
+}
+
+// paintDisc fills a disc with a color; ringOnly draws only the outline.
+func paintDisc(b *buffer, cx, cy, r int, ci int, filled bool) {
+	for dy := -r - 1; dy <= r+1; dy++ {
+		for dx := -r - 1; dx <= r+1; dx++ {
+			d2 := float64(dx*dx+dy*dy) / float64(r*r)
+			if filled {
+				if d2 <= 1 {
+					b.glow(cx+dx, cy+dy, ci)
+				}
+			} else {
+				if d2 > 0.72 && d2 <= 1.42 {
+					b.glow(cx+dx, cy+dy, ci)
+				}
+			}
+		}
+	}
+}
+
+// paintMoon draws the moon in its true phase (bright limb, dark disc).
+func paintMoon(b *buffer, cx, cy, r int, phase float64, p *paletteModel) {
+	term := math.Cos(2*math.Pi*phase) * float64(r)
+	waxing := phase < 0.5
+	for dy := -r; dy <= r; dy++ {
+		for dx := -r; dx <= r; dx++ {
+			d2 := float64(dx*dx+dy*dy) / float64(r*r)
+			if d2 > 1 {
+				continue
+			}
+			lit := false
+			if waxing {
+				lit = float64(dx) > -term
+			} else {
+				lit = float64(dx) < term
+			}
+			shade := math.Sqrt(d2)
+			var ci int
+			if lit {
+				ci = mixIndex(p, cBrightText, p.base, 0.15+0.3*shade)
+			} else {
+				ci = mixIndex(p, cSurface, p.base, 0.35+0.4*shade)
+			}
+			b.glow(cx+dx, cy+dy, ci)
+		}
+	}
 }
