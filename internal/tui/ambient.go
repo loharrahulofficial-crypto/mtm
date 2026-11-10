@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
+	"github.com/loharrahulofficial-crypto/mtm/internal/caps"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
@@ -173,6 +174,7 @@ func (m Model) sceneState() ambient.SceneState {
 		Seed:      42,
 		Palette:   m.scenePalette(),
 		Lightning: m.cfg.UI.RainLightning,
+		Dither:    m.cfg.UI.AmbientDither != "off" && caps.Current().LimitedPalette,
 	}
 }
 

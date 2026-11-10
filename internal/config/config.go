@@ -131,8 +131,9 @@ type UIConfig struct {
 	AmbientFPS int `yaml:"ambient_fps"`
 	// AmbientRender: auto | halfblock | braille | ascii.
 	AmbientRender string `yaml:"ambient_render"`
-	// AmbientDither: on | off (default off). On a terminal whose palette is
-	// limited, ambient quantizes to the xterm-256 cube with ordered dithering.
+	// AmbientDither: on | off (default on). Ordered dithering only ever
+	// applies where a limited palette forces it — on truecolor terminals the
+	// renderer emits 24-bit color unchanged.
 	AmbientDither string `yaml:"ambient_dither"`
 	// RainLightning enables rare lightning in the rain scene (off default).
 	RainLightning bool `yaml:"rain_lightning"`
@@ -178,7 +179,7 @@ func Default() Config {
 			RewardAnimation: true,
 			AmbientFPS:      10,
 			AmbientRender:   "auto",
-			AmbientDither:   "off",
+			AmbientDither:   "on",
 			RainLightning:   false,
 		},
 	}
@@ -302,7 +303,7 @@ func Load() (Config, error) {
 	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.AmbientDither)); r {
 	case "on", "off":
 	case "":
-		cfg.UI.AmbientDither = "off"
+		cfg.UI.AmbientDither = "on"
 	default:
 		return cfg, fmt.Errorf("config %s: ui.ambient_dither must be on|off, got %q", Path(), cfg.UI.AmbientDither)
 	}

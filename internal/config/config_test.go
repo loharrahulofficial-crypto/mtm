@@ -286,23 +286,23 @@ func TestAmbientDitherValidation(t *testing.T) {
 	}
 	load := func() (Config, error) { return Load() }
 
-	// default is off
+	// default is on
 	write("default_project: inbox\n")
 	cfg, err := load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.UI.AmbientDither != "off" {
-		t.Fatalf("default ambient_dither = %q, want off", cfg.UI.AmbientDither)
+	if cfg.UI.AmbientDither != "on" {
+		t.Fatalf("default ambient_dither = %q, want on", cfg.UI.AmbientDither)
 	}
-	// on accepted
-	write("ui:\n  ambient_dither: on\n")
+	// off accepted
+	write("ui:\n  ambient_dither: off\n")
 	cfg, err = load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.UI.AmbientDither != "on" {
-		t.Fatalf("ambient_dither = %q, want on", cfg.UI.AmbientDither)
+	if cfg.UI.AmbientDither != "off" {
+		t.Fatalf("ambient_dither = %q, want off", cfg.UI.AmbientDither)
 	}
 	// bogus rejected
 	write("ui:\n  ambient_dither: maybe\n")
