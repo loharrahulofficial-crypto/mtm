@@ -17,7 +17,6 @@ import (
 
 var goldenUpdate = os.Getenv("MTM_UPDATE_GOLDEN") == "1"
 
-
 func stateFor(progress float64, phase Phase) SceneState {
 	return SceneState{
 		Progress: progress,

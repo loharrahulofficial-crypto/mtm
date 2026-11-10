@@ -35,4 +35,3 @@ func ReportBytes(mode string, w, h int) map[string]int {
 	}
 	return out
 }
-
