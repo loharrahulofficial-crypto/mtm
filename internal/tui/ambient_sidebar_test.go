@@ -24,19 +24,24 @@ func nightDumpConfig() config.Config {
 	return cfg
 }
 
-// windowSpan finds the window's ╭..╰ row range within the sidebar region.
+// windowSpan finds the ambient window's ╭..╰ row range within the sidebar
+// region, by border geometry (any scene title).
 func windowSpan(frame string, sideW int) (top, bottom int, ok bool) {
 	lines := strings.Split(frame, "\n")
-	norm := func(s string) string {
-		return strings.Join(strings.FieldsFunc(s, func(r rune) bool { return unicode.IsSpace(r) }), " ")
+	sideRunes := func(l string) []rune {
+		return []rune(StripANSI(ansi.Cut(l, 0, sideW)))
 	}
-	side := func(l string) string { return norm(StripANSI(ansi.Cut(l, 0, sideW))) }
+	isTopEdge := func(cells []rune) bool {
+		// 1-cell pad, then ╭ ... ╮ at the far cell
+		return len(cells) >= 4 && cells[1] == '╭' && cells[len(cells)-2] == '╮'
+	}
 	for i, l := range lines {
-		if !strings.Contains(side(l), "╭─ N I G H T") {
+		if !isTopEdge(sideRunes(l)) {
 			continue
 		}
 		for j := i + 1; j < len(lines); j++ {
-			if strings.Contains(side(lines[j]), "╰") {
+			cells := sideRunes(lines[j])
+			if len(cells) >= 2 && cells[1] == '╰' {
 				return i, j, true
 			}
 		}

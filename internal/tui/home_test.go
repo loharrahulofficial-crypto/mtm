@@ -82,6 +82,30 @@ func TestHomeNoPanelExceedsBlankRatio(t *testing.T) {
 					}
 				}
 			}
+			// The sidebar ambient window counts as occupied space: the rows
+			// below the course list carry the scene, not surface silence.
+			sideW := sideWidth(size.w, false)
+			winTop, winBot, ok := windowSpan(frame, sideW)
+			if !ok {
+				t.Fatal("sidebar ambient window missing — it must render at this size and count as occupied")
+			}
+			blank, total := 0, 0
+			for row := winTop + 1; row < winBot; row++ {
+				for col := 1; col < sideW-1; col++ {
+					ch, bg := grid.cell(row, col)
+					if ch == " " && bg == surface {
+						blank++
+					}
+					total++
+				}
+			}
+			if total == 0 {
+				t.Fatal("sidebar window interior parsed to nothing")
+			}
+			t.Logf("sidebar window interior blank ratio = %.2f over %d cells", float64(blank)/float64(total), total)
+			if float64(blank)/float64(total) > 0.5 {
+				t.Errorf("sidebar window interior is %.2f surface-blank — want ≤ 0.5 (occupied space)", float64(blank)/float64(total))
+			}
 		})
 	}
 }
