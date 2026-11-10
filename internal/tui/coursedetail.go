@@ -11,6 +11,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/dates"
 	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
+	"github.com/loharrahulofficial-crypto/mtm/internal/text"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
@@ -349,7 +350,7 @@ func courseExamSection(m Model, c courseCard, w int, pad func(string) string, br
 	case e.daysLeft == 1:
 		inTxt = "tomorrow"
 	case e.daysLeft > 1:
-		inTxt = fmt.Sprintf("in %d days", e.daysLeft)
+		inTxt = "in " + text.Count(e.daysLeft, "day", "days")
 	}
 	weightTxt := ""
 	weight := -1.0

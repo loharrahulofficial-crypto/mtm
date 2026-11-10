@@ -13,6 +13,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/dates"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
+	"github.com/loharrahulofficial-crypto/mtm/internal/text"
 )
 
 func newReviewCmd() *cobra.Command {
@@ -45,7 +46,7 @@ or [q]uit. Nothing changes without your keypress; an empty answer keeps.`,
 				fmt.Fprintln(out, "\nno overdue items — nothing to decide.")
 				return nil
 			}
-			fmt.Fprintf(out, "\nact on the %d overdue %s — nothing changes without your keypress\n", len(rep.Overdue), pluralizeReview(len(rep.Overdue)))
+			fmt.Fprintf(out, "\nact on the %d overdue %s — nothing changes without your keypress\n", len(rep.Overdue), text.Plural(len(rep.Overdue), "item", "items"))
 			d := runReviewPrompts(s, now, rep.Overdue, cmd.InOrStdin(), out)
 			if d.rescheduled+d.archived > 0 {
 				commitAndSync(cfg, s.Root, fmt.Sprintf("review: %d rescheduled, %d archived", d.rescheduled, d.archived))
@@ -58,13 +59,6 @@ or [q]uit. Nothing changes without your keypress; an empty answer keeps.`,
 			return nil
 		},
 	}
-}
-
-func pluralizeReview(n int) string {
-	if n == 1 {
-		return "item"
-	}
-	return "items"
 }
 
 // printReviewSections renders the three read-only sections.

@@ -12,6 +12,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/dates"
 	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
+	"github.com/loharrahulofficial-crypto/mtm/internal/text"
 )
 
 func newStatsCmd() *cobra.Command {
@@ -114,7 +115,7 @@ func renderStatsReport(cfg config.Config, rep *actions.StatsReport) string {
 		fmt.Fprintf(&b, "  ·  est accuracy %s", estimateLabel(rep.Estimate))
 	}
 	fmt.Fprintln(&b)
-	fmt.Fprintf(&b, "streak      %d days current · longest %d\n", rep.Streaks.Current, rep.Streaks.Longest)
+	fmt.Fprintf(&b, "streak      %s current · longest %d\n", text.Count(rep.Streaks.Current, "day", "days"), rep.Streaks.Longest)
 	if spark := gauges.Sparkline(rep.DayHours); spark != "" {
 		fmt.Fprintf(&b, "activity    %s  (%s → %s)\n", spark, dates.HumanDay(rep.Since), dates.HumanDay(rep.Until))
 	}
@@ -155,13 +156,13 @@ func renderStatsReport(cfg config.Config, rep *actions.StatsReport) string {
 func statsPeriodLabel(rep *actions.StatsReport) string {
 	switch rep.Period {
 	case "week":
-		return fmt.Sprintf("week of %s – %s (%d days)", rep.Since.Format("2 Jan"), rep.Until.Format("2 Jan 2006"), rep.Days)
+		return fmt.Sprintf("week of %s – %s (%s)", rep.Since.Format("2 Jan"), rep.Until.Format("2 Jan 2006"), text.Count(rep.Days, "day", "days"))
 	case "month":
 		return fmt.Sprintf("trailing 30 days (%s → %s)", rep.Since.Format("2 Jan 2006"), rep.Until.Format("2 Jan 2006"))
 	case "semester":
-		return fmt.Sprintf("semester since %s (%d days)", rep.Since.Format("2 Jan 2006"), rep.Days)
+		return fmt.Sprintf("semester since %s (%s)", rep.Since.Format("2 Jan 2006"), text.Count(rep.Days, "day", "days"))
 	default:
-		return fmt.Sprintf("since %s (%d days)", rep.Since.Format("2 Jan 2006"), rep.Days)
+		return fmt.Sprintf("since %s (%s)", rep.Since.Format("2 Jan 2006"), text.Count(rep.Days, "day", "days"))
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/text"
 )
 
 // Result is the parsed quick-add input. Due is either date-only
@@ -208,9 +209,9 @@ func recurrenceFromTokens(tokens []string, i int) (string, int, bool) {
 				return "weekly", 3, true
 			}
 			if unit[0] == 'd' {
-				return fmt.Sprintf("every %d days", count), 3, true
+				return fmt.Sprintf("every %s", text.Count(count, "day", "days")), 3, true
 			}
-			return fmt.Sprintf("every %d weeks", count), 3, true
+			return fmt.Sprintf("every %s", text.Count(count, "week", "weeks")), 3, true
 		}
 		// "every friday"
 		if _, ok := weekdayNames[n]; ok {

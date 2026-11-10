@@ -10,6 +10,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/dates"
 	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
+	"github.com/loharrahulofficial-crypto/mtm/internal/text"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
@@ -397,7 +398,7 @@ func homeGreetingLine(m Model, d homeData, width int) string {
 		case 1:
 			examBit = " · exam tomorrow"
 		default:
-			examBit = fmt.Sprintf(" · next exam in %d days", d.nextExamDays)
+			examBit = " · next exam in " + text.Count(d.nextExamDays, "day", "days")
 		}
 	}
 	streakBit := ""
@@ -405,15 +406,23 @@ func homeGreetingLine(m Model, d homeData, width int) string {
 		streakBit = strings.TrimSpace(m.icon("flame") + " " + fmt.Sprintf("streak %dd", d.streak))
 	}
 
+	dueStyle := hot
+	if d.dueToday == 0 {
+		dueStyle = muted
+	}
+	overStyle := danger
+	if d.overdue == 0 {
+		overStyle = muted
+	}
 	build := func(includeExam, compact bool) string {
 		line := " " + muted.Render(greet+", ") + bright.Render(d.user+".") + "  "
 		if compact {
-			line += hot.Render(fmt.Sprintf("%d due today · ", d.dueToday))
-			line += danger.Render(fmt.Sprintf("%d overdue", d.overdue))
+			line += dueStyle.Render(fmt.Sprintf("%d due today · ", d.dueToday))
+			line += overStyle.Render(fmt.Sprintf("%d overdue", d.overdue))
 			return line
 		}
-		line += hot.Render(fmt.Sprintf("%d due today", d.dueToday)) + muted.Render(" · ")
-		line += danger.Render(fmt.Sprintf("%d overdue", d.overdue))
+		line += dueStyle.Render(fmt.Sprintf("%d due today", d.dueToday)) + muted.Render(" · ")
+		line += overStyle.Render(fmt.Sprintf("%d overdue", d.overdue))
 		if streakBit != "" {
 			line += muted.Render(" · ") + accent.Render(streakBit)
 		}
@@ -638,7 +647,7 @@ func examsBody(m Model, w, h int, d homeData) []string {
 		case daysLeft == 1:
 			return "tomorrow"
 		default:
-			return fmt.Sprintf("in %d days", daysLeft)
+			return "in " + text.Count(daysLeft, "day", "days")
 		}
 	}
 	if h < examsContentRows(d.exams, w) {
@@ -733,7 +742,7 @@ func singleExamCard(m Model, e examCard, w int, bgSurface lipgloss.Color) []stri
 	case e.daysLeft == 1:
 		inTxt = "tomorrow"
 	case e.daysLeft > 1:
-		inTxt = fmt.Sprintf("in %d days", e.daysLeft)
+		inTxt = "in " + text.Count(e.daysLeft, "day", "days")
 	}
 	accent := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bgSurface).Bold(true)
 	mutedTxt := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(bgSurface).Bold(true)
@@ -1090,7 +1099,7 @@ func heatmapBody(m Model, w, h int, d homeData) []string {
 		if stats.bestCount > 0 {
 			strip = append(strip, lbl("best day  ")+bright.Render(fmt.Sprintf("%s (%d)", stats.bestDay, stats.bestCount)))
 		}
-		strip = append(strip, lbl("streak    ")+bright.Render(fmt.Sprintf("%d days", stats.streak)))
+		strip = append(strip, lbl("streak    ")+bright.Render(text.Count(stats.streak, "day", "days")))
 		strip = append(strip, lbl("total     ")+bright.Render(fmt.Sprintf("%d this period", stats.total)))
 	}
 

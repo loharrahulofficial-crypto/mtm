@@ -13,6 +13,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
+	"github.com/loharrahulofficial-crypto/mtm/internal/text"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
@@ -185,7 +186,7 @@ func (m Model) updateBoardKey(act string) (tea.Model, tea.Cmd) {
 		if m.boardDoneAll {
 			m.statusMsg = "board: showing all completed tasks"
 		} else {
-			m.statusMsg = fmt.Sprintf("board: done limited to the last %d days", m.cfg.Board.DoneDays)
+			m.statusMsg = "board: done limited to the last " + text.Count(m.cfg.Board.DoneDays, "day", "days")
 		}
 	case aJumpLeft:
 		return m.boardMoveCard(-1)

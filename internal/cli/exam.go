@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
+	"github.com/loharrahulofficial-crypto/mtm/internal/text"
 )
 
 func newExamCmd() *cobra.Command {
@@ -173,16 +174,14 @@ func countdownLabel(due string, now time.Time) string {
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 	days := int(day.Sub(today).Hours() / 24)
 	switch {
-	case days < -1:
-		return fmt.Sprintf("%d days overdue", -days)
-	case days == -1:
-		return "1 day overdue"
+	case days < 0:
+		return text.Count(-days, "day", "days") + " overdue"
 	case days == 0:
 		return "today"
 	case days == 1:
 		return "tomorrow"
 	default:
-		return fmt.Sprintf("in %d days", days)
+		return "in " + text.Count(days, "day", "days")
 	}
 }
 

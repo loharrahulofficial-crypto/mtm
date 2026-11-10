@@ -12,6 +12,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/gauges"
+	"github.com/loharrahulofficial-crypto/mtm/internal/text"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
@@ -329,7 +330,7 @@ func renderStatsDetail(m Model, w, h int) []string {
 	summary := []string{}
 	right := []string{
 		muted("C O M P L E T E D"),
-		bright(fmt.Sprintf("%d task%s", rep.Completed, pluralS(rep.Completed))),
+		bright(text.Count(rep.Completed, "task", "tasks")),
 		"",
 	}
 	for row := 0; row < 3; row++ {
@@ -455,13 +456,6 @@ func renderStatsDetail(m Model, w, h int) []string {
 		lines = append(lines, pad(l))
 	}
 	return lines
-}
-
-func pluralS(n int) string {
-	if n == 1 {
-		return ""
-	}
-	return "s"
 }
 
 func onTimeFragment(rep *actions.StatsReport) string {
