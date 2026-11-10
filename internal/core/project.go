@@ -20,6 +20,10 @@ type Project struct {
 	// Course marks the project as an academic course (see core.Course).
 	// Nil for plain projects.
 	Course *Course `yaml:"course,omitempty"`
+	// GitHub links the project to a repository (read-only). Both are
+	// optional; the local path is the source of commit reads.
+	GitHub   string `yaml:"github,omitempty"`
+	RepoPath string `yaml:"repo_path,omitempty"`
 }
 
 // DefaultProject returns the standard todo/doing/done workflow.

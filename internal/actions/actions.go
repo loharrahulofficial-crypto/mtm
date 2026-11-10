@@ -146,15 +146,16 @@ func NextStatus(p *core.Project, current string) string {
 // QuickAddOverrides carries explicit user choices that win over the parsed
 // natural-language values. The zero value means "everything parsed".
 type QuickAddOverrides struct {
-	Project  string   // "" = parsed, then cfg.DefaultProject
-	Priority string   // "" = parsed, then medium
-	Tags     []string // nil = parsed
-	Due      string   // normalized via core.DueInput when DueSet
-	DueSet   bool
-	Kind     string   // "" = task
-	Parent   string   // "" = no parent
-	Weight   *float64 // nil = unset
-	Now      time.Time
+	Project   string   // "" = parsed, then cfg.DefaultProject
+	Priority  string   // "" = parsed, then medium
+	Tags      []string // nil = parsed
+	Due       string   // normalized via core.DueInput when DueSet
+	DueSet    bool
+	Kind      string   // "" = task
+	Parent    string   // "" = no parent
+	Weight    *float64 // nil = unset
+	Milestone string   // "" = no milestone link
+	Now       time.Time
 }
 
 // QuickAddTask parses raw with the natural-language quick-add parser, applies
@@ -216,6 +217,14 @@ func QuickAddTask(cfg config.Config, s *store.Store, raw string, ov QuickAddOver
 	if err != nil {
 		return nil, fmt.Errorf("project %q: %w — run `mtm project add %s`", project, err, project)
 	}
+	milestone := strings.TrimSpace(ov.Milestone)
+	if milestone != "" {
+		m, err := s.ResolveMilestone(milestone)
+		if err != nil {
+			return nil, fmt.Errorf("milestone: %w", err)
+		}
+		milestone = m.ID // store the canonical id, not the user's prefix
+	}
 	first := "todo"
 	if len(p.Statuses) > 0 {
 		first = p.Statuses[0].Name
@@ -232,6 +241,7 @@ func QuickAddTask(cfg config.Config, s *store.Store, raw string, ov QuickAddOver
 		Kind:            kind,
 		Parent:          ov.Parent,
 		Weight:          ov.Weight,
+		Milestone:       milestone,
 	}
 	if err := s.Create(t); err != nil {
 		return nil, err

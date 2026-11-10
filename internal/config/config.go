@@ -34,6 +34,13 @@ type Config struct {
 	Stats     StatsConfig       `yaml:"stats"`
 	ICal      ICalConfig        `yaml:"ical"`
 	Reminders RemindersConfig   `yaml:"reminders"`
+	Devlog    DevlogConfig      `yaml:"devlog"`
+}
+
+type DevlogConfig struct {
+	// SuggestFromCommits prefills the `mtm log <project>` $EDITOR scaffold
+	// with recent commits when no text is given (off by default).
+	SuggestFromCommits bool `yaml:"suggest_from_commits"`
 }
 
 type SyncConfig struct {

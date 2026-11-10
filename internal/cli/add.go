@@ -13,12 +13,13 @@ import (
 
 func newAddCmd() *cobra.Command {
 	var (
-		project  string
-		priority string
-		tags     []string
-		due      string
-		kind     string
-		weight   string
+		project   string
+		priority  string
+		tags      []string
+		due       string
+		kind      string
+		weight    string
+		milestone string
 	)
 	cmd := &cobra.Command{
 		Use:   "add <title...>",
@@ -45,7 +46,7 @@ Flags always win over parsed values. Remaining words become the title.`,
 			defer func() { _ = s.Close() }()
 
 			changed := func(name string) bool { return cmd.Flags().Changed(name) }
-			ov := actions.QuickAddOverrides{Kind: kind}
+			ov := actions.QuickAddOverrides{Kind: kind, Milestone: milestone}
 			if changed("project") {
 				ov.Project = project
 			}
@@ -78,6 +79,7 @@ Flags always win over parsed values. Remaining words become the title.`,
 	cmd.Flags().StringVar(&due, "due", "", "due: YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 	cmd.Flags().StringVar(&kind, "kind", core.KindTask, "task|assignment|exam|study|project")
 	cmd.Flags().StringVar(&weight, "weight", "", "grade weight % (for assignments/exams; used by `mtm grades`)")
+	cmd.Flags().StringVar(&milestone, "milestone", "", "link the task to a milestone id")
 	return cmd
 }
 

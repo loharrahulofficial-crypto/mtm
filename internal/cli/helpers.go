@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
@@ -83,6 +84,63 @@ func editorEdited(cfg config.Config, path, label string, reload func() error) (b
 		return true, err
 	}
 	return true, nil
+}
+
+// editNewFile opens a temporary file prefilled with scaffold in $EDITOR
+// and returns its final contents plus the temp path. The temp file is kept
+// (never removed here) so a caller that rejects the contents after the
+// editor closes can point the user at it.
+func editNewFile(cfg config.Config, pattern string, scaffold []byte) ([]byte, string, error) {
+	f, err := os.CreateTemp("", pattern)
+	if err != nil {
+		return nil, "", err
+	}
+	path := f.Name()
+	if _, err := f.Write(scaffold); err != nil {
+		f.Close()
+		return nil, path, err
+	}
+	if err := f.Close(); err != nil {
+		return nil, path, err
+	}
+	if err := openEditor(cfg, path); err != nil {
+		return nil, path, fmt.Errorf("editor %q: %w", cfg.EditorCmd(), err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, path, err
+	}
+	return data, path, nil
+}
+
+// parseHashTitle extracts the title from a "# Title" line (the first
+// markdown heading) and returns it with the remaining body. ok=false when
+// no non-empty heading exists.
+func parseHashTitle(data []byte) (title, body string, ok bool) {
+	text := strings.ReplaceAll(string(data), "\r\n", "\n")
+	lines := strings.Split(text, "\n")
+	for i, raw := range lines {
+		line := strings.TrimRight(raw, " \t")
+		trim := strings.TrimSpace(line)
+		if !strings.HasPrefix(trim, "# ") {
+			continue
+		}
+		heading := strings.TrimSpace(strings.TrimPrefix(trim, "# "))
+		if heading == "" {
+			continue
+		}
+		rest := append([]string{}, lines[i+1:]...)
+		// The body is everything after the heading line, minus leading blanks.
+		for len(rest) > 0 && strings.TrimSpace(rest[0]) == "" {
+			rest = rest[1:]
+		}
+		body = strings.Join(rest, "\n")
+		if strings.TrimSpace(body) != "" && !strings.HasSuffix(body, "\n") {
+			body += "\n"
+		}
+		return heading, body, true
+	}
+	return "", "", false
 }
 
 // bar renders an eighth-block progress bar of cells+count text, e.g.
