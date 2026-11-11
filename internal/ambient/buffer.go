@@ -21,6 +21,15 @@ import (
 // Every painted subcell records the tag of the layer that painted it last.
 // The region union per tag is checked by tests (no layer paints outside
 // its intended region).
+// anchorRect records a named key-element rect (sub-cell coords).
+type anchorRect struct {
+	name           string
+	x0, y0, x1, y1 float64
+}
+
+// Anchor is one named key-element rect in sub-cell coordinates.
+type Anchor struct{ X0, Y0, X1, Y1 float64 }
+
 type buffer struct {
 	mode     string
 	sw       int
@@ -29,6 +38,7 @@ type buffer struct {
 	cells    []subcell
 	layer    []uint8
 	regions  []layerRegion
+	anchors  []anchorRect
 	curLayer uint8
 	palette  *paletteModel
 	bytes    int
@@ -98,6 +108,13 @@ func (b *buffer) beginLayer(tag uint8, x0, y0, x1, y1 int) {
 
 // endLayer stops tagging cells (regions stay recorded).
 func (b *buffer) endLayer() { b.curLayer = 0 }
+
+// anchor records a named key-element rect (moon, sun, tree crown, cabin,
+// horizon) for fit checking. Recording always happens; it is a couple of
+// floats per frame.
+func (b *buffer) anchor(name string, x0, y0, x1, y1 float64) {
+	b.anchors = append(b.anchors, anchorRect{name, x0, y0, x1, y1})
+}
 
 // layerOf reports the tag of the layer that painted the cell (0 = none).
 func (b *buffer) layerOf(i int) uint8 { return b.layer[i] }

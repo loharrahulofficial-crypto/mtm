@@ -31,6 +31,7 @@ func (s *snowScene) FramePixels(t time.Duration, w, h int, state SceneState) Ras
 func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
+	lay := layoutForSub(W, H)
 	base := state.Palette.Base
 	rmp := BuildRamps(state.Palette)
 	ts := tSecF(t)
@@ -53,12 +54,16 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	}
 
 	// --- dim moon with a soft halo, high and to the right
-	moonX := W * 0.72
-	moonY := H * 0.17
-	moonR := H * 0.075
-	if moonR < 2 {
-		moonR = 2
+	moonR := lay.MinDim * 0.125
+	if moonR < 1.6 {
+		moonR = 1.6
 	}
+	moonX := clampf(W*0.72, moonR+0.5, W-moonR-0.5)
+	moonY := math.Min(H*0.17, lay.Horizon*0.62)
+	if moonY < moonR+0.5 {
+		moonY = moonR + 0.5
+	}
+	b.anchor("moon", moonX-moonR, moonY-moonR, moonX+moonR, moonY+moonR)
 	phase := moonPhase(state.Now)
 	b.fillCircleHexF(moonX, moonY, moonR*1.7, blendHex(state.Palette.BrightText, base, 0.78), 0.45, opAdd)
 	b.fillCircleHexF(moonX, moonY, moonR, blendHex(state.Palette.BrightText, base, 0.5), 1, opNormal)
@@ -73,8 +78,9 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 
 	// --- treeline: far hazy, near darker
 	sil := cachedPerlin(state.Seed, 641)
-	groundY := H * 0.72
-	b.beginLayer(layerLand, 0, int(H*0.42), sw(b), sh(b))
+	groundY := lay.Horizon
+	b.anchor("horizon", 0, lay.Horizon-0.01, W, lay.Horizon+0.01)
+	b.beginLayer(layerLand, 0, int(lay.Horizon-H*0.28), sw(b), sh(b))
 	// far pines: sparse, faint, atmospheric haze
 	for x := 0.0; x < W; x += 0.8 {
 		gy := groundY + sil.At(x*0.028+9.1, 4.2)*1.6

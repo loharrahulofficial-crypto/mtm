@@ -32,6 +32,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	W := float64(sw(b))
 	H := float64(sh(b))
 	W_ := int(W)
+	lay := layoutForSub(W, H)
 	base := state.Palette.Base
 	cyan := state.Palette.Cyan
 	blue := state.Palette.Blue
@@ -42,9 +43,10 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	ts := tSecF(t)
 
 	// --- vertical layout: horizon at ~58%, nudged up by the tide
-	seaYF := H * 0.58
+	seaYF := lay.Horizon
 	seaYF -= clampf(state.Progress, 0, 1) * H * 0.05
 	seaY := int(seaYF)
+	b.anchor("horizon", 0, lay.Horizon-0.01, W, lay.Horizon+0.01)
 
 	// --- time of day drives the sky
 	alt := sunAltitude(state.Now)
@@ -77,15 +79,15 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	// --- celestial body: sun by day, moon by night; an arc across the sky
 	celestialX := 0.0
 	celestialY := 0.0
-	celestialR := H * 0.085
+	celestialR := lay.MinDim * 0.145
 	isSun := dayness > 0
 	if isSun {
 		rise, set := sunTimes(state.Now)
 		hour := float64(state.Now.Hour()) + float64(state.Now.Minute())/60
 		frac := clampf((hour-rise)/math.Max(set-rise, 0.1), 0, 1)
-		celestialX = W * (0.10 + 0.80*frac)
-		celestialY = seaYF * (0.78 - 0.66*math.Sin(math.Pi*frac))
-		celestialR = H * 0.095
+		celestialX = clampf(W*(0.10+0.80*frac), celestialR+0.5, W-celestialR-0.5)
+		celestialY = clampf(seaYF*(0.78-0.66*math.Sin(math.Pi*frac)), celestialR+0.5, seaYF)
+		celestialR = lay.MinDim * 0.155
 		// warm body with a hot core
 		b.fillCircleHexF(celestialX, celestialY, celestialR, blendHex(yellow, base, 0.45), 1, opNormal)
 		b.fillCircleHexF(celestialX-celestialR*0.18, celestialY-celestialR*0.18, celestialR*0.62, yellow, 1, opNormal)
@@ -101,9 +103,9 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 			mfrac = (hour + 6) / 12
 		}
 		mfrac = clampf(mfrac, 0, 1)
-		celestialX = W * (0.10 + 0.80*mfrac)
-		celestialY = seaYF * (0.74 - 0.6*math.Sin(math.Pi*mfrac))
-		celestialR = H * 0.082
+		celestialX = clampf(W*(0.10+0.80*mfrac), celestialR+0.5, W-celestialR-0.5)
+		celestialY = clampf(seaYF*(0.74-0.6*math.Sin(math.Pi*mfrac)), celestialR+0.5, seaYF)
+		celestialR = lay.MinDim * 0.135
 		phase := moonPhase(state.Now)
 		b.fillCircleHexF(celestialX, celestialY, celestialR*1.8, blendHex(bright, base, 0.8), 0.5, opAdd)
 		b.fillCircleHexF(celestialX, celestialY, celestialR, blendHex(bright, base, 0.55), 1, opNormal)
@@ -119,6 +121,11 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	}
 
 	// --- soft noise clouds at two parallax speeds
+	if isSun {
+		b.anchor("sun", celestialX-celestialR, celestialY-celestialR, celestialX+celestialR, celestialY+celestialR)
+	} else {
+		b.anchor("moon", celestialX-celestialR, celestialY-celestialR, celestialX+celestialR, celestialY+celestialR)
+	}
 	b.beginLayer(layerFog, 0, 0, sw(b), seaY)
 	cloudTint := blendHex(text, base, 0.25)
 	if nightness > 0.45 {
@@ -244,18 +251,19 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	lx := W * 0.875
 	ly := float64(seaY)
 	// rock silhouette
-	b.fillEllipseHexF(lx, ly+0.5, 4.2, 1.6, blendHex(base, state.Palette.SurfaceStrong, 0.25), 1, opNormal)
+	lh := lay.MinDim
+	b.fillEllipseHexF(lx, ly+0.5, lh*0.075, lh*0.028, blendHex(base, state.Palette.SurfaceStrong, 0.25), 1, opNormal)
 	// tower
-	b.fillRectHexF(lx-0.75, ly-6.2, lx+0.75, ly+0.4, blendHex(base, state.Palette.SurfaceRaised, 0.35), 1, opNormal)
-	b.fillRectHexF(lx-1.15, ly-7.4, lx+1.15, ly-6.0, blendHex(base, state.Palette.SurfaceRaised, 0.2), 1, opNormal)
+	b.fillRectHexF(lx-lh*0.013, ly-lh*0.105, lx+lh*0.013, ly+0.4, blendHex(base, state.Palette.SurfaceRaised, 0.35), 1, opNormal)
+	b.fillRectHexF(lx-lh*0.02, ly-lh*0.125, lx+lh*0.02, ly-lh*0.10, blendHex(base, state.Palette.SurfaceRaised, 0.2), 1, opNormal)
 	// lamp: blinks on a 4.5s cycle
 	blink := math.Mod(ts, 4.5)
 	if blink < 1.1 {
 		lump := 1 - blink/1.1
-		b.fillCircleHexF(lx, ly-6.7, 0.42, yellow, 1, opNormal)
-		b.fillCircleHexF(lx, ly-6.7, 1.5+1.4*(1-lump), blendHex(yellow, base, 0.35), 0.55*lump, opAdd)
-		b.strokeHexF(lx-4.5, ly-6.35, lx-1.0, ly-6.6, 0.35, yellow, 0.35*lump, opAdd)
-		b.strokeHexF(lx+1.0, ly-6.6, lx+4.5, ly-6.35, 0.35, yellow, 0.35*lump, opAdd)
+		b.fillCircleHexF(lx, ly-lh*0.115, lh*0.008, yellow, 1, opNormal)
+		b.fillCircleHexF(lx, ly-lh*0.115, lh*0.026+lh*0.024*(1-lump), blendHex(yellow, base, 0.35), 0.55*lump, opAdd)
+		b.strokeHexF(lx-lh*0.075, ly-lh*0.108, lx-lh*0.017, ly-lh*0.112, 0.35, yellow, 0.35*lump, opAdd)
+		b.strokeHexF(lx+lh*0.017, ly-lh*0.112, lx+lh*0.075, ly-lh*0.108, 0.35, yellow, 0.35*lump, opAdd)
 	}
 }
 

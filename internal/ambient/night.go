@@ -74,6 +74,7 @@ func glyphFor(tw float64) rune {
 func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
+	lay := layoutForSub(float64(sw(b)), float64(sh(b)))
 	rmp := BuildRamps(state.Palette)
 	ts := float64(wrapT(t, 10*time.Minute)) / float64(time.Second)
 	base := state.Palette.Base
@@ -148,12 +149,15 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	// --- moon: phase from the date; progress walks it across the sky
 	prog := clampf(state.Progress, 0, 1)
 	phase := moonPhase(state.Now)
-	mX := W * (0.10 + 0.80*prog)
-	mY := H*0.60 - math.Sin(math.Pi*prog)*H*0.44
-	mR := math.Min(W, H*1.6) * 0.072
+	mR := lay.MinDim * 0.115
 	if mR < 1.6 {
 		mR = 1.6
 	}
+	mX := W * (0.10 + 0.80*prog)
+	mX = clampf(mX, mR+0.5, W-mR-0.5)
+	mY := lay.Horizon*0.88 - math.Sin(math.Pi*prog)*lay.Horizon*0.62
+	mY = clampf(mY, mR+0.5, lay.Horizon-mR*0.4)
+	b.anchor("moon", mX-mR, mY-mR, mX+mR, mY+mR)
 	b.beginLayer(layerCelestial, int(mX-mR-2), int(mY-mR-2), int(mX+mR+3), int(mY+mR+3))
 	// halo: slow glow pulse (idle breathing)
 	haloPulse := 0.5 + reducedAmp(state, 0.14)*math.Sin(ts*0.42)
@@ -216,10 +220,11 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	// band is one continuous noise-driven silhouette — sparse spires where
 	// the tree noise crests — never individual stripy columns.
 	sil := cachedPerlin(state.Seed, 101)
-	farY := H * 0.74
-	nearY := H * 0.84
+	farY := lay.Horizon
+	nearY := lay.Horizon + H*0.085
+	b.anchor("horizon", 0, lay.Horizon-0.01, W, lay.Horizon+0.01)
 	pine := blendHex(base, surfaceStrong, 0.08)
-	b.beginLayer(layerLand, 0, int(H*0.55), sw(b), sh(b))
+	b.beginLayer(layerLand, 0, int(lay.Horizon-H*0.18), sw(b), sh(b))
 	for x := 0.0; x < W; x += 0.75 {
 		fy := farY + sil.At(x*0.016+3.1, 7.3)*H*0.055
 		ny := nearY + sil.At(x*0.021+11.7, 1.9)*H*0.045

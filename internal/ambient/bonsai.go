@@ -35,15 +35,18 @@ type branchSeg struct {
 	depth          int
 }
 
+// bonsaiRootY is where the trunk takes root (pot top), in sub-cell units.
+func bonsaiRootY(shI int) float64 { return float64(shI) - 1.6 }
+
 // buildBonsai recursively grows the tree from the root. Branches carry
 // their own curvature (a per-branch bow), so the silhouette reads as
-// grown, not straightedge.
-func buildBonsai(seed int64, swI, shI int, growth float64) []branchSeg {
+// grown, not straightedge. size scales the whole tree (1 = full).
+func buildBonsai(seed int64, swI, shI int, growth float64, size float64) []branchSeg {
 	r := newRNG(seed, 41)
 	segs := []branchSeg{}
 	life := 0.75 + float64(r.intn(1000))/1000.0 // seeded vigor 0.75..1.75
 	maxDepth := int(3.2*growth*life) + 2
-	trunkLen := float64(shI) * 0.34
+	trunkLen := float64(shI) * 0.34 * size
 
 	var grow func(x, y, angle, length, width float64, depth int)
 	grow = func(x, y, angle, length, width float64, depth int) {
@@ -81,9 +84,75 @@ func buildBonsai(seed int64, swI, shI int, growth float64) []branchSeg {
 	}
 	lean := r.rangeF(-0.16, 0.16)
 	jitter := (newRNG(seed, 43).float64() - 0.5) * 1.3
-	rootY := float64(shI) - 1.6
-	grow(float64(swI)/2+jitter, rootY, -math.Pi/2+lean, trunkLen, math.Min(float64(swI)*0.055, 4.6), 0)
+	rootY := bonsaiRootY(shI)
+	grow(float64(swI)/2+jitter, rootY, -math.Pi/2+lean, trunkLen, math.Min(float64(swI)*0.055, 4.6)*math.Min(1, size+0.25), 0)
 	return segs
+}
+
+// crownTip is one foliage tip blob (position at the segment end + radius).
+type crownTip struct{ x, y, size float64 }
+
+// crownTips reports the foliage tip blobs for a revealed segment list,
+// using the same per-tip seeds as the foliage pass. Used by the fit
+// pass (anchoring the tree inside the raster) and the crown anchor.
+func crownTips(seed int64, segs []branchSeg, n int) []crownTip {
+	out := []crownTip{}
+	for i, seg := range segs {
+		if i >= n {
+			break
+		}
+		isTip := true
+		for j := range segs {
+			if j != i && segs[j].depth == seg.depth+1 {
+				isTip = false
+				break
+			}
+		}
+		if !isTip || seg.depth < 2 {
+			continue
+		}
+		lr := newRNG(seed, uint64(i)*61+7)
+		size := 1.5 + lr.float64()*1.6 + float64(seg.depth-2)*0.4
+		out = append(out, crownTip{seg.x1, seg.y1, size})
+	}
+	return out
+}
+
+// fitBonsai rebuilds the tree with a shrink factor until the fully grown
+// silhouette (branch ends + crown blobs + sway margin) fits the raster
+// with a 1-cell margin. Deterministic: a function of (seed, size, rect).
+func fitBonsai(seed int64, swI, shI int, growthParam float64) []branchSeg {
+	size := 1.0
+	for iter := 0; iter < 6; iter++ {
+		segs := buildBonsai(seed, swI, shI, growthParam, size)
+		n := len(segs)
+		top := math.Inf(1)
+		for _, s := range segs[:n] {
+			if s.y0 < top {
+				top = s.y0
+			}
+			if s.y1 < top {
+				top = s.y1
+			}
+		}
+		x0, x1 := math.Inf(1), math.Inf(-1)
+		for _, tp := range crownTips(seed, segs, n) {
+			if tp.y-tp.size < top {
+				top = tp.y - tp.size
+			}
+			if tp.x-tp.size-2.6 < x0 {
+				x0 = tp.x - tp.size - 2.6
+			}
+			if tp.x+tp.size+2.6 > x1 {
+				x1 = tp.x + tp.size + 2.6
+			}
+		}
+		if top >= 1.0 && x0 >= 0.5 && x1 <= float64(swI)-0.5 {
+			return segs
+		}
+		size *= 0.85
+	}
+	return buildBonsai(seed, swI, shI, growthParam, size)
 }
 
 // revealed reports how many leading segments are drawn for growth ∈ [0,1].
@@ -111,6 +180,7 @@ func revealed(segs []branchSeg, growth float64) int {
 func (s *bonsaiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
+	lay := layoutForSub(W, H)
 	base := state.Palette.Base
 	bright := state.Palette.BrightText
 	rmp := BuildRamps(state.Palette)
@@ -132,12 +202,14 @@ func (s *bonsaiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h in
 
 	// ground shadow under the pot
 	potW := math.Min(W*0.24, 16)
+	potW = math.Min(potW, lay.MinDim*0.28)
 	potCX := W / 2
 	potCY := H - 2.6
 	b.fillEllipseHexF(potCX, potCY+1.2, potW*0.78, H*0.035, blendHex(base, "#000000", 0.35), 0.55, opNormal)
 
-	// --- the tree
-	segs := buildBonsai(state.Seed, sw(b), sh(b), 0.75+grow*0.9)
+	// --- the tree (fitted to the raster, then swaying)
+	growthParam := 0.75 + grow*0.9
+	segs := fitBonsai(state.Seed, sw(b), sh(b), growthParam)
 	n := revealed(segs, grow)
 	swayS := math.Sin(ts*0.75) * reducedAmp(state, 0.55) * breathe
 
@@ -195,6 +267,25 @@ func (s *bonsaiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h in
 		}
 	}
 	b.endLayer()
+	if tips := crownTips(state.Seed, segs, n); len(tips) > 0 {
+		crownX0, crownY0 := math.Inf(1), math.Inf(1)
+		crownX1, crownY1 := math.Inf(-1), math.Inf(-1)
+		for _, tp := range tips {
+			if tp.x-tp.size-2.6 < crownX0 {
+				crownX0 = tp.x - tp.size - 2.6
+			}
+			if tp.y-tp.size < crownY0 {
+				crownY0 = tp.y - tp.size
+			}
+			if tp.x+tp.size+2.6 > crownX1 {
+				crownX1 = tp.x + tp.size + 2.6
+			}
+			if tp.y+tp.size > crownY1 {
+				crownY1 = tp.y + tp.size
+			}
+		}
+		b.anchor("crown", crownX0, crownY0, crownX1, crownY1)
+	}
 
 	// --- falling petals once the tree bears blossom
 	if grow > 0.85 || state.Phase == PhaseIdle {

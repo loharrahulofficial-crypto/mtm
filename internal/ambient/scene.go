@@ -13,6 +13,29 @@ type paintable interface {
 	Name() string
 }
 
+// SceneAnchors renders one halfblock frame and returns the named
+// key-element rects in sub-cell coordinates (x in cells, y in pixel
+// rows). Used by the scene-fit tests.
+func SceneAnchors(name string, t time.Duration, w, h int, state SceneState) map[string]Anchor {
+	sc := New(name, ModeHalfblock)
+	p, ok := sc.(paintable)
+	if !ok {
+		return nil
+	}
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	b := newFrameBuffer(p, ModeHalfblock, t, w, h, state, false)
+	out := map[string]Anchor{}
+	for _, a := range b.anchors {
+		out[a.name] = Anchor{a.x0, a.y0, a.x1, a.y1}
+	}
+	return out
+}
+
 // renderRaster renders one frame into the downsampled pixel raster
 // without emitting lines (transitions blend this, then quantize and emit).
 func renderRaster(s paintable, t time.Duration, w, h int, state SceneState) Raster {

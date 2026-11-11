@@ -67,9 +67,9 @@ uninstall:
 clean:
 	rm -rf bin man
 
-# Write one PPM per scene and time into $(OUT) (default: a temp dir).
-# Never writes outside the sandbox; pnm2png/ImageMagick can convert.
-OUT ?= $(shell mktemp -d /tmp/mtm-scenes-XXXXXX)
+# Write one PPM and one PNG per scene x size into $(OUT) (default: a
+# sandbox temp dir). Sizes: 24x10 30x16 40x14 64x16 100x30 200x50.
+# Never writes outside the sandbox; prints the paths it writes.
+OUT := $(shell mktemp -d /tmp/mtm-scenes-XXXXXX)
 scenes-gallery: build
-	@sh contrib/scenes-gallery.sh $(CURDIR)/bin/mtm $(OUT)
-	@echo "gallery written to $(OUT)"
+	@sh contrib/scenes-gallery.sh $(CURDIR)/bin/mtm "$(OUT)"
