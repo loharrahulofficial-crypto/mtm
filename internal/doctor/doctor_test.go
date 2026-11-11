@@ -359,7 +359,13 @@ func TestAmbientTierReported(t *testing.T) {
 	if name == "" {
 		t.Fatal("doctor did not report ambient quality tier")
 	}
-	if tier < 0 || tier > 3 {
-		t.Fatalf("tier = %d, want 0..3", tier)
+	if tier < 0 || tier > 2 {
+		t.Fatalf("tier = %d, want 0..2", tier)
+	}
+	if rep.AmbientPaintNS <= 0 {
+		t.Fatal("doctor did not report a measured paint time")
+	}
+	if rep.AmbientPaintMs <= 0 {
+		t.Fatal("doctor did not report a measured paint time in ms")
 	}
 }

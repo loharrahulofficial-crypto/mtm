@@ -578,6 +578,42 @@ make demo               # throwaway sandbox with example data (never your real d
 make smoke              # full CLI lifecycle in a throwaway sandbox
 ```
 
+## Measuring performance (`make perf`)
+
+`make perf` runs the TUI under a pseudo-terminal in a **throwaway sandbox**
+(`HOME`, every XDG root and `MTM_SANDBOX=1` pointed at a temp dir) and
+reports, per scenario, the user+sys CPU time over the run (from
+`wait4`), the paint rate (alt-screen flushes counted as `ESC[H`), bytes
+per paint, allocations per paint (from the `--profile` stats file) and
+allocations per `View()` rebuild — plus the top 15 functions from a CPU
+profile (`go tool pprof -top`).
+
+```sh
+make perf                                   # all four scenarios, ~6.5 min
+make perf PERF_ARGS="--duration 10 home-ambient-off"
+python3 contrib/perf.py --duration 30 home-ambient-12fps
+python3 contrib/perf.py --help              # scenarios, flags, environment
+```
+
+The four scenarios (120x40 by default):
+
+| scenario | what it measures | shipped target |
+|---|---|---|
+| `home-ambient-off` | Home idle, ambient off | ≤ 2% of a core |
+| `home-ambient-12fps` | Home + sidebar window (label kept for comparability; the Home/sidebar cap is 8 FPS since the idle-policy change) | ≤ 20% of a core |
+| `focus-24fps` | Focus mode behind a running Pomodoro | ≤ 30% of a core |
+| `idle-ambient-5m` | Ambient on, untouched; defaults to 300 s | ≤ 5% of a core |
+
+The harness answers the terminal's capability queries (`OSC 11` and
+`DSR`) like a real terminal, so colours render through the truecolor
+path instead of an ASCII fallback. Profiling refuses to run outside the
+sandbox (`MTM_PPROF=cpu:/path/to.pprof` or `mtm tui --profile FILE`).
+
+To measure on your own hardware, run it on the machine you care about.
+The numbers in this repo's commit history were taken on an i3-1115G4 and
+cover the `mtm` process only (the pty reader is off the clock); your
+numbers will differ on a faster or busier machine.
+
 Layering: `cmd/mtm` → `internal/cli` (Cobra) / `internal/tui` (Bubble Tea)
 → `internal/actions` → `internal/core` → `internal/store`.
 The TUI has no business logic.

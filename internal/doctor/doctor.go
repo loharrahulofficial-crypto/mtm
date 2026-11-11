@@ -47,9 +47,15 @@ type Report struct {
 	// AmbientBytesPerFrame reports the SGR byte count of one halfblock
 	// frame per scene at 100x30 (deterministic, default theme).
 	AmbientBytesPerFrame map[string]int `json:"ambient_bytes_per_frame,omitempty"`
-	// AmbientTier reports the adaptive-quality tier (0=full|1=no-blur|2=low-ss|3=low-fps).
+	// AmbientTier reports the adaptive-quality tier (0=full|1=low-ss|2=low-fps).
 	AmbientTier     int    `json:"ambient_quality_tier"`
 	AmbientTierName string `json:"ambient_quality_name"`
+	// AmbientPaintNS is the slowest single measured reference frame
+	// (halfblock, 100x30, fixed clock), in nanoseconds; AmbientPaintMs is
+	// the same in milliseconds. AmbientTier reports this process's
+	// adaptive-quality tier (a one-shot doctor run reports 0/full).
+	AmbientPaintNS   int64   `json:"ambient_paint_ns"`
+	AmbientPaintMs   float64 `json:"ambient_paint_ms"`
 }
 
 // Options carries the inputs Run needs; zero values default to the
@@ -98,6 +104,13 @@ func Run(opts Options) Report {
 
 	// --- ambient render cost (deterministic; one frame per scene) ---
 	rep.AmbientBytesPerFrame = ambient.ReportBytes(ambient.ModeHalfblock, 100, 30)
+	paintCosts := ambient.ReportFrameCost(ambient.ModeHalfblock, 100, 30)
+	for _, cost := range paintCosts {
+		if cost > rep.AmbientPaintNS {
+			rep.AmbientPaintNS = cost
+		}
+	}
+	rep.AmbientPaintMs = float64(rep.AmbientPaintNS) / 1e6
 	rep.AmbientTier, rep.AmbientTierName = ambient.AmbientTier()
 
 	// --- git repo ---
