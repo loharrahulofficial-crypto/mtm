@@ -247,7 +247,7 @@ func TestAmbientTickCrawlsWhenPaused(t *testing.T) {
 }
 
 // TestAmbientFPSCappedPerSurface: the frame budget is ≤ 24 FPS on the
-// focus surface (and splash), ≤ 12 FPS behind Home/sidebar.
+// focus surface (and splash), ≤ 8 FPS behind Home/sidebar.
 func TestAmbientFPSCappedPerSurface(t *testing.T) {
 	set := func(m Model, v int) Model { m.cfg.UI.AmbientFPS = v; return m }
 	normal := freshAmbientModel(t)
@@ -261,10 +261,10 @@ func TestAmbientFPSCappedPerSurface(t *testing.T) {
 		home  int
 		focus int
 	}{
-		{30, 12, 24},
-		{20, 12, 20},
+		{30, 8, 24},
+		{20, 8, 20},
 		{8, 8, 8},
-		{0, 10, 10},
+		{0, 8, 8},
 	} {
 		m := set(normal, tc.cfg)
 		if got := ambientFPS(m); got != tc.home {

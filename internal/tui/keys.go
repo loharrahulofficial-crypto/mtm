@@ -23,6 +23,7 @@ func (m Model) dispatchRaw(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleAmbientTick()
 	case tea.FocusMsg:
 		m.ambientFocused = true
+		m.lastInput = m.clock.Now()
 		return m, m.armAmbient()
 	case tea.BlurMsg:
 		m.ambientFocused = false
@@ -42,6 +43,7 @@ func (m Model) dispatchRaw(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	case tea.KeyMsg:
+		m.lastInput = m.clock.Now()
 		if m.mode == modeSplash {
 			// Any key skips the splash with a quick fade: jump to the
 			// dissolve tail, keeping the frame flow.
@@ -50,6 +52,7 @@ func (m Model) dispatchRaw(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.updateKey(msg)
 	case tea.MouseMsg:
+		m.lastInput = m.clock.Now()
 		if m.mode == modeSplash {
 			m.skipSplash()
 			return m, m.armAmbient()

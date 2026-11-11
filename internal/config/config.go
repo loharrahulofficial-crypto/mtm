@@ -131,8 +131,14 @@ type UIConfig struct {
 	SplashSeconds float64 `yaml:"splash_seconds"`
 	// RewardAnimation shows a 1.5s scene celebration when a task is done.
 	RewardAnimation bool `yaml:"reward_animation"`
-	// AmbientFPS caps animation frames per second (default 10, max 30).
+	// AmbientFPS caps animation frames per second (default 8, max 30).
 	AmbientFPS int `yaml:"ambient_fps"`
+	// AmbientIdle: slow (default) | pause | off. "slow" drops the
+	// Home/sidebar scene to ~4 FPS after 30 s with no input and pauses it
+	// on a still frame after 5 minutes (resumes instantly on any key or
+	// mouse event). "pause" skips the 4 FPS stage. "off" never throttles.
+	// Focus mode and the splash are exempt while the timer runs.
+	AmbientIdle string `yaml:"ambient_idle"`
 	// AmbientRender: auto | halfblock | braille | ascii.
 	AmbientRender string `yaml:"ambient_render"`
 	// AmbientDither: on | off (default on). Ordered dithering only ever
@@ -189,7 +195,8 @@ func Default() Config {
 			Scene:           "auto",
 			SplashSeconds:   3.0,
 			RewardAnimation: true,
-			AmbientFPS:      10,
+			AmbientFPS:      8,
+			AmbientIdle:     "slow",
 			AmbientRender:   "auto",
 			AmbientDither:   "on",
 			ReducedMotion:   false,
@@ -312,6 +319,14 @@ func Load() (Config, error) {
 	}
 	if cfg.UI.SplashSeconds <= 0 || cfg.UI.SplashSeconds > 30 {
 		return cfg, fmt.Errorf("config %s: ui.splash_seconds must be in (0, 30], got %v", Path(), cfg.UI.SplashSeconds)
+	}
+	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.AmbientIdle)); r {
+	case "slow", "pause", "off":
+		cfg.UI.AmbientIdle = r
+	case "":
+		cfg.UI.AmbientIdle = "slow"
+	default:
+		return cfg, fmt.Errorf("config %s: ui.ambient_idle must be slow|pause|off, got %q", Path(), cfg.UI.AmbientIdle)
 	}
 	if cfg.UI.AmbientFPS < 1 || cfg.UI.AmbientFPS > 30 {
 		return cfg, fmt.Errorf("config %s: ui.ambient_fps must be in [1, 30], got %d", Path(), cfg.UI.AmbientFPS)

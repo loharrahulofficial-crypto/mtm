@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 	"github.com/loharrahulofficial-crypto/mtm/internal/perf"
 )
 
@@ -26,8 +28,15 @@ func (m Model) View() string {
 		perf.CountView(len(fc.view))
 		return fc.view
 	}
+	buildStart := time.Now()
 	s := m.viewInner()
+	buildDur := time.Since(buildStart)
 	atomic.AddInt64(&frameBuilds, 1)
+	if m.ambientActive() {
+		// Adaptive quality tiers act on the end-to-end frame cost —
+		// scene raster + full View() assembly — not only the raster.
+		ambient.ObserveFrameCost(buildDur)
+	}
 	if fc != nil {
 		fc.view, fc.stamp, fc.scene, fc.w, fc.h = s, m.viewStamp, m.ambientStamp, m.width, m.height
 	}

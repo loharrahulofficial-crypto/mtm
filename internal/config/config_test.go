@@ -272,6 +272,50 @@ func TestHeatmapWeeksDefaultOverrideAndClamp(t *testing.T) {
 	}
 }
 
+func TestAmbientIdleValidation(t *testing.T) {
+	fixedXDG(t)
+	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// default is slow
+	write("default_project: inbox\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.AmbientIdle != "slow" {
+		t.Fatalf("default ambient_idle = %q, want slow", cfg.UI.AmbientIdle)
+	}
+	// default fps is 8
+	if cfg.UI.AmbientFPS != 8 {
+		t.Fatalf("default ambient_fps = %d, want 8", cfg.UI.AmbientFPS)
+	}
+	// all values accepted
+	for _, v := range []string{"slow", "pause", "off"} {
+		write("ui:\n  ambient_idle: " + v + "\n")
+		cfg, err = Load()
+		if err != nil {
+			t.Fatalf("ambient_idle %q rejected: %v", v, err)
+		}
+		if cfg.UI.AmbientIdle != v {
+			t.Fatalf("ambient_idle = %q, want %q", cfg.UI.AmbientIdle, v)
+		}
+	}
+	// bogus rejected
+	write("ui:\n  ambient_idle: sometimes\n")
+	if _, err := Load(); err == nil {
+		t.Fatal("ambient_idle: sometimes was accepted")
+	}
+}
+
 func TestAmbientDitherValidation(t *testing.T) {
 	fixedXDG(t)
 	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")

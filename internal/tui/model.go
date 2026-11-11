@@ -180,6 +180,7 @@ type Model struct {
 	ambientStamp    int64 // bumped per ambient tick; scene-bearing panes key on it
 	lastClockMinute int   // minute-of-hour at the last clock-driven redraw; -1 = unset
 	panels          *panelCache
+	lastInput       time.Time // wall-clock of the most recent key/mouse/focus event
 
 	// Phase 4b-B ambient state
 	ambientSettingSel int
@@ -377,6 +378,7 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 		themeVersion:    1,
 		ambientStamp:    0,
 		panels:          &panelCache{},
+		lastInput:       clk.Now(),
 		lastClockMinute: now.Minute(),
 		detailOn:        true,
 		input:           input,

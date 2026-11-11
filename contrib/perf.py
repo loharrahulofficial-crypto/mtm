@@ -48,6 +48,9 @@ SCENARIOS = {
     # name → (ui yaml lines, timer_seed, keys)
     "home-ambient-off": (["    ambient: off"], False, []),
     "home-ambient-12fps": (
+        # Label kept for target comparability: since item 4 the Home/sidebar
+        # cap is clamped to 8, so this now measures the shipped default
+        # (~8 FPS). Before item 4 it measured the old 12 FPS cap.
         ["    ambient: both", "    ambient_sidebar: true", "    ambient_fps: 12"],
         False,
         [],
