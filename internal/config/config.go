@@ -164,6 +164,9 @@ type UIConfig struct {
 	AmbientSidebar bool `yaml:"ambient_sidebar"`
 	// RainLightning enables rare lightning in the rain scene (off default).
 	RainLightning bool `yaml:"rain_lightning"`
+	// Wordmark is the splash wordmark style: caps (default, "MTM") or
+	// lower (x-height letterforms, "mtm").
+	Wordmark string `yaml:"wordmark"`
 }
 
 func Default() Config {
@@ -213,6 +216,7 @@ func Default() Config {
 			ReducedMotion:   false,
 			RainLightning:   false,
 			AmbientSidebar:  true,
+			Wordmark:        "caps",
 		},
 	}
 }
@@ -336,6 +340,14 @@ func Load() (Config, error) {
 		cfg.UI.AmbientRender = "auto"
 	default:
 		return cfg, fmt.Errorf("config %s: ui.ambient_render must be auto|halfblock|braille|ascii|quadrant|sextant, got %q", Path(), cfg.UI.AmbientRender)
+	}
+	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.Wordmark)); r {
+	case "caps", "lower":
+		cfg.UI.Wordmark = r
+	case "":
+		cfg.UI.Wordmark = "caps"
+	default:
+		return cfg, fmt.Errorf("config %s: ui.wordmark must be caps|lower, got %q", Path(), cfg.UI.Wordmark)
 	}
 	if cfg.UI.SplashSeconds <= 0 || cfg.UI.SplashSeconds > 30 {
 		return cfg, fmt.Errorf("config %s: ui.splash_seconds must be in (0, 30], got %v", Path(), cfg.UI.SplashSeconds)

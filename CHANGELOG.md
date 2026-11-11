@@ -108,6 +108,13 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   zero work when no surface is visible or the terminal is unfocused
 - Hidden verification path: `mtm tui --dump --scene <name> --t <dur>
   --progress <0..1> --render <mode> --phase <work|break|idle>`
+- **Splash wordmark, hand-designed** (2026-11-11): the mtm wordmark is
+  drawn from hand-laid 5x5/7x7/9x9 bitmaps with a diagonals-meeting-in-
+  the-center M (the old stems+leg M read as an H); the set is chosen by
+  terminal size, the block sits in the sky band at ~39% of the frame
+  height (never on the horizon), and `ui.wordmark: caps|lower` selects
+  the caps letterforms ("MTM", default) or the x-height lowercase-style
+  ones ("mtm")
 
 ### Fixed
 

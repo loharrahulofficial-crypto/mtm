@@ -509,45 +509,6 @@ func (m *Model) startSplashIfEnabled(isTTY bool) bool {
 	return true
 }
 
-// wordmarkGlyphs holds the block-letter glyphs for "mtm" as per-letter
-// blocks so tests can assert the letters render distinct, legible shapes.
-type wordmarkGlyphs struct{ letters [][]string }
-
-// wordmarkSmall is the 3-row wordmark; the t carries a top bar over a stem
-// (reads as a t, never as an I).
-var wordmarkSmall = wordmarkGlyphs{letters: [][]string{
-	{"█   █", "██ ██", "█ █ █"}, // m — stems + center leg
-	{"█████", "  █  ", "  █  "}, // t
-	{"█   █", "██ ██", "█ █ █"}, // m
-}}
-
-// wordmarkLarge is the 5-row wordmark for roomy terminals.
-var wordmarkLarge = wordmarkGlyphs{letters: [][]string{
-	{"██   ██", "███ ███", "███████", "██   ██", "██   ██"}, // m — stems joined at the waist
-	{"███████", "  ███  ", "  ███  ", "  ███  ", "  ███  "}, // t
-	{"██   ██", "███ ███", "███████", "██   ██", "██   ██"}, // m
-}}
-
-func (g wordmarkGlyphs) rows() []string {
-	rows := make([]string, 0, len(g.letters[0]))
-	for i := range g.letters[0] {
-		parts := make([]string, 0, len(g.letters))
-		for _, l := range g.letters {
-			parts = append(parts, l[i])
-		}
-		rows = append(rows, strings.Join(parts, "   "))
-	}
-	return rows
-}
-
-// wordmarkFor chooses the wordmark size the terminal can hold.
-func wordmarkFor(w, h int) (wordmarkGlyphs, bool) {
-	if w >= 110 && h >= 28 {
-		return wordmarkLarge, true
-	}
-	return wordmarkSmall, false
-}
-
 // renderSplash composes the startup splash: the scene warms in behind
 // the mtm wordmark, which rises letter by letter with a glow pulse, then
 // the tagline fades in, and a noise dissolve wipes into Home. The whole
@@ -619,18 +580,22 @@ func (m Model) renderSplash() string {
 	// overlays fade with the dissolve tail: 1 = fully lit, 0 = base
 	fade := 1 - ambient.EaseInOutCubic(dissolveProg)
 
-	// wordmark letters rise one by one with a glow pulse
-	cy := h / 2
-	m.paintWordmark(out, r, baseHex, w, cy, t, fade, limited, dither)
+	// wordmark letters rise one by one with a glow pulse, in the sky band
+	// (~39% of the height — never on the horizon line)
+	wm := wordmarkFor(w, h, m.cfg.UI.Wordmark == "lower")
+	wmRows := len(wm.letters[0])
+	wmTop := wordmarkTop(h, wmRows)
+	m.paintWordmark(out, r, baseHex, w, wmTop, t, fade, limited, dither, wm)
 
-	// tagline fades in 1.6–2.2s
+	// tagline fades in 1.6–2.2s, one row below the wordmark block
+	tagY := wmTop + wmRows + 1
 	taglineT := clampUnit((t-1.6)/0.6, 0, 1) * fade
-	if taglineT > 0 && cy+5 < h {
+	if taglineT > 0 && tagY < h {
 		const text = "a calmer desk for your courses"
 		blend := ambient.BlendHex(baseHex, m.palette.BrightText, taglineT)
 		x0 := centerX(w, text)
-		piece := overlayCells(x0, cy+5, text, blend, false, r, baseHex, limited, dither)
-		out[cy+5] = spliceCells(out[cy+5], x0, fastWidth(text), piece)
+		piece := overlayCells(x0, tagY, text, blend, false, r, baseHex, limited, dither)
+		out[tagY] = spliceCells(out[tagY], x0, fastWidth(text), piece)
 	}
 
 	// footer hint fades in early, stays
@@ -772,21 +737,16 @@ func centerX(w int, s string) int {
 // paintWordmark paints the rising letters of the wordmark into lines.
 // Each cell keeps the scene's background, so the letters read as lit
 // type rising out of the scene rather than opaque tiles. fade dims the
-// whole wordmark into the dissolve tail.
-func (m Model) paintWordmark(out []string, r ambient.Raster, baseHex string, w, cy int, t, fade float64, limited, dither bool) {
-	g, large := wordmarkFor(w, m.height)
+// whole wordmark into the dissolve tail. wmTop is the first glyph row.
+func (m Model) paintWordmark(out []string, r ambient.Raster, baseHex string, w, wmTop int, t, fade float64, limited, dither bool, g wordmarkGlyphs) {
 	letters := g.letters
-	letterW := fastWidth(letters[0][0]) // cells, not bytes
+	letterW := len(letters[0][0]) // spec rows are pure ASCII: bytes == cells
 	gap := 3
 	wordW := len(letters)*letterW + (len(letters)-1)*gap
 	x0 := (w - wordW) / 2
 	letterDur := 0.55
 	step := 0.28
 	start := 0.9
-	rowOff := 2
-	if large {
-		rowOff = 3
-	}
 	for i, letter := range letters {
 		appear := clampUnit((t-(start+float64(i)*step))/letterDur, 0, 1)
 		if appear <= 0 {
@@ -804,11 +764,12 @@ func (m Model) paintWordmark(out []string, r ambient.Raster, baseHex string, w, 
 		bright *= fade
 		col := ambient.BlendHex(baseHex, m.palette.BrightText, bright)
 		for row, line := range letter {
-			y := cy - rowOff + row + yOff
+			y := wmTop + row + yOff
 			if y < 0 || y >= len(out) {
 				continue
 			}
-			piece := overlayCells(x0+i*(letterW+gap), y, line, col, true, r, baseHex, limited, dither)
+			cell := glyphCells(line)
+			piece := overlayCells(x0+i*(letterW+gap), y, cell, col, true, r, baseHex, limited, dither)
 			out[y] = spliceCells(out[y], x0+i*(letterW+gap), letterW, piece)
 		}
 	}
