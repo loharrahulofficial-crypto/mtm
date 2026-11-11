@@ -2,3 +2,4 @@
 /dist/
 *.tmp
 /man/
+/ambient.test
