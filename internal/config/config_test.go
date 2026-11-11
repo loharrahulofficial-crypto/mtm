@@ -394,6 +394,42 @@ func TestTrueColorValidation(t *testing.T) {
 	}
 }
 
+func TestSplashEnumValidation(t *testing.T) {
+	fixedXDG(t)
+	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("default_project: inbox\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.Splash != "on" {
+		t.Fatalf("default splash = %q, want on", cfg.UI.Splash)
+	}
+	for _, v := range []string{"on", "off", "once-a-day"} {
+		write("ui:\n  splash: " + v + "\n")
+		cfg, err = Load()
+		if err != nil {
+			t.Fatalf("splash=%s rejected: %v", v, err)
+		}
+		if cfg.UI.Splash != v {
+			t.Fatalf("splash = %q, want %q", cfg.UI.Splash, v)
+		}
+	}
+	write("ui:\n  splash: sometimes\n")
+	if _, err := Load(); err == nil {
+		t.Fatal("splash: sometimes was accepted")
+	}
+}
+
 func TestUIAmbientEnumAndSidebarWindow(t *testing.T) {
 	fixedXDG(t)
 	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")

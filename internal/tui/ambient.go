@@ -3,6 +3,7 @@ package tui
 import (
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 	"github.com/loharrahulofficial-crypto/mtm/internal/caps"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
+	"github.com/loharrahulofficial-crypto/mtm/internal/paths"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
@@ -457,6 +459,27 @@ func (m Model) handleAmbientTick() (tea.Model, tea.Cmd) {
 	return m, ambientTickCmd(fps)
 }
 
+// splashStampPath is where the once-a-day stamp lives.
+func splashStampPath() string { return paths.StateFile("splash.stamp") }
+
+// splashShownToday reports whether the splash was already shown on the
+// local day of t (the stamp may be missing or stale — either shows it).
+func splashShownToday(t time.Time) bool {
+	data, err := os.ReadFile(splashStampPath())
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(data)) == t.Format("2006-01-02")
+}
+
+// markSplashShown records that the splash was shown now (local date).
+// Errors are swallowed — a failed stamp must not block startup.
+func markSplashShown(t time.Time) {
+	p := splashStampPath()
+	_ = os.MkdirAll(filepath.Dir(p), 0o755)
+	_ = os.WriteFile(p, []byte(t.Format("2006-01-02")+"\n"), 0o644)
+}
+
 // startSplashIfEnabled arms the splash when policy allows. Called by Run.
 func (m *Model) startSplashIfEnabled(isTTY bool) bool {
 	if !m.ambientAllowSplash() || !m.animations {
@@ -468,11 +491,22 @@ func (m *Model) startSplashIfEnabled(isTTY bool) bool {
 	if os.Getenv("MTM_NO_SPLASH") == "1" {
 		return false
 	}
+	switch m.cfg.UI.Splash {
+	case "off":
+		return false
+	case "once-a-day":
+		if splashShownToday(m.clock.Now()) {
+			return false
+		}
+	}
 	m.mode = modeSplash
 	m.splashStart = m.clock.Now()
 	m.splashTotal = time.Duration(m.cfg.UI.SplashSeconds * float64(time.Second))
 	m.ambientT = 0
 	m.ambientArmed = false
+	if m.cfg.UI.Splash == "once-a-day" {
+		markSplashShown(m.clock.Now())
+	}
 	return true
 }
 

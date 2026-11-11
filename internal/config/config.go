@@ -145,6 +145,10 @@ type UIConfig struct {
 	// applies where a limited palette forces it — on truecolor terminals the
 	// renderer emits 24-bit color unchanged.
 	AmbientDither string `yaml:"ambient_dither"`
+	// Splash: on | off | once-a-day (default on). --no-splash /
+	// MTM_NO_SPLASH=1 suppress it for a run. once-a-day shows it only on
+	// the first launch of each local day.
+	Splash string `yaml:"splash"`
 	// TrueColor: auto | on | off (default auto). auto = detect from the
 	// environment (truecolor unless there is positive evidence of a
 	// limited terminal); on/off force 24-bit color or xterm-256 output.
@@ -205,6 +209,7 @@ func Default() Config {
 			AmbientRender:   "auto",
 			AmbientDither:   "on",
 			TrueColor:       "auto",
+			Splash:          "on",
 			ReducedMotion:   false,
 			RainLightning:   false,
 			AmbientSidebar:  true,
@@ -343,6 +348,14 @@ func Load() (Config, error) {
 		cfg.UI.AmbientDither = "on"
 	default:
 		return cfg, fmt.Errorf("config %s: ui.ambient_dither must be on|off, got %q", Path(), cfg.UI.AmbientDither)
+	}
+	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.Splash)); r {
+	case "on", "off", "once-a-day":
+		cfg.UI.Splash = r
+	case "":
+		cfg.UI.Splash = "on"
+	default:
+		return cfg, fmt.Errorf("config %s: ui.splash must be on|off|once-a-day, got %q", Path(), cfg.UI.Splash)
 	}
 	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.TrueColor)); r {
 	case "auto", "on", "off":

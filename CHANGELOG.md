@@ -41,6 +41,20 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   campfire …); `:ambient` opens a live full-screen preview with a mood
   picker (`:ambient` also reachable from the palette and `:scene list`);
   `--no-ambient` disables all surfaces for one run
+- **`ui.splash: on|off|once-a-day`** (default on): `--no-splash` and
+  `MTM_NO_SPLASH=1` suppress the splash for a run; `once-a-day` shows it
+  only on the first launch of each local day (stamp:
+  `~/.local/state/mtm/splash.stamp`). The first frame is always the plain
+  base-colored frame — the splash fades in from it, and any key skips
+  immediately (~350 ms tail, never blocked input)
+- **`ui.truecolor: auto|on|off`** (default auto): `MTM_TRUECOLOR=1|0`
+  overrides for a run. auto = truecolor unless the terminal is positively
+  limited (`TERM=linux`, `TERM=dumb`, `NO_COLOR`, Apple Terminal,
+  `TERM=screen*` without `COLORTERM`). Limited terminals emit the nearest
+  xterm-256 entry (cube + gray ramp, perceptual distance) instead of
+  24-bit color; `ui.ambient_dither` ordered-dithers between the two
+  nearest palette entries only. `mtm doctor` reports the detected
+  terminal, color mode and override source (`terminal` check)
 - **`ui.ambient*` config**: `ambient`, `scene` (`auto` picks by local hour,
   `random` per launch), `splash_seconds`, `reward_animation`,
   `ambient_fps` (default 8, max 30), `ambient_idle`
@@ -64,6 +78,17 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
 
 ### Fixed
 
+- **Startup/transition stripes and pink flashes** (2026-11-11): transitions
+  blend in pixel space now (`FramePixels` raster API; `Crossfade`/`Dissolve`/
+  `BlackFrame`/splash head fade all operate on rasters, always emit `▀`);
+  text overlays composite after the scene transition. The `255,0,255` debug
+  sentinel is gone everywhere — malformed theme roles fall back to defaults
+  with diagnostics in `mtm doctor`; the base-color detection for
+  already-rendered frames and the SGR decimal→hex path no longer produce
+  garbage colors. Scene layout is size-independent (`min(w, h*2)` and
+  aspect ratio) — scenes compose at 24x10 through 200x50; important
+  elements (moon/sun/tree crown/cabin) are never clipped by more than 10%
+  and the horizon stays in [40%, 70%]
 - `mtm doctor` demo-data check no longer flags a repo's history — it detects
   demo data in the current tree only (task IDs / demo project names), treats
   a demo-looking commit message as at most an info line, never reports a

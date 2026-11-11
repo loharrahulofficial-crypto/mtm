@@ -340,6 +340,21 @@ ui:
   ambient_fps: 10               # animation cap (max 30)
   ambient_render: auto          # auto | halfblock (▀▄ 2x vertical) | braille | ascii
   rain_lightning: false         # rare lightning in the rain scene
+  truecolor: auto               # auto | on | off — 24-bit color; auto =
+                                # truecolor unless the terminal shows
+                                # positive evidence of limited palette
+                                # (TERM=linux|dumb, NO_COLOR, Apple Terminal,
+                                # TERM=screen* without COLORTERM);
+                                # MTM_TRUECOLOR=1|0 overrides for a run
+  splash: on                    # on | off | once-a-day — once-a-day shows
+                                # the splash only on the first launch of
+                                # each local day (stamp: ~/.local/state/mtm/
+                                # splash.stamp); --no-splash /
+                                # MTM_NO_SPLASH=1 suppresses for a run
+  ambient_dither: on            # only relevant on limited terminals: nearest
+                                # xterm-256 entry per color, optionally
+                                # ordered-dithered between the two nearest
+                                # (never per-channel)
 
 stats:
   streak_min_minutes: 15        # a day is active with ≥1 completion OR this many logged minutes
