@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/caps"
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/paths"
+	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 	"github.com/loharrahulofficial-crypto/mtm/internal/tui"
 )
@@ -52,6 +54,7 @@ func newTuiCmd() *cobra.Command {
 	var ppmPath string
 	var ppmScale int
 	var profilePath string
+	var splashT float64
 	cmd := &cobra.Command{
 		Use:   "tui",
 		Short: "Launch the interactive TUI (or, hidden, render one frame)",
@@ -117,6 +120,37 @@ func newTuiCmd() *cobra.Command {
 				}
 				return nil
 			}
+			if splashT >= 0 {
+				// Splash frame mode: render the splash at t seconds. The
+				// splash never reads the data repo, so a throwaway store
+				// is enough.
+				tmp, err := os.MkdirTemp("", "mtm-splash-dump-*")
+				if err != nil {
+					return err
+				}
+				defer func() { _ = os.RemoveAll(tmp) }()
+				cfg, err := config.Load()
+				if err != nil {
+					cfg = config.Default()
+				}
+				cfg.DataRepo = tmp
+				cfg.Sync.Auto = false
+				s, err := store.Open(tmp, filepath.Join(tmp, "index.json"))
+				if err != nil {
+					return err
+				}
+				defer func() { _ = s.Close() }()
+				frame, err := tui.RenderSplashDump(cfg, s, sync.New(tmp), w, h, splashT)
+				if err != nil {
+					return err
+				}
+				out := cmd.OutOrStdout()
+				fmt.Fprint(out, frame)
+				if !strings.HasSuffix(frame, "\n") {
+					fmt.Fprintln(out)
+				}
+				return nil
+			}
 			cfg, s, err := openStore()
 			if err != nil {
 				return err
@@ -146,6 +180,7 @@ func newTuiCmd() *cobra.Command {
 	cmd.Flags().StringVar(&phase, "phase", "work", "scene phase: work|break|idle")
 	cmd.Flags().StringVar(&ppmPath, "ppm", "", "also write the frame as a binary PPM image to FILE (tool-only)")
 	cmd.Flags().IntVar(&ppmScale, "ppm-scale", 6, "PPM pixel scale per subcell (1..20)")
+	cmd.Flags().Float64Var(&splashT, "splash-t", -1, "render the splash at t seconds (review mode, like --scene)")
 	_ = cmd.Flags().MarkHidden("dump")
 	_ = cmd.Flags().MarkHidden("profile")
 	_ = cmd.Flags().MarkHidden("view")
@@ -158,5 +193,6 @@ func newTuiCmd() *cobra.Command {
 	_ = cmd.Flags().MarkHidden("phase")
 	_ = cmd.Flags().MarkHidden("ppm")
 	_ = cmd.Flags().MarkHidden("ppm-scale")
+	_ = cmd.Flags().MarkHidden("splash-t")
 	return cmd
 }

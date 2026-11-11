@@ -74,6 +74,31 @@ func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view stri
 	return m
 }
 
+// RenderSplashDump renders the splash at the given time for review
+// (mtm tui --dump --splash-t). Deterministic: fixed clock, fixed theme,
+// the scene auto-picked from the fixed hour, and the config's ambient
+// policy bypassed (the splash is forced for one frame).
+func RenderSplashDump(cfg config.Config, s *store.Store, repo sync.Repo, w, h int, seconds float64) (string, error) {
+	if seconds < 0 || seconds > 60 {
+		return "", fmt.Errorf("--splash-t must be in [0, 60], got %v", seconds)
+	}
+	s.Clock = clock.Fixed(DumpFixedTime)
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	m := New(cfg, s, repo)
+	m.palette = theme.Defaults()
+	m.styles = newStyles(m.palette)
+	m.mode = modeSplash
+	m.ambientSceneName = "" // resolve from the fixed hour: 14:32 → ocean
+	m.splashTotal = time.Duration(m.cfg.UI.SplashSeconds * float64(time.Second))
+	if m.splashTotal < time.Second {
+		m.splashTotal = 3 * time.Second
+	}
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+	m = updated.(Model)
+	m.ambientT = time.Duration(seconds * float64(time.Second))
+	return m.View(), nil
+}
+
 // RenderDump renders exactly one deterministic frame of the requested view.
 func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, noColor bool, t time.Time) (string, error) {
 	switch view {

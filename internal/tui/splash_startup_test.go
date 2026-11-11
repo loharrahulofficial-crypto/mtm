@@ -151,3 +151,57 @@ func TestSplashKeySkipBehavior(t *testing.T) {
 		t.Fatalf("skipSplash moved the clock backwards to %v", m.ambientT)
 	}
 }
+
+func TestRenderSplashDump(t *testing.T) {
+	fixedEnv(t)
+	cfg := config.Default()
+	cfg.DataRepo = t.TempDir()
+	cfg.Sync.Auto = false
+	cfg.UI.Ambient = "both"
+	root := t.TempDir()
+	s, err := store.Open(root, filepath.Join(root, "index.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+
+	// invalid times are rejected
+	if _, err := RenderSplashDump(cfg, s, sync.New(s.Root), 100, 30, -1); err == nil {
+		t.Fatal("--splash-t -1 was accepted")
+	}
+
+	// t=0 renders the plain base-colored frame (no wordmark yet)
+	frame, err := RenderSplashDump(cfg, s, sync.New(s.Root), 100, 30, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, l := range strings.Split(frame, "\n") {
+		for _, r := range stripANSI(l) {
+			if r != ' ' {
+				t.Fatalf("t=0 dump line %d contains glyph %q, want a plain base-colored frame", i, string(r))
+			}
+		}
+	}
+
+	// t=1.2 shows the wordmark rising
+	frame, err = RenderSplashDump(cfg, s, sync.New(s.Root), 100, 30, 1.2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(frame, "█") {
+		t.Fatal("t=1.2 dump shows no wordmark letter strokes")
+	}
+
+	// every reviewed time stays free of the old magenta sentinel
+	for _, ts := range []float64{0.1, 0.3, 0.55, 1.2, 2.8} {
+		frame, err = RenderSplashDump(cfg, s, sync.New(s.Root), 100, 30, ts)
+		if err != nil {
+			t.Fatalf("t=%v: %v", ts, err)
+		}
+		for _, sentinel := range []string{"255;0;255", "ff00ff", "FF00FF"} {
+			if strings.Contains(frame, sentinel) {
+				t.Fatalf("t=%v dump contains sentinel %q", ts, sentinel)
+			}
+		}
+	}
+}
