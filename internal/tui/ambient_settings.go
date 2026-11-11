@@ -27,7 +27,7 @@ func ambientRows() []ambientSettingRow {
 	surfaces := []string{"both", "sidebar", "home", "splash", "off"}
 	fpsSteps := []int{10, 15, 30, 45, 60}
 	fmtSeconds := []float64{1.0, 2.5, 4.0, 6.0}
-	renders := []string{"auto", "halfblock", "braille", "ascii"}
+	renders := []string{"auto", "halfblock", "braille", "ascii", "quadrant"}
 	cycleStr := func(cur string, dir int, options []string) string {
 		i := 0
 		for j, o := range options {

@@ -10,12 +10,13 @@ import (
 //	halfblock: w   × h*2   (two vertical subcells per terminal cell)
 //	braille:   w*2 × h*4   (2×4 dots per terminal cell)
 //	ascii:     w   × h
+//	quadrant:  w*2 × h*2   (2×2 subcells per terminal cell, square pixels)
 //
 // Internally every frame renders into a supersampled float pixel raster
 // (fbuf, 2x per axis) which is box-downsampled before output; each output
-// cell then encodes two vertical subcells (halfblock), 2×4 dots (braille)
-// or a luminance glyph (ascii). Colors are theme roles or blends; scenes
-// never invent colors.
+// cell then encodes two vertical subcells (halfblock), 2×4 dots (braille),
+// a luminance glyph (ascii) or 2×2 clustered subcells (quadrant). Colors
+// are theme roles or blends; scenes never invent colors.
 //
 // Layers: scenes wrap bounded elements in beginLayer/endLayer with a tag.
 // Every painted subcell records the tag of the layer that painted it last.
@@ -72,6 +73,8 @@ func newBuffer(mode string, w, h int, p *paletteModel) *buffer {
 		sh = h * 2
 	case ModeBraille:
 		sw, sh = w*2, h*4
+	case ModeQuadrant:
+		sw, sh = w*2, h*2
 	}
 	if sw < 1 {
 		sw = 1
@@ -379,6 +382,8 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 	}
 	out := make([]Line, 0, h)
 	switch b.mode {
+	case ModeQuadrant:
+		out = emitQuadrant(px, ink, w, h, p.hexAt(p.base), emitOpts{limited: b.limited, dither: b.dither})
 	case ModeHalfblock:
 		out = Raster{W: b.sw, H: b.sh, Pix: px}.emitHalfblock(p.hexAt(p.base), emitOpts{limited: b.limited, dither: b.dither})
 	case ModeBraille:

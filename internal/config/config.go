@@ -139,7 +139,7 @@ type UIConfig struct {
 	// mouse event). "pause" skips the 4 FPS stage. "off" never throttles.
 	// Focus mode and the splash are exempt while the timer runs.
 	AmbientIdle string `yaml:"ambient_idle"`
-	// AmbientRender: auto | halfblock | braille | ascii.
+	// AmbientRender: auto | halfblock | braille | ascii | quadrant.
 	AmbientRender string `yaml:"ambient_render"`
 	// AmbientDither: on | off (default on). Ordered dithering only ever
 	// applies where a limited palette forces it — on truecolor terminals the
@@ -330,12 +330,12 @@ func Load() (Config, error) {
 		return cfg, fmt.Errorf("config %s: week_start must be monday|sunday, got %q", Path(), cfg.WeekStart)
 	}
 	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.AmbientRender)); r {
-	case "auto", "halfblock", "braille", "ascii":
+	case "auto", "halfblock", "braille", "ascii", "quadrant":
 		cfg.UI.AmbientRender = r
 	case "":
 		cfg.UI.AmbientRender = "auto"
 	default:
-		return cfg, fmt.Errorf("config %s: ui.ambient_render must be auto|halfblock|braille|ascii, got %q", Path(), cfg.UI.AmbientRender)
+		return cfg, fmt.Errorf("config %s: ui.ambient_render must be auto|halfblock|braille|ascii|quadrant, got %q", Path(), cfg.UI.AmbientRender)
 	}
 	if cfg.UI.SplashSeconds <= 0 || cfg.UI.SplashSeconds > 30 {
 		return cfg, fmt.Errorf("config %s: ui.splash_seconds must be in (0, 30], got %v", Path(), cfg.UI.SplashSeconds)

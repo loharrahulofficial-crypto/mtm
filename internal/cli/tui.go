@@ -176,7 +176,7 @@ func newTuiCmd() *cobra.Command {
 	cmd.Flags().StringVar(&sceneName, "scene", "", "dump an ambient scene frame instead of a TUI view: night|bonsai|ocean|rain|koi|snow|campfire")
 	cmd.Flags().DurationVar(&frameT, "t", 12*time.Second, "animation time for the scene frame")
 	cmd.Flags().Float64Var(&progress, "progress", 0.5, "scene progress 0..1 (pomodoro / tide / growth / clearing)")
-	cmd.Flags().StringVar(&renderMode, "render", "halfblock", "ambient render mode: auto|halfblock|braille|ascii")
+	cmd.Flags().StringVar(&renderMode, "render", "halfblock", "ambient render mode: auto|halfblock|braille|ascii|quadrant")
 	cmd.Flags().StringVar(&phase, "phase", "work", "scene phase: work|break|idle")
 	cmd.Flags().StringVar(&ppmPath, "ppm", "", "also write the frame as a binary PPM image to FILE (tool-only)")
 	cmd.Flags().IntVar(&ppmScale, "ppm-scale", 6, "PPM pixel scale per subcell (1..20)")

@@ -55,6 +55,10 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   24-bit color; `ui.ambient_dither` ordered-dithers between the two
   nearest palette entries only. `mtm doctor` reports the detected
   terminal, color mode and override source (`terminal` check)
+- **`ui.ambient_render`** gains `quadrant`: 2×2 subcells per cell (square
+  pixels, 4× halfblock's subcell count), emitted with the 16 Unicode
+  quadrant/half-block glyphs; unpainted cells are skipped like ascii/braille.
+  `auto` still resolves to `halfblock`; existing modes are byte-identical
 - **`ui.ambient*` config**: `ambient`, `scene` (`auto` picks by local hour,
   `random` per launch), `splash_seconds`, `reward_animation`,
   `ambient_fps` (default 60, max 60), `ambient_idle`
@@ -62,7 +66,7 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   30 s without input and pauses on a still frame after 5 minutes, resumes
   instantly on any key or mouse event; Focus exempt while the timer runs),
   `ambient_render`
-  (`auto` | `halfblock` | `braille` | `ascii`), `rain_lightning` (default off)
+  (`auto` | `halfblock` | `braille` | `ascii` | `quadrant`), `rain_lightning` (default off)
 - The ambient render is a little more cinematic: supersampling 3x at full
   quality (adaptive tier drops to 2, then 1), and scenes now mix colors in
   linear light instead of sRGB, so skies glow and sunsets keep hue.

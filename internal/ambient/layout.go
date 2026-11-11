@@ -23,7 +23,7 @@ func layoutFor(w, h int) sceneLayout {
 }
 
 // layoutForSub builds the layout from the actual sub-cell raster dims so
-// every mode (halfblock | braille | ascii) composes correctly.
+// every mode (halfblock | braille | ascii | quadrant) composes correctly.
 func layoutForSub(W, H float64) sceneLayout {
 	m := math.Min(W, H)
 	ar := W / H

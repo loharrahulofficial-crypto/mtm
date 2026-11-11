@@ -340,7 +340,8 @@ ui:
                                 # tab switches cross-fade out of the base over
                                 # ~220ms (skipped with reduced motion)
   ambient_fps: 60               # animation cap (max 60)
-  ambient_render: auto          # auto | halfblock (▀▄ 2x vertical) | braille | ascii
+  ambient_render: auto          # auto | halfblock (▀▄ 2x vertical) | braille | ascii |
+                                # quadrant (2x2 subcells, square pixels)
   rain_lightning: false         # rare lightning in the rain scene
   truecolor: auto               # auto | on | off — 24-bit color; auto =
                                 # truecolor unless the terminal shows

@@ -90,11 +90,12 @@ const (
 	ModeHalfblock = "halfblock"
 	ModeBraille   = "braille"
 	ModeASCII     = "ascii"
+	ModeQuadrant  = "quadrant"
 )
 
 func resolveMode(m string) string {
 	switch m {
-	case ModeHalfblock, ModeBraille, ModeASCII:
+	case ModeHalfblock, ModeBraille, ModeASCII, ModeQuadrant:
 		return m
 	default:
 		return ModeHalfblock // auto → halfblock when we can't probe the terminal
