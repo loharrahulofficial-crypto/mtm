@@ -7,6 +7,8 @@ import (
 )
 
 // crossfade_test.go — §4.3: endpoints exact, midpoint is the per-cell mean.
+// The midpoint emits '▀' always (transitions never emit █), with the
+// blended top in fg and blended bottom in bg.
 
 func TestCrossfadeEndpointsExact(t *testing.T) {
 	s := New("night", ModeHalfblock)
@@ -45,7 +47,7 @@ func TestCrossfadeMidpointIsCellMean(t *testing.T) {
 	a := mk("#000000", "#000000")
 	b := mk("#ffffff", "#ffffff")
 	got := Crossfade(a, b, 0.5)
-	want := "\x1b[38;2;128;128;128m\x1b[48;2;128;128;128m█\x1b[0m"
+	want := "\x1b[38;2;128;128;128m\x1b[48;2;128;128;128m▀\x1b[0m"
 	if len(got) != 1 || got[0] != want {
 		t.Fatalf("midpoint = %q, want %q", got, want)
 	}

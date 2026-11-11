@@ -33,6 +33,7 @@ type buffer struct {
 	palette  *paletteModel
 	bytes    int
 	dither   bool
+	limited  bool // quantize to xterm-256 (nearest by perceptual distance)
 }
 
 // layerRegion records the intended bounding rect of one painted layer.
@@ -341,58 +342,10 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 	for i := range px {
 		px[i] = p.clampHull(px[i])
 	}
-	if b.dither {
-		for y := 0; y < b.sh; y++ {
-			for x := 0; x < b.sw; x++ {
-				px[y*b.sw+x] = ditherQuantize(px[y*b.sw+x], x, y)
-			}
-		}
-	}
 	out := make([]Line, 0, h)
 	switch b.mode {
 	case ModeHalfblock:
-		br, bgc, bb := hexToRGB(p.hexAt(p.base))
-		baseKey := uint32(br)<<16 | uint32(bgc)<<8 | uint32(bb)
-		lineBuf := make([]byte, 0, w*18)
-		for ty := 0; ty < h; ty++ {
-			lineBuf = lineBuf[:0]
-			curFG, curBG := uint32(0), uint32(0)
-			haveFG, haveBG := false, false
-			for tx := 0; tx < w; tx++ {
-				top := px[(ty*2)*b.sw+tx]
-				bot := px[(ty*2+1)*b.sw+tx]
-				topKey, tr, tg, tb := tripack(top)
-				botKey, dr, dg, db := tripack(bot)
-				var fgKey, bgKey uint32
-				var fr, fg, fb, br2, bg2, bb2 uint8
-				var glyph rune
-				switch {
-				case baseNear(p, top) && baseNear(p, bot):
-					fgKey, fr, fg, fb = baseKey, br, bgc, bb
-					bgKey, br2, bg2, bb2 = baseKey, br, bgc, bb
-					glyph = ' '
-				case topKey == botKey:
-					fgKey, fr, fg, fb = topKey, tr, tg, tb
-					bgKey, br2, bg2, bb2 = baseKey, br, bgc, bb
-					glyph = '█'
-				default:
-					fgKey, fr, fg, fb = topKey, tr, tg, tb
-					bgKey, br2, bg2, bb2 = botKey, dr, dg, db
-					glyph = '▀'
-				}
-				if !haveFG || curFG != fgKey {
-					lineBuf = appendSGR(lineBuf, true, fr, fg, fb)
-					curFG, haveFG = fgKey, true
-				}
-				if !haveBG || curBG != bgKey {
-					lineBuf = appendSGR(lineBuf, false, br2, bg2, bb2)
-					curBG, haveBG = bgKey, true
-				}
-				lineBuf = utf8.AppendRune(lineBuf, glyph)
-			}
-			lineBuf = append(lineBuf, "\x1b[0m"...)
-			out = append(out, string(lineBuf))
-		}
+		out = Raster{W: b.sw, H: b.sh, Pix: px}.emitHalfblock(p.hexAt(p.base), emitOpts{limited: b.limited, dither: b.dither})
 	case ModeBraille:
 		bbuf := make([]byte, 0, w*14)
 		for ty := 0; ty < h; ty++ {
@@ -400,7 +353,7 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 			for tx := 0; tx < w; tx++ {
 				bits := 0
 				bestLum := -1.0
-				var bestRGB rgbPix
+				var bestRGB RGBPix
 				for dy := 0; dy < 4; dy++ {
 					for dx := 0; dx < 2; dx++ {
 						i2 := (ty*4+dy)*b.sw + tx*2 + dx
@@ -411,7 +364,7 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 						bits |= brailleDot(dx, dy)
 						if l := inkLum(c); l > bestLum {
 							bestLum = l
-							bestRGB = rgbPix{quantize(c.r), quantize(c.g), quantize(c.b)}
+							bestRGB = RGBPix{quantize(c.r), quantize(c.g), quantize(c.b)}
 						}
 					}
 				}
@@ -419,7 +372,7 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 					bbuf = append(bbuf, ' ')
 					continue
 				}
-				bbuf = appendSGR(bbuf, true, bestRGB.r, bestRGB.g, bestRGB.b)
+				bbuf = appendSGR(bbuf, true, bestRGB.R, bestRGB.G, bestRGB.B)
 				bbuf = utf8.AppendRune(bbuf, rune(0x2800+bits))
 			}
 			bbuf = append(bbuf, "\x1b[0m"...)

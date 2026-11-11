@@ -42,28 +42,34 @@ func TestGradientVerticalNoBanding(t *testing.T) {
 func TestDitherOnlyOnLimitedPalette(t *testing.T) {
 	st := stateFor(0.5, PhaseWork)
 	s := New("night", ModeHalfblock)
-	st.Dither = false
+	pl := st
+	pl.PaletteLimited = true
 	plain := strings.Join(s.Frame(12*time.Second, 60, 18, st), "\n")
-	st.Dither = true
-	dithered := strings.Join(s.Frame(12*time.Second, 60, 18, st), "\n")
-	if plain == dithered {
-		t.Fatal("dither had no effect")
+	limited := strings.Join(s.Frame(12*time.Second, 60, 18, pl), "\n")
+	if plain == limited {
+		t.Fatal("limited-palette output identical to truecolor output")
 	}
-	// every quantized channel must lie on a cube level
-	for _, want := range []string{"38;2;0;", "38;2;95;", "38;2;135;", "38;2;175;", "38;2;215;", "38;2;255;"} {
-		if strings.Contains(dithered, want) {
-			return // at least one cube-aligned quantized color present
-		}
+	if strings.Contains(limited, "38;2;") {
+		t.Fatal("limited-palette output contains 24-bit sequences")
 	}
-	t.Fatal("no cube-level colors found in dithered output")
+	if !strings.Contains(limited, "38;5;") {
+		t.Fatal("limited-palette output contains no 256-color sequences")
+	}
 }
 
-func TestXtermCubeLevels(t *testing.T) {
-	for v := 0.0; v <= 1.0001; v += 0.01 {
-		got := ditherChannel(v, 0, 0)
-		if !xtermValid256(got) {
-			t.Fatalf("ditherChannel(%.2f) = %v, not on the cube", v, got)
-		}
+func TestOrderedDitherBetweenNearestPaletteEntries(t *testing.T) {
+	st := stateFor(0.5, PhaseWork)
+	s := New("night", ModeHalfblock)
+	st.PaletteLimited = true
+	st.Dither = false
+	nearest := strings.Join(s.Frame(12*time.Second, 60, 18, st), "\n")
+	st.Dither = true
+	dithered := strings.Join(s.Frame(12*time.Second, 60, 18, st), "\n")
+	if nearest == dithered {
+		t.Fatal("ordered dither had no effect on limited-palette output")
+	}
+	if strings.Contains(dithered, "38;2;") {
+		t.Fatal("ordered dither emitted 24-bit sequences")
 	}
 }
 

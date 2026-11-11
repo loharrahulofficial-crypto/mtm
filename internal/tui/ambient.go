@@ -258,17 +258,7 @@ func (m Model) sceneState() ambient.SceneState {
 	}
 	pal := m.scenePalette()
 	if k := 1 - m.sceneIntensity(); k > 0.004 {
-		blend := func(c string) string { return ambient.BlendHex(c, pal.Base, k*0.62) }
-		pal = ambient.Palette{
-			Base: pal.Base, Surface: blend(pal.Surface), SurfaceRaised: blend(pal.SurfaceRaised),
-			SurfaceStrong: blend(pal.SurfaceStrong), Border: blend(pal.Border), Text: blend(pal.Text),
-			BrightText: blend(pal.BrightText), MutedSoft: blend(pal.MutedSoft),
-			Accent: blend(pal.Accent), AccentSoft: blend(pal.AccentSoft), Success: blend(pal.Success),
-			Warning: blend(pal.Warning), Danger: blend(pal.Danger),
-			HeatWarm: blend(pal.HeatWarm), HeatHot: blend(pal.HeatHot), HeatOverdue: blend(pal.HeatOverdue),
-			Blue: blend(pal.Blue), Cyan: blend(pal.Cyan), Yellow: blend(pal.Yellow),
-			Magenta: blend(pal.Magenta), Orange: blend(pal.Orange), Brown: blend(pal.Brown),
-		}
+		pal = ambient.FadePalette(pal, k*0.62)
 	}
 	return ambient.SceneState{
 		Progress:      progress,
@@ -322,14 +312,16 @@ func (m *Model) sceneFrameWith(t time.Duration, w, h int, adjust func(ambient.Pa
 	}
 	stOld := st
 	stOld.Seed = m.ambientSeed
-	oldFrame := m.scenePrev.Frame(t, w, h, stOld)
-	newFrame := cur.Frame(t, w, h, st)
+	oldR := m.scenePrev.FramePixels(t, w, h, stOld)
+	newR := cur.FramePixels(t, w, h, st)
 	prog := float64(m.clock.Now().Sub(m.crossfadeStart)) / float64(m.crossfadeDur)
 	if prog >= 1 {
 		m.scenePrev = nil
-		return newFrame
+		return newR.EmitTheme(st, false)
 	}
-	return ambient.Crossfade(oldFrame, newFrame, prog)
+	e := ambient.EaseInOutCubic(prog)
+	// blend in pixel space, quantize and emit once
+	return ambient.BlendRasters(oldR, newR, e).EmitTheme(st, false)
 }
 
 // sceneRewardFrame renders the celebration overlay frame.
@@ -553,8 +545,14 @@ func (m Model) renderSplash() string {
 		sceneT = 0 // the scene is a still; idle breathing is the only motion
 	}
 
-	// scene elements drift in behind the fade
-	sceneLines := m.sceneFrame(sceneT, w, h, true) // dimmed: wordmark pops
+	// scene elements drift in behind the fade (head fade is a palette
+	// ramp, not a post-process; overlays composite afterwards)
+	headK := 1.0
+	if !m.reducedMotionActive() && t < 0.55 {
+		headK = ambient.EaseOutCubic(t / 0.55)
+	}
+	sceneLines := m.sceneFrameFaded(sceneT, t, w, h, headK)
+
 	out := append([]string{}, sceneLines...)
 
 	// wordmark letters rise one by one with a glow pulse
@@ -577,23 +575,31 @@ func (m Model) renderSplash() string {
 		applyAt(out, w, h-2, centerLine(w, "press any key to skip"), lipgloss.NewStyle().Foreground(lipgloss.Color(blend)), m.palette.Base)
 	}
 
-	lines := out
+	return strings.Join(out, "\n")
+}
 
-	// reduced motion: a static splash — no fade, no dissolve, no choreography
-	if m.reducedMotionActive() {
-		return strings.Join(lines, "\n")
+// sceneFrameFaded renders the splash scene through the palette-intensity
+// head fade (headK 0 = plain base-colored frame, 1 = full color) and the
+// noise dissolve tail. Overlays are composited by the caller afterwards,
+// so they stay crisp.
+func (m *Model) sceneFrameFaded(sceneT time.Duration, tSec float64, w, h int, headK float64) []string {
+	st := m.sceneState()
+	st.Palette = m.dimScenePalette()
+	if headK < 1 {
+		st.Palette = ambient.FadePalette(st.Palette, 1-headK)
 	}
-	// head fade-in from the background (0.0–0.55s)
-	if t < 0.55 {
-		black := ambient.BlackFrame(lines)
-		lines = ambient.Crossfade(black, lines, ambient.EaseOutCubic(t/0.55))
+	r := m.currentScene().FramePixels(sceneT, w, h, st)
+	total := m.splashTotal.Seconds()
+	if total < 1.8 {
+		total = 3.0
 	}
 	// tail dissolve (last 0.45s)
-	if t > total-0.45 {
-		prog := clampUnit((t-(total-0.45))/0.45, 0, 1)
-		lines = ambient.Dissolve(lines, ambient.EaseInOutCubic(prog))
+	if !m.reducedMotionActive() && tSec > total-0.45 {
+		prog := clampUnit((tSec-(total-0.45))/0.45, 0, 1)
+		r = ambient.DissolveRaster(r, ambient.EaseInOutCubic(prog), st.Palette.Base)
 	}
-	return strings.Join(lines, "\n")
+	// transitions always emit '▀' (no '█' glyph pops mid-fade)
+	return r.EmitHalfblock(st.Palette.Base, true, st.PaletteLimited, st.Dither)
 }
 
 // wordmarkLetters paints the rising letters of the wordmark into lines.

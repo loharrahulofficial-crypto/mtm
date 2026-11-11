@@ -13,6 +13,35 @@ type paintable interface {
 	Name() string
 }
 
+// renderRaster renders one frame into the downsampled pixel raster
+// without emitting lines (transitions blend this, then quantize and emit).
+func renderRaster(s paintable, t time.Duration, w, h int, state SceneState) Raster {
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	if state.ReducedMotion {
+		if t > 0 {
+			t = time.Duration(float64(t) * 0.12)
+		}
+	}
+	p := paletteFor(state.Palette)
+	b := newBuffer(ModeHalfblock, w, h, p)
+	s.paint(b, p, t, w, h, state)
+	b.palette = p
+	px := b.fb.downsample()
+	ink := b.fb.downsampleInk()
+	for i := range px {
+		px[i] = p.clampHull(px[i])
+	}
+	out := Raster{W: b.sw, H: b.sh, Pix: append([]fpix{}, px...)}
+	releaseDownsample(px, ink)
+	b.fb.release()
+	return out
+}
+
 // newFrameBuffer paints one frame and returns the buffer for inspection
 // (the golden/invariant tests read the raster, not just the lines).
 // ReducedMotion slows every scene to a crawl (idle breathing only).
@@ -34,6 +63,7 @@ func newFrameBuffer(s paintable, mode string, t time.Duration, w, h int, state S
 	p := paletteFor(state.Palette)
 	b := newBuffer(mode, w, h, p)
 	b.dither = state.Dither
+	b.limited = state.PaletteLimited
 	s.paint(b, p, t, w, h, state)
 	b.palette = p
 	return b

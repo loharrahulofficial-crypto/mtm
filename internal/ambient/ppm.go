@@ -11,26 +11,27 @@ import (
 // an image library — zero dependencies, trivially convertible
 // (pnm2png, ImageMagick, ...).
 
-type rgbPix struct{ r, g, b uint8 }
+// RGBPix is one 8-bit RGB pixel (DecodeFrame output; row-major, w×h).
+type RGBPix struct{ R, G, B uint8 }
 
 // DecodeFrame converts rendered lines into a pixel grid for PPM output.
 // Grid size: width x 2*height cells (vertical doubling, halfblock
 // geometry). ' ' cells inherit the current SGR color (like a terminal);
 // braille/ascii cells approximate the glyph with a density blend.
-func DecodeFrame(lines []Line) (int, int, []rgbPix) {
+func DecodeFrame(lines []Line) (int, int, []RGBPix) {
 	h := len(lines)
 	if h == 0 {
 		return 0, 0, nil
 	}
 	type cell struct {
-		fg, bg rgbPix
+		fg, bg RGBPix
 		ch     rune
 	}
 	rows := make([][]cell, 0, h)
 	for _, line := range lines {
 		row := []cell{}
 		// default terminal colors: white on near-black
-		fg, bg := rgbPix{255, 255, 255}, rgbPix{12, 25, 30}
+		fg, bg := RGBPix{255, 255, 255}, RGBPix{12, 25, 30}
 		rest := line
 		for len(rest) > 0 {
 			if strings.HasPrefix(rest, "\x1b[") {
@@ -60,7 +61,7 @@ func DecodeFrame(lines []Line) (int, int, []rgbPix) {
 		}
 	}
 	pw, ph := w, h*2
-	px := make([]rgbPix, pw*ph)
+	px := make([]RGBPix, pw*ph)
 	for y, row := range rows {
 		for x, c := range row {
 			switch c.ch {
@@ -88,7 +89,7 @@ func DecodeFrame(lines []Line) (int, int, []rgbPix) {
 
 // inkCell approximates a braille/ascii glyph with a density blend between
 // background and ink color.
-func inkCell(ch rune, fg, bg rgbPix) (rgbPix, rgbPix) {
+func inkCell(ch rune, fg, bg RGBPix) (RGBPix, RGBPix) {
 	density := 1.0
 	switch {
 	case ch >= 0x2800 && ch <= 0x28FF:
@@ -118,11 +119,11 @@ func inkCell(ch rune, fg, bg rgbPix) (rgbPix, rgbPix) {
 	case ch == '▇' || ch == '█' || ch == '◆' || ch == '●' || ch == '✦':
 		density = 1.0
 	}
-	mix := func(a, b rgbPix, t float64) rgbPix {
-		return rgbPix{
-			uint8(float64(a.r)*(1-t) + float64(b.r)*t),
-			uint8(float64(a.g)*(1-t) + float64(b.g)*t),
-			uint8(float64(a.b)*(1-t) + float64(b.b)*t),
+	mix := func(a, b RGBPix, t float64) RGBPix {
+		return RGBPix{
+			uint8(float64(a.R)*(1-t) + float64(b.R)*t),
+			uint8(float64(a.G)*(1-t) + float64(b.G)*t),
+			uint8(float64(a.B)*(1-t) + float64(b.B)*t),
 		}
 	}
 	return mix(bg, fg, density), mix(bg, fg, density)
@@ -130,20 +131,20 @@ func inkCell(ch rune, fg, bg rgbPix) (rgbPix, rgbPix) {
 
 // applySGR parses one SGR parameter list and updates the current
 // foreground/background. Only 38/48;2 (and resets) are tracked.
-func applySGR(fg, bg rgbPix, params string) (rgbPix, rgbPix) {
+func applySGR(fg, bg RGBPix, params string) (RGBPix, RGBPix) {
 	parts := strings.Split(strings.TrimSuffix(params, "m"), ";")
 	i := 0
 	for i < len(parts) {
 		p := strings.TrimSpace(parts[i])
 		switch p {
 		case "", "0", "00", "000":
-			return rgbPix{255, 255, 255}, rgbPix{12, 25, 30}
+			return RGBPix{255, 255, 255}, RGBPix{12, 25, 30}
 		case "39":
-			fg = rgbPix{255, 255, 255}
+			fg = RGBPix{255, 255, 255}
 			i++
 			continue
 		case "49":
-			bg = rgbPix{12, 25, 30}
+			bg = RGBPix{12, 25, 30}
 			i++
 			continue
 		case "38", "48":
@@ -156,7 +157,7 @@ func applySGR(fg, bg rgbPix, params string) (rgbPix, rgbPix) {
 				g, ok2 := atoiSmall(parts[i+3])
 				b, ok3 := atoiSmall(parts[i+4])
 				if ok1 && ok2 && ok3 {
-					*target = rgbPix{uint8(r), uint8(g), uint8(b)}
+					*target = RGBPix{uint8(r), uint8(g), uint8(b)}
 				}
 				i += 5
 				continue
@@ -216,7 +217,7 @@ func WritePPM(path string, lines []Line, scale int) error {
 		for x := 0; x < pw; x++ {
 			sx := x / scale
 			c := px[sy*w+sx]
-			buf = append(buf, c.r, c.g, c.b)
+			buf = append(buf, c.R, c.G, c.B)
 		}
 	}
 	return os.WriteFile(path, buf, 0o644)

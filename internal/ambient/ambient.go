@@ -33,7 +33,10 @@ type SceneState struct {
 	Seed      int64 // per-launch or per-test seed; 0 = fixed default
 	Palette   Palette
 	Lightning bool // rain scene option; off by default
-	Dither    bool // quantize output to xterm-256 with ordered dithering
+	Dither    bool // ordered dithering between the two nearest xterm-256 entries
+	// PaletteLimited: emit 38;5;N via nearest xterm-256 (for terminals
+	// without truecolor). Never emits 24-bit color when set.
+	PaletteLimited bool
 	// ReducedMotion: slow crawl, low-amplitude stills (idle breathing only).
 	ReducedMotion bool
 }
@@ -74,6 +77,11 @@ type Scene interface {
 	Frame(t time.Duration, w, h int, state SceneState) []Line
 	// Reward renders the 1.5s celebration at its current t (0..1.5s).
 	Reward(t time.Duration, w, h int, state SceneState) []Line
+	// FramePixels returns the downsampled pixel raster of the frame
+	// (w × 2h pixels for halfblock), clamped to the theme hull but not
+	// yet dithered or quantized. Transitions blend these rasters and
+	// emit once.
+	FramePixels(t time.Duration, w, h int, state SceneState) Raster
 }
 
 // Render modes select the output raster.

@@ -24,6 +24,10 @@ func (s *bonsaiScene) Reward(t time.Duration, w, h int, state SceneState) []Line
 	return renderFrame(s, s.mode, t, w, h, state, true)
 }
 
+func (s *bonsaiScene) FramePixels(t time.Duration, w, h int, state SceneState) Raster {
+	return renderRaster(s, t, w, h, state)
+}
+
 // branchSeg is one tapered piece of a branch polyline.
 type branchSeg struct {
 	x0, y0, x1, y1 float64

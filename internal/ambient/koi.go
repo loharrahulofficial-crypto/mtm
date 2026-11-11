@@ -22,6 +22,10 @@ func (s *koiScene) Reward(t time.Duration, w, h int, state SceneState) []Line {
 	return renderFrame(s, s.mode, t, w, h, state, true)
 }
 
+func (s *koiScene) FramePixels(t time.Duration, w, h int, state SceneState) Raster {
+	return renderRaster(s, t, w, h, state)
+}
+
 func (s *koiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))

@@ -194,6 +194,28 @@ func parseHex(s string) (rgb, bool) {
 	return rgb{uint8(v >> 16), uint8(v >> 8), uint8(v)}, true
 }
 
+// FadePalette blends every non-base role toward Base on the intensity
+// ramp (amount 0 = unchanged, 1 = all Base). This is the same mechanism
+// as the pomodoro phase fade — a whole-palette dim, used by the splash
+// head fade instead of a post-process on strings.
+func FadePalette(p Palette, amount float64) Palette {
+	if amount <= 0 {
+		return p
+	}
+	amount = clampf(amount, 0, 1)
+	q := func(c string) string { return blendHex(c, p.Base, amount) }
+	return Palette{
+		Base: p.Base, Surface: q(p.Surface), SurfaceRaised: q(p.SurfaceRaised),
+		SurfaceStrong: q(p.SurfaceStrong), Border: q(p.Border), Text: q(p.Text),
+		BrightText: q(p.BrightText), MutedSoft: q(p.MutedSoft),
+		Accent: q(p.Accent), AccentSoft: q(p.AccentSoft), Success: q(p.Success),
+		Warning: q(p.Warning), Danger: q(p.Danger),
+		HeatWarm: q(p.HeatWarm), HeatHot: q(p.HeatHot), HeatOverdue: q(p.HeatOverdue),
+		Blue: q(p.Blue), Cyan: q(p.Cyan), Yellow: q(p.Yellow),
+		Magenta: q(p.Magenta), Orange: q(p.Orange), Brown: q(p.Brown),
+	}
+}
+
 // mixIndex returns the table index of blend(role, base, t), quantizing t
 // to the prebuilt ladder so the palette stays finite and deterministic.
 func mixIndex(p *paletteModel, roleIdx, baseIdx int, t float64) int {

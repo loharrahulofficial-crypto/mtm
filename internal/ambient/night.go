@@ -25,6 +25,10 @@ func (s *nightScene) Reward(t time.Duration, w, h int, state SceneState) []Line 
 	return renderFrame(s, s.mode, t, w, h, state, true)
 }
 
+func (s *nightScene) FramePixels(t time.Duration, w, h int, state SceneState) Raster {
+	return renderRaster(s, t, w, h, state)
+}
+
 // starv is one deterministic star with parallax drift.
 type starv struct {
 	x, y  float64
