@@ -9,7 +9,8 @@ import (
 // pxbuf.go — the supersampled float pixel buffer every scene renders into.
 //
 // The grid is the sub-cell raster of the current mode (halfblock: w x h*2,
-// braille: w*2 x h*4, quadrant: w*2 x h*2, ascii: w x h), rasterized at 2x per axis. Edges are
+// braille: w*2 x h*4, quadrant: w*2 x h*2, sextant: w*2 x h*3, ascii: w x h),
+// rasterized at 2x per axis. Edges are
 // coverage-based (signed-distance falloff), so shapes anti-alias and
 // sub-cell motion is smooth. Colors are premultiplied float RGBA. The base
 // background is painted opaque before the scene runs — there are no

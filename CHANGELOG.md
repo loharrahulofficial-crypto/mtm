@@ -59,6 +59,13 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   pixels, 4× halfblock's subcell count), emitted with the 16 Unicode
   quadrant/half-block glyphs; unpainted cells are skipped like ascii/braille.
   `auto` still resolves to `halfblock`; existing modes are byte-identical
+- **`ui.ambient_render`** gains `sextant`: 2×3 subcells per cell (2× the
+  subcell count of quadrant), emitted with the 60 Unicode 15 sextant
+  mosaics (U+1FB00..U+1FB3B) plus '▌'/'▐' (column mosaics Unicode does not
+  encode), '█' and ' '. Same luminance-split + SGR discipline as the other
+  sub-cell renderers; transitions decode sextant frames at 2x width × 3x
+  height so the structure survives; `--render sextant` and the `:ambient`
+  picker expose it
 - **`ui.ambient*` config**: `ambient`, `scene` (`auto` picks by local hour,
   `random` per launch), `splash_seconds`, `reward_animation`,
   `ambient_fps` (default 60, max 60), `ambient_idle`
@@ -66,7 +73,7 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   30 s without input and pauses on a still frame after 5 minutes, resumes
   instantly on any key or mouse event; Focus exempt while the timer runs),
   `ambient_render`
-  (`auto` | `halfblock` | `braille` | `ascii` | `quadrant`), `rain_lightning` (default off)
+  (`auto` | `halfblock` | `braille` | `ascii` | `quadrant` | `sextant`), `rain_lightning` (default off)
 - The ambient render is a little more cinematic: supersampling 3x at full
   quality (adaptive tier drops to 2, then 1), and scenes now mix colors in
   linear light instead of sRGB, so skies glow and sunsets keep hue.

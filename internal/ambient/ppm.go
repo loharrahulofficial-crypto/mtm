@@ -36,8 +36,9 @@ var quadrantDistinctive = map[rune]bool{
 // DecodeFrame converts rendered lines into a pixel grid for PPM output.
 // Grid size: width x 2*height cells (vertical doubling, halfblock
 // geometry). Frames containing quadrant glyphs decode at width x 2 so
-// their 2x2 structure survives; frames without them stay 1 column per
-// cell. ' ' cells inherit the current SGR color (like a terminal);
+// their 2x2 structure survives; frames containing sextant glyphs decode
+// at width x 2 and height x 3 so their 2x3 structure survives. ' '
+// cells inherit the current SGR color (like a terminal);
 // braille/ascii cells approximate the glyph with a density blend.
 func DecodeFrame(lines []Line) (int, int, []RGBPix) {
 	h := len(lines)
@@ -82,19 +83,57 @@ func DecodeFrame(lines []Line) (int, int, []RGBPix) {
 		}
 	}
 	sx := 1
+	sy := 2 // subcell rows per cell (halfblock geometry)
 	for _, row := range rows {
 		for _, c := range row {
 			if quadrantDistinctive[c.ch] {
 				sx = 2
-				break
+				sy = maxInt(sy, 2)
+			}
+			if sextantDistinctive[c.ch] {
+				sx = 2
+				sy = 3 // sextant geometry wins over quadrant/halfblock
 			}
 		}
 	}
-	pw, ph := w*sx, h*2
+	pw, ph := w*sx, h*sy
 	px := make([]RGBPix, pw*ph)
 	for y, row := range rows {
 		for x, c := range row {
 			x0 := x * sx
+			if sy == 3 {
+				if mask, ok := sextantGlyphMask[c.ch]; ok {
+					pick := func(b uint8) RGBPix {
+						if b == 1 {
+							return c.fg
+						}
+						return c.bg
+					}
+					// TL TR / ML MR / BL BR
+					px[(3*y)*pw+x0] = pick(mask & 1)            // TL
+					px[(3*y)*pw+x0+1] = pick((mask >> 1) & 1)   // TR
+					px[(3*y+1)*pw+x0] = pick((mask >> 2) & 1)   // ML
+					px[(3*y+1)*pw+x0+1] = pick((mask >> 3) & 1) // MR
+					px[(3*y+2)*pw+x0] = pick((mask >> 4) & 1)   // BL
+					px[(3*y+2)*pw+x0+1] = pick((mask >> 5) & 1) // BR
+					continue
+				}
+				var top, bottom RGBPix
+				switch c.ch {
+				case '█':
+					top, bottom = c.fg, c.fg
+				case ' ':
+					top, bottom = c.bg, c.bg
+				default:
+					top, bottom = inkCell(c.ch, c.fg, c.bg)
+				}
+				for dx := 0; dx < sx; dx++ {
+					px[(3*y)*pw+x0+dx] = top
+					px[(3*y+1)*pw+x0+dx] = top
+					px[(3*y+2)*pw+x0+dx] = bottom
+				}
+				continue
+			}
 			if sx == 2 {
 				if mask, ok := quadrantGlyphMask[c.ch]; ok {
 					pick := func(b uint8) RGBPix {

@@ -107,7 +107,8 @@ func DissolveRaster(r Raster, t float64, baseHex string) Raster {
 // rasterFromLines normalizes already-rendered lines into a raster:
 // '▀' is (fg, bg), '▄' is (bg, fg), '█' is (fg, fg), ' ' is (bg, bg);
 // other glyphs become a density blend (ink over background) in both
-// halves. Unset colors default to the frame's base. Grid is w × 2h.
+// halves. Unset colors default to the frame's base. Grid is w×2h —
+// sextant frames decode at w×3h so the 2×3 structure survives.
 func rasterFromLines(lines []Line, baseHex string) Raster {
 	baseF := mustBaseF(baseHex)
 	defHex := func(v string) string {
@@ -128,8 +129,10 @@ func rasterFromLines(lines []Line, baseHex string) Raster {
 	w := 0
 	// A frame holding quadrant glyphs (the ambient sidebar/panel in
 	// quadrant mode) decodes at 2x width so the 2x2 structure survives
-	// the transition instead of washing into fg ink-density.
-	sx := 1
+	// the transition instead of washing into fg ink-density. A frame
+	// holding sextant glyphs decodes at 2x width AND 3x height so the
+	// 2x3 structure survives.
+	sx, sy := 1, 2
 	for _, line := range lines {
 		rest := line
 		for len(rest) > 0 {
@@ -147,6 +150,11 @@ func rasterFromLines(lines []Line, baseHex string) Raster {
 			}
 			if quadrantDistinctive[r] {
 				sx = 2
+				sy = maxInt(sy, 2)
+			}
+			if sextantDistinctive[r] {
+				sx = 2
+				sy = 3
 			}
 			rest = rest[size:]
 		}
@@ -178,7 +186,7 @@ func rasterFromLines(lines []Line, baseHex string) Raster {
 		rows = append(rows, row)
 	}
 	W := w * sx
-	r := Raster{W: W, H: len(rows) * 2, Pix: make([]fpix, W*len(rows)*2)}
+	r := Raster{W: W, H: len(rows) * sy, Pix: make([]fpix, W*len(rows)*sy)}
 	for y, row := range rows {
 		for x := 0; x < w; x++ {
 			var c cell
@@ -196,7 +204,27 @@ func rasterFromLines(lines []Line, baseHex string) Raster {
 				botF = baseF
 			}
 			var top, bot fpix
-			if sx == 2 {
+			if sx == 2 && sy == 3 {
+				gr, _ := decodeRune(c.glyph)
+				if mask, ok := sextantGlyphMask[gr]; ok {
+					// exactly sextant renderer output: TL TR / ML MR / BL BR
+					// from fg-group dots (mask bit 1 = fg).
+					pick := func(bit uint8) fpix {
+						if bit == 1 {
+							return topF
+						}
+						return botF
+					}
+					r.Pix[(3*y)*W+x*2] = pick(mask & 1)
+					r.Pix[(3*y)*W+x*2+1] = pick((mask >> 1) & 1)
+					r.Pix[(3*y+1)*W+x*2] = pick((mask >> 2) & 1)
+					r.Pix[(3*y+1)*W+x*2+1] = pick((mask >> 3) & 1)
+					r.Pix[(3*y+2)*W+x*2] = pick((mask >> 4) & 1)
+					r.Pix[(3*y+2)*W+x*2+1] = pick((mask >> 5) & 1)
+					continue
+				}
+			}
+			if sx == 2 && sy == 2 {
 				gr, _ := decodeRune(c.glyph)
 				if mask, ok := quadrantGlyphMask[gr]; ok {
 					// exactly quadrant renderer output: TL TR / BL BR
@@ -234,8 +262,13 @@ func rasterFromLines(lines []Line, baseHex string) Raster {
 				bot = top
 			}
 			for dx := 0; dx < sx; dx++ {
-				r.Pix[(2*y)*W+x*sx+dx] = top
-				r.Pix[(2*y+1)*W+x*sx+dx] = bot
+				for dy := 0; dy < sy; dy++ {
+					pix := bot
+					if dy < sy-1 {
+						pix = top
+					}
+					r.Pix[(dy+sy*y)*W+x*sx+dx] = pix
+				}
 			}
 		}
 	}

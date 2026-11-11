@@ -26,6 +26,12 @@ func Dissolve(lines []Line, t float64) []Line {
 	}
 	base := baseHexFromLines(lines)
 	r := rasterFromLines(lines, base)
+	// Dissolve re-emits as halfblock (2 subrows per cell); a sextant
+	// frame decodes to 3 subrows — bail to the intact frame instead of
+	// mangling geometry.
+	if r.H != 2*len(lines) {
+		return lines
+	}
 	return DissolveRaster(r, t, base).emitHalfblock(base, emitOpts{pairOnly: true})
 }
 
@@ -117,9 +123,10 @@ func stripEscapes(s string) string {
 	return sb.String()
 }
 
-// Crossfade blends from→to by eased t ∈ [0,1]. Endpoints return the exact
-// source lines. Both frames are normalized to (top, bottom) pixel pairs
-// first, blended per pixel, then quantized and emitted once.
+// Crossfade blends from→to by eased t ∈ [0,1] using per-cell color interpolation.
+// Endpoints return the exact source lines. Instead of pixel-level blending,
+// this approach interpolates colors at the cell level, preserving glyph/layout
+// structure while smoothly transitioning colors.
 func Crossfade(from, to []Line, t float64) []Line {
 	if t <= 0 {
 		return from
@@ -127,9 +134,71 @@ func Crossfade(from, to []Line, t float64) []Line {
 	if t >= 1 {
 		return to
 	}
+
+	// Eased progress (same as original)
 	e := EaseInOutCubic(t)
+
+	// Get base color from 'from' frame (consistent with original)
 	base := baseHexFromLines(from)
+
+	// Create rasters from both frames with the same base color
 	ra := rasterFromLines(from, base)
 	rb := rasterFromLines(to, baseHexFromLines(to))
-	return BlendRasters(ra, rb, e).emitHalfblock(base, emitOpts{pairOnly: true})
+	// The blend re-emits as halfblock, so it only works for halfblock or
+	// quadrant geometry (2 subrows per cell). A sextant frame decodes to
+	// 3 subrows — emit would produce nonsense line counts, so bail to the
+	// exact target. Callers that need blending for sextant frames use the
+	// TUI's per-cell color lerp instead.
+	if ra.H != 2*len(from) || rb.H != 2*len(to) {
+		return to
+	}
+
+	// Ensure both rasters have the same dimensions (fit to 'from' raster)
+	if ra.W != rb.W || ra.H != rb.H {
+		rb = fitRaster(rb, ra.W, ra.H)
+	}
+
+	// Create new raster for result
+	out := Raster{W: ra.W, H: ra.H, Pix: make([]fpix, len(ra.Pix))}
+
+	// For each cell position (ra.H/2 cell rows), interpolate colors between frames
+	cellH := ra.H / 2
+	for ty := 0; ty < cellH; ty++ {
+		for tx := 0; tx < ra.W; tx++ {
+			// Get top and bottom cell colors from 'from' frame
+			top := ra.Pix[(ty*2)*ra.W+tx]
+			bot := ra.Pix[(ty*2+1)*ra.W+tx]
+
+			// Get top and bottom cell colors from 'to' frame
+			topTo := rb.Pix[(ty*2)*ra.W+tx]
+			botTo := rb.Pix[(ty*2+1)*ra.W+tx]
+
+			// Interpolate colors for top cell
+			newTopR := float64(top.r)*float64(1-e) + float64(topTo.r)*float64(e)
+			newTopG := float64(top.g)*float64(1-e) + float64(topTo.g)*float64(e)
+			newTopB := float64(top.b)*float64(1-e) + float64(topTo.b)*float64(e)
+
+			// Interpolate colors for bottom cell
+			newBotR := float64(bot.r)*float64(1-e) + float64(botTo.r)*float64(e)
+			newBotG := float64(bot.g)*float64(1-e) + float64(botTo.g)*float64(e)
+			newBotB := float64(bot.b)*float64(1-e) + float64(botTo.b)*float64(e)
+
+			// Create new fpix with interpolated colors (fpix uses float32 channels)
+			out.Pix[(ty*2)*ra.W+tx] = fpix{
+				r: float32(newTopR),
+				g: float32(newTopG),
+				b: float32(newTopB),
+				a: 1,
+			}
+			out.Pix[(ty*2+1)*ra.W+tx] = fpix{
+				r: float32(newBotR),
+				g: float32(newBotG),
+				b: float32(newBotB),
+				a: 1,
+			}
+		}
+	}
+
+	// Emit the result using the same logic as original
+	return out.emitHalfblock(base, emitOpts{pairOnly: true})
 }
