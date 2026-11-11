@@ -35,7 +35,7 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   scene palette. The scrim alpha is computed per theme: it rises until
   BrightText vs the brightest scene role passes WCAG 4.5 (light themes
   scrim toward white instead). The timer renders on top of the scene.
-  Frame budget is per-surface: ≤ 24 FPS on Focus/splash, ≤ 12 FPS behind
+  Frame budget is per-surface: ≤ 24 FPS on Focus/splash, ≤ 8 FPS behind
   Home/sidebar
 - **Controls**: `alt+s` cycles scenes; `:scene <name>` switches (koi, snow,
   campfire …); `:ambient` opens a live full-screen preview with a mood
@@ -43,8 +43,20 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   `--no-ambient` disables all surfaces for one run
 - **`ui.ambient*` config**: `ambient`, `scene` (`auto` picks by local hour,
   `random` per launch), `splash_seconds`, `reward_animation`,
-  `ambient_fps` (default 10, max 30), `ambient_render`
+  `ambient_fps` (default 8, max 30), `ambient_idle`
+  (`slow` (default) | `pause` | `off` — Home/sidebar drops to ~4 FPS after
+  30 s without input and pauses on a still frame after 5 minutes, resumes
+  instantly on any key or mouse event; Focus exempt while the timer runs),
+  `ambient_render`
   (`auto` | `halfblock` | `braille` | `ascii`), `rain_lightning` (default off)
+- The Home/sidebar ambient cap is now **8 FPS** (was 12); Focus and the
+  splash stay at 24 FPS. `ui.ambient_fps` is honoured up to those caps
+- `mtm doctor --json` now reports `ambient_paint_ms` / `ambient_paint_ns`
+  (slowest measured reference scene frame, 100x30) alongside
+  `ambient_quality_tier` / `ambient_quality_name`
+- `make perf`: pty harness measuring CPU %, paints/s, bytes/paint,
+  allocations/paint for Home (ambient off / on), Focus and idle scenarios;
+  see README “Measuring performance”
 - Static layers cached (perlin tables, palette LUT); the ambient ticker does
   zero work when no surface is visible or the terminal is unfocused
 - Hidden verification path: `mtm tui --dump --scene <name> --t <dur>
