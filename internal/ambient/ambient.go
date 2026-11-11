@@ -39,6 +39,12 @@ type SceneState struct {
 	PaletteLimited bool
 	// ReducedMotion: slow crawl, low-amplitude stills (idle breathing only).
 	ReducedMotion bool
+	// Scrims: soft radial darkenings painted after the scene (nil for
+	// ordinary frames). The splash sets one behind the wordmark, one
+	// behind the tagline and one behind the hint so the overlaid
+	// text reads on the scene, not on a plate. Coordinates are in
+	// terminal cells.
+	Scrims []Scrim
 }
 
 // Palette carries the resolved theme roles the scenes paint with.

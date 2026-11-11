@@ -118,6 +118,14 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
 
 ### Fixed
 
+- **Splash text no longer sits on a plate** (2026-11-11): overlay cells
+  carry the scene's own per-cell background cell by cell — on the
+  sextant render path the scene frame is decoded back to a raster to
+  sample it (previously it fell back to a flat `Base` band behind the
+  tagline and hint). A soft radial scrim — a smooth quartic darkening
+  toward `Base`, exactly zero at the rim — now backs the wordmark,
+  tagline and hint; no flat rectangle remains behind any splash text.
+  Goldens `night-0200/0900/1500/2200ms` regenerated accordingly
 - **Startup/transition stripes and pink flashes** (2026-11-11): transitions
   blend in pixel space now (`FramePixels` raster API; `Crossfade`/`Dissolve`/
   `BlackFrame`/splash head fade all operate on rasters, always emit `▀`);

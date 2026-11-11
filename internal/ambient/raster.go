@@ -104,6 +104,17 @@ func DissolveRaster(r Raster, t float64, baseHex string) Raster {
 	return out
 }
 
+// RasterFromLines normalizes already-rendered lines into a raster:
+// '▀' is (fg, bg), '▄' is (bg, fg), '█' is (fg, fg), ' ' is (bg, bg);
+// other glyphs become a density blend (ink over background) in both
+// halves. Unset colors default to the frame's base. Grid is w×2h —
+// sextant frames decode at w×3h so the 2×3 structure survives.
+// Exported so the splash can sample per-cell scene backgrounds from a
+// sextant frame (the overlay cells inherit the scene's own colour).
+func RasterFromLines(lines []Line, baseHex string) Raster {
+	return rasterFromLines(lines, baseHex)
+}
+
 // rasterFromLines normalizes already-rendered lines into a raster:
 // '▀' is (fg, bg), '▄' is (bg, fg), '█' is (fg, fg), ' ' is (bg, bg);
 // other glyphs become a density blend (ink over background) in both

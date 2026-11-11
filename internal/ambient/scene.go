@@ -53,6 +53,7 @@ func renderRaster(s paintable, t time.Duration, w, h int, state SceneState) Rast
 	p := paletteFor(state.Palette)
 	b := newBuffer(ModeHalfblock, w, h, p)
 	s.paint(b, p, t, w, h, state)
+	postPaint(b, state, w, h)
 	b.palette = p
 	px := b.fb.downsample()
 	ink := b.fb.downsampleInk()
@@ -88,8 +89,17 @@ func newFrameBuffer(s paintable, mode string, t time.Duration, w, h int, state S
 	b.dither = state.Dither
 	b.limited = state.PaletteLimited
 	s.paint(b, p, t, w, h, state)
+	postPaint(b, state, w, h)
 	b.palette = p
 	return b
+}
+
+// postPaint runs the shared post-paint hooks (scrims, today) after the
+// scene paint and before emission/downsample. Both render paths call it.
+func postPaint(b *buffer, state SceneState, w, h int) {
+	if len(state.Scrims) > 0 {
+		applyScrims(b, state.Scrims, float64(b.sw)/float64(w), float64(b.sh)/float64(h))
+	}
 }
 
 // renderFrame builds one line-set for the frame (reward adds the sparkle).

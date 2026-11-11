@@ -548,22 +548,39 @@ func (m Model) renderSplash() string {
 	if !reduced && t < 0.55 {
 		headK = ambient.EaseOutCubic(t / 0.55)
 	}
+	sextant := ambient.ResolveMode(m.cfg.UI.AmbientRender) == ambient.ModeSextant
+	// wordmark geometry first — the scrim and the overlay layout share it
+	wm := wordmarkFor(w, h, m.cfg.UI.Wordmark == "lower")
+	wmRows := len(wm.letters[0])
+	wmTop := wordmarkTop(h, wmRows)
+	letterW := len(wm.letters[0][0])
+	wordW := len(wm.letters)*letterW + (len(wm.letters)-1)*3
+	wmX := (w - wordW) / 2
+	tagY := wmTop + wmRows + 1
+	const taglineText = "a calmer desk for your courses"
+	const hintText = "press any key to skip"
+	scrims := []ambient.Scrim{
+		{CX: float64(wmX) + float64(wordW)/2, CY: float64(wmTop) + float64(wmRows)/2, RadiusX: float64(wordW)/2 + 4, RadiusY: float64(wmRows)/2 + 2.6, Strength: 0.55},
+		{CX: float64(w) / 2, CY: float64(tagY) + 0.5, RadiusX: float64(fastWidth(taglineText))/2 + 4, RadiusY: 2.1, Strength: 0.55},
+		{CX: float64(w) / 2, CY: float64(h-2) + 0.5, RadiusX: float64(fastWidth(hintText))/2 + 4, RadiusY: 1.8, Strength: 0.55},
+	}
 	var r ambient.Raster
 	var baseHex string
 	var limited, dither bool
 	var dissolveProg float64
 	var out []string
-	if ambient.ResolveMode(m.cfg.UI.AmbientRender) == ambient.ModeSextant {
+	if sextant {
 		// Sextant path: the scene emits 2×3 mosaics natively (Frame is
 		// geometry-aware). The raster-space dissolve cannot run — the
 		// raster is 3 subrows tall — so the tail eases colors to base
-		// (glyphs stay, colors vanish). Overlays render on a flat base
-		// background (rasterCellBG falls back to baseHex on a zero raster).
+		// (glyphs stay, colors vanish). Overlays sample the decoded
+		// scene (see cellSampler), never a flat backing.
 		st := m.sceneState()
 		st.Palette = m.dimScenePalette()
 		if headK < 1 {
 			st.Palette = ambient.FadePalette(st.Palette, 1-headK)
 		}
+		st.Scrims = scrims
 		baseHex = st.Palette.Base
 		limited, dither = st.PaletteLimited, st.Dither
 		out = m.currentScene().Frame(sceneT, w, h, st)
@@ -573,39 +590,37 @@ func (m Model) renderSplash() string {
 		}
 	} else {
 		var half ambient.Raster
-		half, baseHex, limited, dither, dissolveProg = m.splashSceneRaster(sceneT, t, w, h, headK, total, reduced)
+		half, baseHex, limited, dither, dissolveProg = m.splashSceneRaster(sceneT, t, w, h, headK, total, reduced, scrims)
 		r = half
 		out = r.EmitHalfblock(baseHex, true, limited, dither)
 	}
 	// overlays fade with the dissolve tail: 1 = fully lit, 0 = base
 	fade := 1 - ambient.EaseInOutCubic(dissolveProg)
 
-	// wordmark letters rise one by one with a glow pulse, in the sky band
-	// (~39% of the height — never on the horizon line)
-	wm := wordmarkFor(w, h, m.cfg.UI.Wordmark == "lower")
-	wmRows := len(wm.letters[0])
-	wmTop := wordmarkTop(h, wmRows)
-	m.paintWordmark(out, r, baseHex, w, wmTop, t, fade, limited, dither, wm)
+	var sampler cellSampler
+	if sextant {
+		sampler = cellSampler{r: ambient.RasterFromLines(out, baseHex), base: baseHex, sx: 2, sy: 3}
+	} else {
+		sampler = cellSampler{r: r, base: baseHex, sx: 1, sy: 2}
+	}
+	m.paintWordmark(out, sampler, baseHex, w, wmTop, t, fade, limited, dither, wm)
 
 	// tagline fades in 1.6–2.2s, one row below the wordmark block
-	tagY := wmTop + wmRows + 1
 	taglineT := clampUnit((t-1.6)/0.6, 0, 1) * fade
 	if taglineT > 0 && tagY < h {
-		const text = "a calmer desk for your courses"
 		blend := ambient.BlendHex(baseHex, m.palette.BrightText, taglineT)
-		x0 := centerX(w, text)
-		piece := overlayCells(x0, tagY, text, blend, false, r, baseHex, limited, dither)
-		out[tagY] = spliceCells(out[tagY], x0, fastWidth(text), piece)
+		x0 := centerX(w, taglineText)
+		piece := overlayCells(x0, tagY, taglineText, blend, false, sampler, limited, dither)
+		out[tagY] = spliceCells(out[tagY], x0, fastWidth(taglineText), piece)
 	}
 
 	// footer hint fades in early, stays
 	footT := clampUnit((t-0.35)/0.4, 0, 1) * fade
 	if footT > 0 && h >= 2 {
-		const text = "press any key to skip"
 		blend := ambient.BlendHex(baseHex, m.palette.MutedSoft, footT)
-		x0 := centerX(w, text)
-		piece := overlayCells(x0, h-2, text, blend, false, r, baseHex, limited, dither)
-		out[h-2] = spliceCells(out[h-2], x0, fastWidth(text), piece)
+		x0 := centerX(w, hintText)
+		piece := overlayCells(x0, h-2, hintText, blend, false, sampler, limited, dither)
+		out[h-2] = spliceCells(out[h-2], x0, fastWidth(hintText), piece)
 	}
 
 	return strings.Join(out, "\n")
@@ -614,13 +629,15 @@ func (m Model) renderSplash() string {
 // splashSceneRaster renders the (head-faded, tail-dissolved) scene raster
 // and returns it with the base hex and the dissolve progress (0 outside
 // the tail). Overlays are drawn onto it cell by cell, so the dissolve
-// wipes text and scene together.
-func (m *Model) splashSceneRaster(sceneT time.Duration, tSec float64, w, h int, headK, total float64, reduced bool) (ambient.Raster, string, bool, bool, float64) {
+// wipes text and scene together. scrims are painted into the scene
+// before emission (see internal/ambient/scrim.go).
+func (m *Model) splashSceneRaster(sceneT time.Duration, tSec float64, w, h int, headK, total float64, reduced bool, scrims []ambient.Scrim) (ambient.Raster, string, bool, bool, float64) {
 	st := m.sceneState()
 	st.Palette = m.dimScenePalette()
 	if headK < 1 {
 		st.Palette = ambient.FadePalette(st.Palette, 1-headK)
 	}
+	st.Scrims = scrims
 	baseHex := st.Palette.Base
 	r := m.currentScene().FramePixels(sceneT, w, h, st)
 	prog := 0.0
@@ -631,15 +648,25 @@ func (m *Model) splashSceneRaster(sceneT time.Duration, tSec float64, w, h int, 
 	return r, baseHex, st.PaletteLimited, st.Dither, prog
 }
 
-// rasterCellBG returns the hex of the bottom subcell of terminal cell
-// (x, y). Splash frames are emitted pairOnly ('▀'), so that is exactly
-// the bg the emitted cell carries — overlays inherit it cell by cell.
-func rasterCellBG(r ambient.Raster, baseHex string, x, y int) string {
-	py := 2*y + 1
-	if x < 0 || x >= r.W || py < 0 || py >= r.H {
-		return baseHex
+// cellSampler resolves the scene's own per-cell background for overlay
+// cells. Halfblock frames sample the bottom subcell of the cell (the bg
+// SGR the pairOnly emission carries); sextant frames are decoded to a
+// raster and sampled at the bottom dot-row of the cell. Every sampled
+// color is the scene's own painting with the radial scrim applied —
+// never a flat backing plate.
+type cellSampler struct {
+	r      ambient.Raster
+	base   string
+	sx, sy int // subcells per cell: 1x2 halfblock, 2x3 sextant
+}
+
+func (s cellSampler) bg(x, y int) string {
+	px := x * s.sx
+	py := y*s.sy + s.sy - 1
+	if x < 0 || px >= s.r.W || py < 0 || py >= s.r.H {
+		return s.base
 	}
-	rr, gg, bb := r.Pixel(x, py)
+	rr, gg, bb := s.r.Pixel(px, py)
 	return fmt.Sprintf("#%02x%02x%02x", rr, gg, bb)
 }
 
@@ -649,7 +676,7 @@ func rasterCellBG(r ambient.Raster, baseHex string, x, y int) string {
 // weight. On truecolor (limited=false) raw 24-bit SGR is emitted; on
 // limited palettes every fg/bg goes through the xterm-256 quantizer so
 // the frame never contains an escape the terminal would drop.
-func overlayCells(x0, y int, text, fgHex string, bold bool, r ambient.Raster, baseHex string, limited, dither bool) string {
+func overlayCells(x0, y int, text, fgHex string, bold bool, sampler cellSampler, limited, dither bool) string {
 	runes := []rune(text)
 	var sb strings.Builder
 	curFG, curBG := "", ""
@@ -659,7 +686,7 @@ func overlayCells(x0, y int, text, fgHex string, bold bool, r ambient.Raster, ba
 		sb.WriteString("m")
 	}
 	for i, ch := range runes {
-		bg := rasterCellBG(r, baseHex, x0+i, y)
+		bg := sampler.bg(x0+i, y)
 		fgSGR := overlayColorSGR(true, fgHex, bold, x0+i, y, limited, dither)
 		bgSGR := overlayColorSGR(false, bg, false, x0+i, y, limited, dither)
 		if fgSGR != curFG {
@@ -738,7 +765,7 @@ func centerX(w int, s string) int {
 // Each cell keeps the scene's background, so the letters read as lit
 // type rising out of the scene rather than opaque tiles. fade dims the
 // whole wordmark into the dissolve tail. wmTop is the first glyph row.
-func (m Model) paintWordmark(out []string, r ambient.Raster, baseHex string, w, wmTop int, t, fade float64, limited, dither bool, g wordmarkGlyphs) {
+func (m Model) paintWordmark(out []string, sampler cellSampler, baseHex string, w, wmTop int, t, fade float64, limited, dither bool, g wordmarkGlyphs) {
 	letters := g.letters
 	letterW := len(letters[0][0]) // spec rows are pure ASCII: bytes == cells
 	gap := 3
@@ -769,7 +796,7 @@ func (m Model) paintWordmark(out []string, r ambient.Raster, baseHex string, w, 
 				continue
 			}
 			cell := glyphCells(line)
-			piece := overlayCells(x0+i*(letterW+gap), y, cell, col, true, r, baseHex, limited, dither)
+			piece := overlayCells(x0+i*(letterW+gap), y, cell, col, true, sampler, limited, dither)
 			out[y] = spliceCells(out[y], x0+i*(letterW+gap), letterW, piece)
 		}
 	}
