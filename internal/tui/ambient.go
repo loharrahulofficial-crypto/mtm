@@ -516,9 +516,9 @@ type wordmarkGlyphs struct{ letters [][]string }
 // wordmarkSmall is the 3-row wordmark; the t carries a top bar over a stem
 // (reads as a t, never as an I).
 var wordmarkSmall = wordmarkGlyphs{letters: [][]string{
-	{"█   █", "█████", "█   █"}, // m — solid stems + joined bar
+	{"█   █", "██ ██", "█ █ █"}, // m — stems + center leg
 	{"█████", "  █  ", "  █  "}, // t
-	{"█   █", "█████", "█   █"}, // m
+	{"█   █", "██ ██", "█ █ █"}, // m
 }}
 
 // wordmarkLarge is the 5-row wordmark for roomy terminals.
