@@ -325,7 +325,7 @@ func renderCourseList(m Model, cards []courseCard, w, h int) []string {
 
 	nameW := 6
 	for _, c := range cards {
-		if n := lipgloss.Width(leafName(c.project.Name)); n > nameW {
+		if n := fastWidth(leafName(c.project.Name)); n > nameW {
 			nameW = n
 		}
 	}
@@ -385,10 +385,10 @@ func renderCourseList(m Model, cards []courseCard, w, h int) []string {
 }
 
 func padRightCourseCard(line string, w int, bg lipgloss.Color) string {
-	if lipgloss.Width(line) > w {
+	if fastWidth(line) > w {
 		return clipStyled(line, w)
 	}
-	if pad := w - lipgloss.Width(line); pad > 0 {
+	if pad := w - fastWidth(line); pad > 0 {
 		line += lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", pad))
 	}
 	return line

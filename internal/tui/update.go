@@ -246,10 +246,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // visible. Benign messages never invalidate the cached frame; the handlers
 // for themeTickMsg and timerTickMsg bump viewStamp themselves on the (rare)
 // ticks where the clock, a timer chip or the theme file actually moved.
+// Ambient ticks are benign too: they bump ambientStamp instead, which only
+// scene-bearing panes and the top-level frame cache key on.
 func frameBenign(m Model, msg tea.Msg) bool {
 	switch msg.(type) {
 	case themeTickMsg, timerTickMsg:
 		return true // handlers bump viewStamp themselves when the screen moved
+	case ambientTickMsg:
+		return true // dispatchRaw bumps ambientStamp; panes without scenes stay cached
 	case spinner.TickMsg:
 		return m.syncSt != syncSyncing // the spinner renders only during a sync
 	default:
@@ -315,6 +319,7 @@ func (m *Model) maybeReloadTheme() bool {
 	m.palette = pal
 	m.styles = newStyles(pal)
 	m.themeMod = cur
+	m.themeVersion++
 	m.glamourRenderer = nil // glamour rebuilt lazily
 	m.statusMsg = "theme: " + pal.Name
 	return true

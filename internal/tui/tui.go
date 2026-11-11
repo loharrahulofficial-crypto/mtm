@@ -36,7 +36,10 @@ func Run(profilePath string) error {
 	m := New(cfg, s, sync.New(s.Root))
 	isTTY := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 	m.startSplashIfEnabled(isTTY)
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus())
+	// Cap Bubble Tea's flush rate at the highest surface cap mtm can ask
+	// for (24 FPS; splash/focus) so the renderer doesn't tick at 60 FPS
+	// over an 8/12 FPS scene.
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus(), tea.WithFPS(24))
 	final, err := p.Run()
 	if err != nil {
 		_ = s.Close()

@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -28,17 +27,30 @@ func paint(content string, width, height int, bg lipgloss.Color) string {
 	open := bgOpen(bg)
 	fill := lipgloss.NewStyle().Background(bg)
 
-	lines := strings.Split(content, "\n")
-	if len(lines) > height {
-		lines = lines[:height]
-	}
 	out := make([]string, 0, height)
-	for _, line := range lines {
-		if lipgloss.Width(line) > width {
+	// Walk lines without strings.Split — the split+slice churn was one of
+	// the hottest alloc sites in a full redraw. Split semantics preserved:
+	// a trailing newline yields one final empty segment.
+	rest := content
+	endedWithNL := false
+	for len(out) < height {
+		var line string
+		if i := strings.IndexByte(rest, '\n'); i >= 0 {
+			line, rest = rest[:i], rest[i+1:]
+			if rest == "" {
+				endedWithNL = true
+			}
+		} else {
+			if rest == "" && !endedWithNL {
+				break
+			}
+			line, rest, endedWithNL = rest, "", false
+		}
+		if fastWidth(line) > width {
 			line = clipStyled(line, width)
 		}
 		line = reassertBG(line, open)
-		if pad := width - lipgloss.Width(line); pad > 0 {
+		if pad := width - fastWidth(line); pad > 0 {
 			line += fill.Render(strings.Repeat(" ", pad))
 		}
 		out = append(out, line)
@@ -49,40 +61,115 @@ func paint(content string, width, height int, bg lipgloss.Color) string {
 	return strings.Join(out, "\n")
 }
 
-var sgrPattern = regexp.MustCompile("\x1b\\[[0-9;]*m")
+// sgrSeq is one parsed SGR sequence in a line: byte offsets and the raw
+// sequence text.
+type sgrSeq struct {
+	start int
+	end   int // one past the closing 'm'
+	seq   string
+}
+
+// scanSGR walks line and reports every CSI … m sequence. Manual scan —
+// the regexp version cost ~15% of all CPU in a full redraw.
+func scanSGR(line string) []sgrSeq {
+	var out []sgrSeq
+	i := 0
+	for i < len(line) {
+		if line[i] == 0x1b && i+1 < len(line) && line[i+1] == '[' {
+			j := i + 2
+			valid := true
+			for ; j < len(line); j++ {
+				if line[j] == 'm' {
+					break
+				}
+				if line[j] != ';' && line[j] != ':' && !(line[j] >= '0' && line[j] <= '9') {
+					valid = false
+					break
+				}
+			}
+			if valid && j < len(line) && line[j] == 'm' {
+				out = append(out, sgrSeq{start: i, end: j + 1, seq: line[i : j+1]})
+				i = j + 1
+				continue
+			}
+			i += 2 // not an SGR sequence; scan the payload as plain bytes
+			continue
+		}
+		i++
+	}
+	return out
+}
 
 // bgOpen returns the SGR sequence that sets bg as background, taken from
 // lipgloss's own serialization so the color profile matches everywhere.
 func bgOpen(bg lipgloss.Color) string {
 	probe := lipgloss.NewStyle().Background(bg).Render(" ")
-	seqs := sgrPattern.FindAllString(probe, -1)
-	if len(seqs) == 0 {
-		return ""
+	for _, s := range scanSGR(probe) {
+		return s.seq
 	}
-	return seqs[0]
+	return ""
 }
 
 // reassertBG prefixes open and re-inserts it after every SGR sequence that
 // drops the background (a full reset or a default-background code).
+// Fast path: when nothing drops, open+line is returned directly —
+// byte-identical to the builder path, no builder allocations.
 func reassertBG(line, open string) string {
 	if open == "" {
 		return line
+	}
+	// Fast path — byte-identical to the builder path when no sequence
+	// drops the background (prefix open + the line, nothing else).
+	if !dropsBG(line) {
+		return open + line
 	}
 	var b strings.Builder
 	b.Grow(len(line) + 32)
 	b.WriteString(open)
 	last := 0
-	for _, loc := range sgrPattern.FindAllStringIndex(line, -1) {
-		b.WriteString(line[last:loc[0]])
-		seq := line[loc[0]:loc[1]]
-		b.WriteString(seq)
-		if sgrDropsBG(seq) {
+	for _, loc := range scanSGR(line) {
+		b.WriteString(line[last:loc.start])
+		b.WriteString(loc.seq)
+		if sgrDropsBG(loc.seq) {
 			b.WriteString(open)
 		}
-		last = loc[1]
+		last = loc.end
 	}
 	b.WriteString(line[last:])
 	return b.String()
+}
+
+// dropsBG reports whether line contains at least one SGR sequence that
+// drops the background. Zero allocations; the scanner mirrors scanSGR —
+// keep the two in sync.
+func dropsBG(line string) bool {
+	i := 0
+	for i < len(line) {
+		if line[i] == 0x1b && i+1 < len(line) && line[i+1] == '[' {
+			j := i + 2
+			valid := true
+			for ; j < len(line); j++ {
+				if line[j] == 'm' {
+					break
+				}
+				if line[j] != ';' && line[j] != ':' && !(line[j] >= '0' && line[j] <= '9') {
+					valid = false
+					break
+				}
+			}
+			if valid && j < len(line) && line[j] == 'm' {
+				if sgrDropsBG(line[i : j+1]) {
+					return true
+				}
+				i = j + 1
+				continue
+			}
+			i += 2
+			continue
+		}
+		i++
+	}
+	return false
 }
 
 // sgrDropsBG reports whether an SGR sequence resets all attributes or sets

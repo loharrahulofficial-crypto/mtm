@@ -26,13 +26,13 @@ func (m Model) renderFooterBar(width int) string {
 	left := m.footerLeft(width)
 
 	// Measure the pieces exactly as they will be rendered.
-	leftW, rightW := lipgloss.Width(left), lipgloss.Width(right)
+	leftW, rightW := fastWidth(left), fastWidth(right)
 	budget := width - leftW - rightW - 2 // middle padding cells
 	if budget < 0 {
 		budget = 0
 	}
 	middle := m.footerMiddle()
-	if lipgloss.Width(middle) > budget {
+	if fastWidth(middle) > budget {
 		middle = truncatePlain(middle, budget)
 	}
 	middleStyle := s.footer
@@ -44,7 +44,7 @@ func (m Model) renderFooterBar(width int) string {
 
 	line := left + fill() + right
 	// Last resort: pad/trim to exactly width without touching the ends.
-	if w := lipgloss.Width(line); w < width {
+	if w := fastWidth(line); w < width {
 		padLeft := (width - w) / 2
 		line = left + s.footer.Render(strings.Repeat(" ", padLeft)) + fill() +
 			s.footer.Render(strings.Repeat(" ", width-w-padLeft)) + right

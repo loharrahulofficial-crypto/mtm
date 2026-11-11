@@ -133,7 +133,7 @@ func detailSection(m Model, w int, text string) string {
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg).Bold(true)
 	rule := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Border)).Background(bg)
 	label := " " + muted.Render(strings.ToUpper(text)) + " "
-	ruleLen := w - lipgloss.Width(label) - 1
+	ruleLen := w - fastWidth(label) - 1
 	if ruleLen < 1 {
 		ruleLen = 1
 	}
@@ -223,7 +223,7 @@ func courseTableSection(m Model, c courseCard, w int, pad func(string) string, b
 		nameW = 4
 	}
 	r := func(s string, width int) string {
-		width -= lipgloss.Width(s)
+		width -= fastWidth(s)
 		if width < 0 {
 			width = 0
 		}
@@ -371,7 +371,7 @@ func courseExamSection(m Model, c courseCard, w int, pad func(string) string, br
 	header := " " + accent("✦") + " "
 	nameBudget := w - 4
 	if dateTxt != "" {
-		nameBudget -= lipgloss.Width(dateTxt) + 3 // " · " + date
+		nameBudget -= fastWidth(dateTxt) + 3 // " · " + date
 	}
 	if nameBudget < 8 {
 		nameBudget = 8
@@ -494,7 +494,7 @@ func courseTasksSection(m Model, c courseCard, w int, pad func(string) string, a
 			}
 			due = dc.Render(labelText)
 		}
-		dueW := lipgloss.Width(due)
+		dueW := fastWidth(due)
 		budget := w - 4 - dueW - 2
 		if budget < 8 {
 			budget = 8
@@ -503,7 +503,7 @@ func courseTasksSection(m Model, c courseCard, w int, pad func(string) string, a
 		txt := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bg)
 		line := " " + stripe + " " + txt.Render(title)
 		if due != "" {
-			padCells := w - lipgloss.Width(line) - dueW - 1
+			padCells := w - fastWidth(line) - dueW - 1
 			if padCells < 1 {
 				line = clipStyled(line, w-dueW-2)
 				padCells = 1

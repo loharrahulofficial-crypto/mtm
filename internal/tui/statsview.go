@@ -274,8 +274,8 @@ func renderStatsList(m Model, scopes []statsScopeDef, now time.Time, w int) []st
 		}
 		label := truncatePlain(def.label, w-8)
 		line := " " + stripe + nameStyle.Render(label)
-		cw := lipgloss.Width(countStyle.Render(" " + count + " "))
-		if pad := w - lipgloss.Width(line) - cw; pad > 0 {
+		cw := fastWidth(countStyle.Render(" " + count + " "))
+		if pad := w - fastWidth(line) - cw; pad > 0 {
 			line += lipgloss.NewStyle().Background(selBG).Render(strings.Repeat(" ", pad))
 		}
 		line += countStyle.Render(" " + count + " ")

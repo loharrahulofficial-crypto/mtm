@@ -21,7 +21,7 @@ var frameBuilds int64
 // flushes zero bytes.
 func (m Model) View() string {
 	fc := m.frame
-	if fc != nil && fc.view != "" && fc.stamp == m.viewStamp &&
+	if fc != nil && fc.view != "" && fc.stamp == m.viewStamp && fc.scene == m.ambientStamp &&
 		fc.w == m.width && fc.h == m.height {
 		perf.CountView(len(fc.view))
 		return fc.view
@@ -29,7 +29,7 @@ func (m Model) View() string {
 	s := m.viewInner()
 	atomic.AddInt64(&frameBuilds, 1)
 	if fc != nil {
-		fc.view, fc.stamp, fc.w, fc.h = s, m.viewStamp, m.width, m.height
+		fc.view, fc.stamp, fc.scene, fc.w, fc.h = s, m.viewStamp, m.ambientStamp, m.width, m.height
 	}
 	perf.CountView(len(s))
 	return s
@@ -64,7 +64,7 @@ func (m Model) viewInner() string {
 	if m.projectPage != "" {
 		page := m.renderProjectPage(m.width, m.height-1)
 		footer := m.renderFooterBar(m.width)
-		screen := lipgloss.JoinVertical(lipgloss.Left, page, footer)
+		screen := joinBlocksV([]string{page, footer})
 		switch m.mode {
 		case modeHelp:
 			return overlay(m.width, m.height, screen, renderHelpBox(m.keymap, m.styles, m.width), baseColor)
@@ -98,7 +98,13 @@ func (m Model) viewInner() string {
 	}
 	mainW, _ := mainPaneSize(m)
 
-	main := m.renderMain(mainW, contentH)
+	pc := m.panels
+	var mainPC, detailPC, footerPC *cachedPanel
+	if pc != nil {
+		mainPC, detailPC, footerPC = &pc.main, &pc.detail, &pc.footer
+	}
+	mainKey := panelKey{stamp: m.viewStamp, scene: m.mainSceneStamp(mainW, contentH), w: mainW, h: contentH, theme: m.themeVersion, focus: m.focus == focusMain}
+	main := cachedStringPanel(mainPC, mainKey, func() string { return m.renderMain(mainW, contentH) })
 
 	parts := []string{}
 	if sidebarW > 0 {
@@ -106,15 +112,18 @@ func (m Model) viewInner() string {
 	}
 	parts = append(parts, main)
 	if detailW > 0 {
-		parts = append(parts, gutterColumn(contentH, m.styles.base), m.renderDetail(detailW, contentH))
+		detailKey := panelKey{stamp: m.viewStamp, w: detailW, h: contentH, theme: m.themeVersion, focus: m.focus == focusDetail}
+		detail := cachedStringPanel(detailPC, detailKey, func() string { return m.renderDetail(detailW, contentH) })
+		parts = append(parts, gutterColumn(contentH, m.styles.base), detail)
 	}
-	middle := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+	middle := joinBlocksH(parts)
 	// The panes must tile the frame exactly; anything that overflows (a long
 	// style, a wrap) would push the top row off the terminal, so normalize.
 	middle = normalizeBlock(middle, m.width, contentH, baseColor)
 
-	footer := m.renderFooterBar(m.width)
-	screen := lipgloss.JoinVertical(lipgloss.Left, middle, footer)
+	footerKey := panelKey{stamp: m.viewStamp, w: m.width, h: 1, theme: m.themeVersion}
+	footer := cachedStringPanel(footerPC, footerKey, func() string { return m.renderFooterBar(m.width) })
+	screen := joinBlocksV([]string{middle, footer})
 
 	switch m.mode {
 	case modeHelp:
@@ -177,7 +186,7 @@ func overlay(width, height int, base, box string, baseColor lipgloss.Color) stri
 	boxLines := strings.Split(box, "\n")
 	boxW := 0
 	for _, l := range boxLines {
-		if w := lipgloss.Width(l); w > boxW {
+		if w := fastWidth(l); w > boxW {
 			boxW = w
 		}
 	}
@@ -204,15 +213,15 @@ func overlay(width, height int, base, box string, baseColor lipgloss.Color) stri
 // prefix and suffix cells. Both sides stay exactly width cells.
 func spliceLine(base string, left, width int, boxLine string, fill lipgloss.Color) string {
 	prefix := clipStyled(base, left)
-	if pad := left - lipgloss.Width(prefix); pad > 0 {
+	if pad := left - fastWidth(prefix); pad > 0 {
 		prefix += lipgloss.NewStyle().Background(fill).Render(strings.Repeat(" ", pad))
 	}
-	boxW := lipgloss.Width(boxLine)
+	boxW := fastWidth(boxLine)
 	suffixW := width - left - boxW
 	suffix := ""
 	if suffixW > 0 {
 		suffix = clipStyled(ansi.Cut(base, left, ansi.StringWidth(base)), suffixW)
-		if pad := suffixW - lipgloss.Width(suffix); pad > 0 {
+		if pad := suffixW - fastWidth(suffix); pad > 0 {
 			suffix += lipgloss.NewStyle().Background(fill).Render(strings.Repeat(" ", pad))
 		}
 		suffix = bgOpen(fill) + suffix

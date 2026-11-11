@@ -138,7 +138,7 @@ func renderIdeasBody(m Model, w, h int) []string {
 		if selected {
 			titleStyle = lipgloss.NewStyle().Background(fill).Foreground(lipgloss.Color(m.palette.BrightText)).Bold(true)
 		}
-		pad := w - 2 - lipgloss.Width(title) - 1 - ratingW - 1
+		pad := w - 2 - fastWidth(title) - 1 - ratingW - 1
 		if pad < 0 {
 			pad = 0
 		}
@@ -151,7 +151,7 @@ func renderIdeasBody(m Model, w, h int) []string {
 		if tags := ideaTagLine(idea.Tags, 3); tags != "" {
 			meta += " · " + tags
 		}
-		if preview := ideaBodyPreview(idea.Body, w-lipgloss.Width(meta)-3); preview != "" {
+		if preview := ideaBodyPreview(idea.Body, w-fastWidth(meta)-3); preview != "" {
 			meta += " · " + preview
 		}
 		metaLine := "   " + lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(fill).Render(truncatePlain(meta, w-3))
@@ -236,7 +236,7 @@ func homeIdeasBody(m Model, w, h int) []string {
 		title := truncatePlain(i.Title, titleW)
 		stripe := lipgloss.NewStyle().Foreground(ideaStatusColor(m, i.Status)).Background(fill).Render("▌")
 		titleStyle := lipgloss.NewStyle().Background(fill).Foreground(lipgloss.Color(m.palette.Text))
-		pad := w - 2 - lipgloss.Width(title) - 1 - ratingW - 1
+		pad := w - 2 - fastWidth(title) - 1 - ratingW - 1
 		if pad < 0 {
 			pad = 0
 		}

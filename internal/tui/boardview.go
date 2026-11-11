@@ -361,14 +361,14 @@ const (
 func baseInsetRow(baseBG lipgloss.Style, gutter, inset string, cells []string, w int, rightHint string) string {
 	line := inset + strings.Join(cells, gutter)
 	if rightHint != "" {
-		if pad := w - lipgloss.Width(line) - lipgloss.Width(rightHint); pad > 0 {
+		if pad := w - fastWidth(line) - fastWidth(rightHint); pad > 0 {
 			line += baseBG.Render(strings.Repeat(" ", pad))
-		} else if lipgloss.Width(line) > w-lipgloss.Width(rightHint) {
-			line = clipStyled(line, w-lipgloss.Width(rightHint))
+		} else if fastWidth(line) > w-fastWidth(rightHint) {
+			line = clipStyled(line, w-fastWidth(rightHint))
 		}
 		return line + rightHint
 	}
-	if pad := w - lipgloss.Width(line); pad > 0 {
+	if pad := w - fastWidth(line); pad > 0 {
 		line += baseBG.Render(strings.Repeat(" ", pad))
 	}
 	return line
@@ -553,7 +553,7 @@ func boardFooterCell(m Model, w int, text string) string {
 	surf := lipgloss.Color(m.palette.Surface)
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(surf)
 	t := truncatePlain(text, w-1) // leading space
-	fill := w - 1 - lipgloss.Width(t)
+	fill := w - 1 - fastWidth(t)
 	if fill < 0 {
 		fill = 0
 	}
@@ -583,7 +583,7 @@ func boardFooterText(more, older, w int, doneKey string) string {
 			base + short,
 			base,
 		} {
-			if lipgloss.Width(cand) <= w-1 {
+			if fastWidth(cand) <= w-1 {
 				return cand
 			}
 		}
@@ -591,7 +591,7 @@ func boardFooterText(more, older, w int, doneKey string) string {
 			fmt.Sprintf("+%d older%s", older, short),
 			fmt.Sprintf("+%d older", older),
 		} {
-			if lipgloss.Width(cand) <= w-1 {
+			if fastWidth(cand) <= w-1 {
 				return cand
 			}
 		}
@@ -601,7 +601,7 @@ func boardFooterText(more, older, w int, doneKey string) string {
 		base,
 		fmt.Sprintf("+%d", more),
 	} {
-		if lipgloss.Width(cand) <= w-1 {
+		if fastWidth(cand) <= w-1 {
 			return cand
 		}
 	}
@@ -626,7 +626,7 @@ func cardPlaceholder(m Model, w, n int) []string {
 		out[i] = fill.Render(strings.Repeat(" ", w))
 	}
 	txt := "No tasks"
-	tw := lipgloss.Width(txt)
+	tw := fastWidth(txt)
 	left := (w - tw) / 2
 	if left < 0 {
 		left = 0
@@ -690,7 +690,7 @@ func cardMetaPack(m Model, t *core.Task, now time.Time, head map[string][2]int, 
 	if tagChip != "" {
 		pack += fill(lipgloss.NewStyle().Foreground(dimColor)).Render(tagChip)
 		parts += fill(lipgloss.NewStyle().Foreground(dimColor)).Render(tagChip)
-		packW += lipgloss.Width(tagChip)
+		packW += fastWidth(tagChip)
 		if subFill != "" {
 			pack += sp(1)
 			parts += sp(1)
@@ -700,7 +700,7 @@ func cardMetaPack(m Model, t *core.Task, now time.Time, head map[string][2]int, 
 	if subFill != "" {
 		pack += hl(theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))).Render(subFill) + fill(lipgloss.NewStyle().Foreground(dimColor)).Render(subRest)
 		parts += hl(theme.CourseColor(m.palette, t.Project, projectColorOverride(m, t.Project))).Render(subFill) + fill(lipgloss.NewStyle().Foreground(dimColor)).Render(subRest)
-		packW += lipgloss.Width(subFill) + lipgloss.Width(subRest)
+		packW += fastWidth(subFill) + fastWidth(subRest)
 	}
 	return pack, packW, parts
 }
@@ -716,7 +716,7 @@ func cardMetaFits(m Model, t *core.Task, w int, now time.Time, head map[string][
 	}
 	prefixW := 2 + chipLabelWidth(t.Priority) + 1
 	if label := cardDueLabel(m, t, now, done); label != "" {
-		prefixW += lipgloss.Width(label) + 1
+		prefixW += fastWidth(label) + 1
 	}
 	return prefixW+packW <= w
 }
@@ -791,7 +791,7 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 		} else {
 			titleStyled = titleStyle.Render(title)
 		}
-		if pad := titleW - lipgloss.Width(titleStyled); pad > 0 {
+		if pad := titleW - fastWidth(titleStyled); pad > 0 {
 			return titleStyled + bgFill.Render(strings.Repeat(" ", pad))
 		}
 		return titleStyled
@@ -811,7 +811,7 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 	}
 	spCard := func(n int) string { return bgFill.Render(strings.Repeat(" ", n)) }
 	meta := stripe + spCard(1) + chip + spCard(1)
-	metaPrefixW := 2 + lipgloss.Width(chip) + 1
+	metaPrefixW := 2 + fastWidth(chip) + 1
 
 	if t.Due != "" || (done && (t.Completed != "" || t.Updated != "")) {
 		dc := lipgloss.NewStyle().Background(cardBg)
@@ -833,7 +833,7 @@ func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head
 				dc = dc.Foreground(lipgloss.Color(m.palette.MutedSoft))
 			}
 		}
-		dueW := lipgloss.Width(label)
+		dueW := fastWidth(label)
 		meta += dc.Render(label) + spCard(1)
 		metaPrefixW += dueW + 1
 	}
@@ -898,10 +898,10 @@ func priorityChip(m Model, p string, bg lipgloss.Color) string {
 }
 
 func padRightCard(line string, w int, bg lipgloss.Color) string {
-	if lipgloss.Width(line) > w {
+	if fastWidth(line) > w {
 		line = clipStyled(line, w)
 	}
-	if pad := w - lipgloss.Width(line); pad > 0 {
+	if pad := w - fastWidth(line); pad > 0 {
 		line += lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", pad))
 	}
 	return line

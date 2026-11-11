@@ -126,22 +126,21 @@ func buildPalette(p Palette) *paletteModel {
 
 // clampHull clamps a float pixel's channels into the theme hull.
 func (m *paletteModel) clampHull(p fpix) fpix {
-	cl := func(v float32, lo, hi uint8) float32 {
-		flo, fhi := float32(lo)/255, float32(hi)/255
-		if v < flo {
-			return flo
-		}
-		if v > fhi {
-			return fhi
-		}
-		return v
+	p.r = clampChan(p.r, m.hullLo[0], m.hullHi[0])
+	p.g = clampChan(p.g, m.hullLo[1], m.hullHi[1])
+	p.b = clampChan(p.b, m.hullLo[2], m.hullHi[2])
+	return p
+}
+
+func clampChan(v float32, lo, hi uint8) float32 {
+	flo, fhi := float32(lo)/255, float32(hi)/255
+	if v < flo {
+		return flo
 	}
-	return fpix{
-		cl(p.r, m.hullLo[0], m.hullHi[0]),
-		cl(p.g, m.hullLo[1], m.hullHi[1]),
-		cl(p.b, m.hullLo[2], m.hullHi[2]),
-		p.a,
+	if v > fhi {
+		return fhi
 	}
+	return v
 }
 
 // Bright returns the brighter of two indices of the same role family (or two raw indices).

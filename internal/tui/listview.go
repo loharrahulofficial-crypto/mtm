@@ -369,7 +369,7 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 	if tagStr != "" {
 		tagsW = runewidth.StringWidth(tagStr) + 1
 	}
-	subW := lipgloss.Width(sub)
+	subW := fastWidth(sub)
 	titleBudget := col.titleW - indentW - treeW - tagsW - subW
 	if titleBudget < 4 {
 		titleBudget = 4
@@ -400,9 +400,9 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 	if tagStr != "" {
 		titleCell += sp(1) + mutedTxt().Render(tagStr)
 	}
-	if pad := col.titleW - lipgloss.Width(titleCell); pad > 0 {
+	if pad := col.titleW - fastWidth(titleCell); pad > 0 {
 		titleCell += lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", pad))
-	} else if lipgloss.Width(titleCell) > col.titleW {
+	} else if fastWidth(titleCell) > col.titleW {
 		titleCell = clipStyled(titleCell, col.titleW)
 	}
 
@@ -428,9 +428,9 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 		dueStr = dc.Render(label)
 	}
 	dueCell := dueStr
-	if pad := col.dueW - lipgloss.Width(dueCell); pad > 0 {
+	if pad := col.dueW - fastWidth(dueCell); pad > 0 {
 		dueCell += lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", pad))
-	} else if lipgloss.Width(dueCell) > col.dueW {
+	} else if fastWidth(dueCell) > col.dueW {
 		dueCell = clipStyled(dueCell, col.dueW)
 	}
 
@@ -444,10 +444,10 @@ func listRowLine(m Model, w, i int, col listColumns, now time.Time, isDone func(
 }
 
 func padToWidth(line string, w int, bg lipgloss.Color) string {
-	if lipgloss.Width(line) > w {
+	if fastWidth(line) > w {
 		return clipStyled(line, w)
 	}
-	return line + lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", w-lipgloss.Width(line)))
+	return line + lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", w-fastWidth(line)))
 }
 
 // dueBucket buckets a due string for group headers (sort: due first).

@@ -546,11 +546,11 @@ func splicePlain(base string, left int, s string) string {
 
 // stampToday overlays a ┃ at cell x on a line (marking today on the timeline).
 func stampToday(line string, x int, style lipgloss.Style) string {
-	if lipgloss.Width(line) <= x {
+	if fastWidth(line) <= x {
 		return line
 	}
 	prefix := clipStyled(line, x)
-	suffix := clipStyled(ansi.Cut(line, x+1, ansi.StringWidth(line)), lipgloss.Width(line)-x-1)
+	suffix := clipStyled(ansi.Cut(line, x+1, ansi.StringWidth(line)), fastWidth(line)-x-1)
 	return prefix + style.Render("┃") + suffix
 }
 
@@ -901,7 +901,7 @@ func (m Model) renderProjectTasks(w, h int) []string {
 		}
 		line := fmt.Sprintf(" %s", textStyle.Render(rowText))
 		fill := " " + mstone + strings.Repeat(" ", dueW-len(mstone)) + due
-		pad := w - lipgloss.Width(line) - len(fill) - 1
+		pad := w - fastWidth(line) - len(fill) - 1
 		if pad < 1 {
 			pad = 1
 		}
@@ -921,8 +921,8 @@ func (m Model) renderProjectTasks(w, h int) []string {
 }
 
 func padWidth(s string, w int) string {
-	if lipgloss.Width(s) >= w {
+	if fastWidth(s) >= w {
 		return clipStyled(s, w)
 	}
-	return s + strings.Repeat(" ", w-lipgloss.Width(s))
+	return s + strings.Repeat(" ", w-fastWidth(s))
 }

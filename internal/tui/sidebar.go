@@ -40,23 +40,64 @@ func sidebarRows(items []sidebarItem) []sidebarRow {
 // brandLines is the number of pinned lines above the scrollable sections.
 const brandLines = 2
 
+// renderSidebar renders the pane. The static rows (brand block, section
+// items, filler, pinned exam chip) are memoized in m.panels; on ambient
+// ticks only the animated window is re-rendered and spliced in. The
+// border wrap runs per call but touches no item content.
 func renderSidebar(m Model, w, h int) string {
 	innerW := w - 2
 	if innerW < 1 {
 		innerW = 1
 	}
+	innerH := h - 2
+	if innerH < 0 {
+		innerH = 0
+	}
+	body, winAt, winH := cachedSidebarStatic(m, innerW, innerH, m.focus == focusSidebar)
+	if winH > 0 {
+		if win := m.ambientSidebarWindow(innerW, winH); win != nil {
+			merged := make([]string, 0, len(body)+len(win))
+			merged = append(merged, body[:winAt]...)
+			merged = append(merged, win...)
+			merged = append(merged, body[winAt:]...)
+			body = merged
+		}
+	}
+	// Pinned nearest-exam chip at the bottom of the sidebar. Everything
+	// below the fold lives in the static body; this is only a safety net
+	// for h=0 panes.
+	return renderPanel(m, "", w, h, m.focus == focusSidebar, body)
+}
 
+// cachedSidebarStatic returns the sidebar body with the window rows
+// carved out: brand block, section items, filler, pinned chip. winAt is
+// the row index at which the window is spliced in; winH is the window's
+// height (0 when the window is off or doesn't fit).
+func cachedSidebarStatic(m Model, innerW, innerH int, focus bool) ([]string, int, int) {
+	pc := m.panels
+	key := panelKey{stamp: m.viewStamp, w: innerW, h: innerH, theme: m.themeVersion, focus: focus}
+	if pc != nil && pc.sidebar.lines != nil && pc.sidebar.key == key {
+		return pc.sidebar.lines, pc.sidebar.winAt, pc.sidebar.winH
+	}
+	lines, winAt, winH := renderSidebarStatic(m, innerW, innerH)
+	if pc != nil {
+		pc.sidebar = sidebarCache{key: key, lines: lines, winAt: winAt, winH: winH}
+	}
+	return lines, winAt, winH
+}
+
+// renderSidebarStatic builds the window-free body: brand block, item rows,
+// filler, pinned chip. The filler leaves exactly winH free rows out
+// (reserving the window's slot), so splicing the window back in restores
+// the exact innerH-row layout.
+func renderSidebarStatic(m Model, innerW, innerH int) ([]string, int, int) {
 	lines := brandBlock(m, innerW)
-	body := make([]string, 0, h)
+	body := make([]string, 0, innerH)
 	body = append(body, lines...)
 
 	items := m.sidebarItems
 	rows := sidebarRows(items)
 
-	innerH := h - 2
-	if innerH < 0 {
-		innerH = 0
-	}
 	top, rendered, footerN, winH := sidebarRowPlan(m, innerW, innerH)
 
 	// Pinned nearest-exam chip at the bottom of the sidebar.
@@ -67,36 +108,39 @@ func renderSidebar(m Model, w, h int) string {
 		}
 	}
 
-	count := 0
+	winAt := len(body)
 	for i := top; i < len(rows); i++ {
-		if count >= rendered {
+		if len(body)-len(lines) >= rendered {
 			break
 		}
 		r := rows[i]
 		if r.sel < 0 {
 			body = append(body, " "+sectionLabel(m, r.header, innerW-1))
-			count++
 			continue
 		}
 		it := items[r.sel]
 		selected := r.sel == m.sidebarSel
 		body = append(body, sidebarItemLine(m, it, innerW, selected))
-		count++
 	}
+	winAt = len(body)
 
-	// Ambient window fills the free rows below the list (never the chip).
-	if win := m.ambientSidebarWindow(innerW, winH); win != nil {
-		body = append(body, win...)
-	}
-
-	if len(footer) > 0 {
+	// Filler: everything up to the footer, capped short by winH rows so
+	// the spliced window fits exactly.
+	if winH > 0 {
+		want := innerH - len(footer) - winH
+		for len(body) < want {
+			body = append(body, "")
+		}
+	} else if len(footer) > 0 {
 		for len(body) < innerH-len(footer) {
 			body = append(body, "")
 		}
-		body = append(body, footer...)
 	}
 
-	return renderPanel(m, "", w, h, m.focus == focusSidebar, body)
+	if len(footer) > 0 {
+		body = append(body, footer...)
+	}
+	return body, winAt, winH
 }
 
 // nearestExamChip renders the pinned bottom line: the nearest upcoming exam,
@@ -146,7 +190,7 @@ func nearestExamChip(m Model, w int) string {
 	build := func(lbl, title string) string {
 		return " " + star + " " + muted(" "+lbl+" · ") + txt(title)
 	}
-	fixedW := func(lbl string) int { return 1 + 1 + 1 + 1 + lipgloss.Width(lbl) + 3 } // " ✦ " + " dl · "
+	fixedW := func(lbl string) int { return 1 + 1 + 1 + 1 + fastWidth(lbl) + 3 } // " ✦ " + " dl · "
 
 	// 1) Full label, title word-truncated with an ellipsis.
 	if title, ok := wordTruncate(bestTask.Title, w-fixedW(label)); ok {
@@ -167,7 +211,7 @@ func wordTruncate(s string, budget int) (string, bool) {
 	if budget < 1 {
 		return "", false
 	}
-	if lipgloss.Width(s) <= budget {
+	if fastWidth(s) <= budget {
 		return s, true
 	}
 	words := strings.Fields(s)
@@ -177,7 +221,7 @@ func wordTruncate(s string, budget int) (string, bool) {
 		if cur != "" {
 			cand = cur + " " + word
 		}
-		if lipgloss.Width(cand)+1 > budget { // +1 for the ellipsis
+		if fastWidth(cand)+1 > budget { // +1 for the ellipsis
 			break
 		}
 		cur = cand
@@ -267,7 +311,7 @@ func sidebarItemLine(m Model, it sidebarItem, w int, selected bool) string {
 			right = right + flame
 		}
 	}
-	pad := w - lipgloss.Width(left) - lipgloss.Width(right) - 1
+	pad := w - fastWidth(left) - fastWidth(right) - 1
 	if pad < 1 {
 		pad = 1
 	}

@@ -2,7 +2,7 @@ package ambient
 
 import (
 	"fmt"
-	"strings"
+	"unicode/utf8"
 )
 
 // buffer is the sub-cell raster every scene paints into. Resolutions:
@@ -285,22 +285,55 @@ func quantize(v float32) uint8 {
 	return uint8(v*255 + 0.5)
 }
 
-// fpixHex converts a downsampled pixel to a "#rrggbb" hex string.
-func fpixHex(p fpix) string {
-	return fmt.Sprintf("#%02x%02x%02x", quantize(p.r), quantize(p.g), quantize(p.b))
+// baseNear reports whether p matches the theme base within one 8-bit step.
+func baseNear(p *paletteModel, c fpix) bool {
+	br, bg, bb := p.rgbF(p.base)
+	const step = float32(1.0 / 255.0)
+	return abs32(c.r-br) <= step && abs32(c.g-bg) <= step && abs32(c.b-bb) <= step
 }
 
-// isBase reports whether p matches the theme base within one 8-bit step.
-func (p *paletteModel) isBase(c fpix) bool {
-	br, bg, bb := p.rgbF(p.base)
-	step := float32(1.0 / 255.0)
-	abs := func(v float32) float32 {
-		if v < 0 {
-			return -v
-		}
-		return v
+func abs32(v float32) float32 {
+	if v < 0 {
+		return -v
 	}
-	return abs(c.r-br) <= step && abs(c.g-bg) <= step && abs(c.b-bb) <= step
+	return v
+}
+
+// tripack quantizes p into a 24-bit color key and its channel bytes —
+// the whole halfblock render compares and emits with integers, never
+// hex strings.
+func tripack(p fpix) (key uint32, r, g, b uint8) {
+	r, g, b = quantize(p.r), quantize(p.g), quantize(p.b)
+	return uint32(r)<<16 | uint32(g)<<8 | uint32(b), r, g, b
+}
+
+// appendSGR appends "\x1b[38;2;r;g;bm" (fg=true) or "\x1b[48;2;…" —
+// byte-identical to fmt.Sprintf("\x1b[3%d;2;%d;%d;%dm", …) but with no
+// format parsing.
+func appendSGR(dst []byte, fg bool, r, g, b uint8) []byte {
+	dst = append(dst, 0x1b, '[')
+	if fg {
+		dst = append(dst, '3', '8', ';', '2', ';')
+	} else {
+		dst = append(dst, '4', '8', ';', '2', ';')
+	}
+	dst = appendByte(dst, r)
+	dst = append(dst, ';')
+	dst = appendByte(dst, g)
+	dst = append(dst, ';')
+	dst = appendByte(dst, b)
+	return append(dst, 'm')
+}
+
+func appendByte(dst []byte, v uint8) []byte {
+	switch {
+	case v >= 100:
+		return append(dst, '0'+v/100, '0'+(v/10)%10, '0'+v%10)
+	case v >= 10:
+		return append(dst, '0'+v/10, '0'+v%10)
+	default:
+		return append(dst, '0'+v)
+	}
 }
 
 // render compiles the raster into exactly h lines of w cells.
@@ -321,53 +354,56 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 	out := make([]Line, 0, h)
 	switch b.mode {
 	case ModeHalfblock:
-		base := p.hexAt(p.base)
+		br, bgc, bb := hexToRGB(p.hexAt(p.base))
+		baseKey := uint32(br)<<16 | uint32(bgc)<<8 | uint32(bb)
+		lineBuf := make([]byte, 0, w*18)
 		for ty := 0; ty < h; ty++ {
-			var sb strings.Builder
-			sb.Grow(w * 18)
-			curFG, curBG := "", ""
-			curPair := ""
-			emit := func(ch rune, fg, bg string) {
-				pair := fg + "|" + bg
-				if pair != curPair {
-					if fg != curFG {
-						sb.WriteString(fmt.Sprintf("\x1b[38;2;%sm", rgbTriplet(hexToRGB(fg))))
-						curFG = fg
-					}
-					if bg != curBG {
-						sb.WriteString(fmt.Sprintf("\x1b[48;2;%sm", rgbTriplet(hexToRGB(bg))))
-						curBG = bg
-					}
-					curPair = pair
-				}
-				sb.WriteRune(ch)
-			}
+			lineBuf = lineBuf[:0]
+			curFG, curBG := uint32(0), uint32(0)
+			haveFG, haveBG := false, false
 			for tx := 0; tx < w; tx++ {
 				top := px[(ty*2)*b.sw+tx]
 				bot := px[(ty*2+1)*b.sw+tx]
-				topBase := p.isBase(top)
-				botBase := p.isBase(bot)
-				fgHex := fpixHex(top)
-				bgHex := fpixHex(bot)
+				topKey, tr, tg, tb := tripack(top)
+				botKey, dr, dg, db := tripack(bot)
+				var fgKey, bgKey uint32
+				var fr, fg, fb, br2, bg2, bb2 uint8
+				var glyph rune
 				switch {
-				case topBase && botBase:
-					emit(' ', base, base)
-				case fgHex == bgHex:
-					emit('█', fgHex, base)
+				case baseNear(p, top) && baseNear(p, bot):
+					fgKey, fr, fg, fb = baseKey, br, bgc, bb
+					bgKey, br2, bg2, bb2 = baseKey, br, bgc, bb
+					glyph = ' '
+				case topKey == botKey:
+					fgKey, fr, fg, fb = topKey, tr, tg, tb
+					bgKey, br2, bg2, bb2 = baseKey, br, bgc, bb
+					glyph = '█'
 				default:
-					emit('▀', fgHex, bgHex)
+					fgKey, fr, fg, fb = topKey, tr, tg, tb
+					bgKey, br2, bg2, bb2 = botKey, dr, dg, db
+					glyph = '▀'
 				}
+				if !haveFG || curFG != fgKey {
+					lineBuf = appendSGR(lineBuf, true, fr, fg, fb)
+					curFG, haveFG = fgKey, true
+				}
+				if !haveBG || curBG != bgKey {
+					lineBuf = appendSGR(lineBuf, false, br2, bg2, bb2)
+					curBG, haveBG = bgKey, true
+				}
+				lineBuf = utf8.AppendRune(lineBuf, glyph)
 			}
-			sb.WriteString("\x1b[0m")
-			out = append(out, sb.String())
+			lineBuf = append(lineBuf, "\x1b[0m"...)
+			out = append(out, string(lineBuf))
 		}
 	case ModeBraille:
+		bbuf := make([]byte, 0, w*14)
 		for ty := 0; ty < h; ty++ {
-			var sb strings.Builder
+			bbuf = bbuf[:0]
 			for tx := 0; tx < w; tx++ {
 				bits := 0
 				bestLum := -1.0
-				bestRGB := rgbPix{}
+				var bestRGB rgbPix
 				for dy := 0; dy < 4; dy++ {
 					for dx := 0; dx < 2; dx++ {
 						i2 := (ty*4+dy)*b.sw + tx*2 + dx
@@ -383,29 +419,32 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 					}
 				}
 				if bits == 0 {
-					sb.WriteString(" ")
+					bbuf = append(bbuf, ' ')
 					continue
 				}
-				sb.WriteString(fmt.Sprintf("\x1b[38;2;%sm%c", rgbTriplet(bestRGB.r, bestRGB.g, bestRGB.b), rune(0x2800+bits)))
+				bbuf = appendSGR(bbuf, true, bestRGB.r, bestRGB.g, bestRGB.b)
+				bbuf = utf8.AppendRune(bbuf, rune(0x2800+bits))
 			}
-			sb.WriteString("\x1b[0m")
-			out = append(out, sb.String())
+			bbuf = append(bbuf, "\x1b[0m"...)
+			out = append(out, string(bbuf))
 		}
 	default: // ascii 1:1
+		abuf := make([]byte, 0, w*14)
 		for ty := 0; ty < h; ty++ {
-			var sb strings.Builder
+			abuf = abuf[:0]
 			for tx := 0; tx < w; tx++ {
 				i2 := ty*b.sw + tx
 				c := px[i2]
 				if ink[i2] <= 0.07 {
-					sb.WriteString(" ")
+					abuf = append(abuf, ' ')
 					continue
 				}
 				ch := asciiGlyphInk(ink[i2])
-				sb.WriteString(fmt.Sprintf("\x1b[38;2;%sm%c", rgbTriplet(quantize(c.r), quantize(c.g), quantize(c.b)), ch))
+				abuf = appendSGR(abuf, true, quantize(c.r), quantize(c.g), quantize(c.b))
+				abuf = utf8.AppendRune(abuf, ch)
 			}
-			sb.WriteString("\x1b[0m")
-			out = append(out, sb.String())
+			abuf = append(abuf, "\x1b[0m"...)
+			out = append(out, string(abuf))
 		}
 	}
 	total := 0

@@ -55,7 +55,7 @@ func listFilterChips(m Model, maxW int) []string {
 	out := []string{}
 	width := 0
 	for i, c := range chips {
-		w := lipgloss.Width(c) + 2 // one leading + trailing space per chip
+		w := fastWidth(c) + 2 // one leading + trailing space per chip
 		if i > 0 {
 			w++ // inter-chip gap
 		}
@@ -67,7 +67,7 @@ func listFilterChips(m Model, maxW int) []string {
 	}
 	if len(out) < len(chips) {
 		more := fmt.Sprintf("+%d", len(chips)-len(out))
-		moreW := lipgloss.Width(more) + 2
+		moreW := fastWidth(more) + 2
 		switch {
 		case len(out) == 0:
 			out = []string{more}

@@ -56,7 +56,7 @@ func renderHelpBox(km KeyMap, s styles, width int) string {
 		Background(raised).
 		Padding(1, 2).
 		Render(b.String())
-	return paint(block, lipgloss.Width(block), lipgloss.Height(block), raised)
+	return paint(block, fastWidth(block), lipgloss.Height(block), raised)
 }
 
 // renderConfirmBox renders the delete/archive confirmation overlay.
@@ -73,7 +73,7 @@ func (m Model) renderConfirmBox() string {
 		Background(raised).
 		Padding(1, 2).
 		Render(b.String())
-	return paint(block, lipgloss.Width(block), lipgloss.Height(block), raised)
+	return paint(block, fastWidth(block), lipgloss.Height(block), raised)
 }
 
 // renderPickerBox renders the status/priority picker overlay.
@@ -98,5 +98,5 @@ func (m Model) renderPickerBox() string {
 		Background(raised).
 		Padding(1, 2).
 		Render(b.String())
-	return paint(block, lipgloss.Width(block), lipgloss.Height(block), raised)
+	return paint(block, fastWidth(block), lipgloss.Height(block), raised)
 }

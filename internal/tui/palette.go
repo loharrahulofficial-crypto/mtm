@@ -540,8 +540,8 @@ func (m Model) renderPaletteBox() string {
 		if it.hintDim {
 			hintStyle = muted
 		}
-		body := " " + truncatePlain(it.label, inner-2-lipgloss.Width(hint)-1)
-		pad := inner - lipgloss.Width(body) - lipgloss.Width(hint) - 1
+		body := " " + truncatePlain(it.label, inner-2-fastWidth(hint)-1)
+		pad := inner - fastWidth(body) - fastWidth(hint) - 1
 		if pad < 1 {
 			pad = 1
 		}
@@ -573,10 +573,10 @@ func (m Model) renderPaletteBox() string {
 }
 
 func padBoxLine(line string, w int, fill lipgloss.Style, bg lipgloss.Color) string {
-	if lipgloss.Width(line) > w {
+	if fastWidth(line) > w {
 		return truncatePlain(line, w)
 	}
-	return lipgloss.NewStyle().MaxWidth(w).Render(line + lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", w-lipgloss.Width(line))))
+	return lipgloss.NewStyle().MaxWidth(w).Render(line + lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", w-fastWidth(line))))
 }
 
 // openPaletteWith opens the palette prefilled with text (course-scoped

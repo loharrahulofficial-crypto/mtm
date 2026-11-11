@@ -115,7 +115,7 @@ func renderSideWindow(m Model, w, h int) []string {
 	right := edge.Render("│")
 	out := []string{top}
 	for _, l := range m.slabSceneLines(w-2, h-2) {
-		if lw := lipgloss.Width(l); lw > w-2 {
+		if lw := fastWidth(l); lw > w-2 {
 			l = clipStyled(l, w-2)
 		} else if lw < w-2 {
 			l += pad.Render(strings.Repeat(" ", w-2-lw))

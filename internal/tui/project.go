@@ -60,7 +60,7 @@ func (m Model) renderProjectPage(w, h int) string {
 	leaf := leafName(m.projectPage)
 	headLeft := " " + s.header.Render("mtm") + s.muted.Render(" · study desk")
 	headRight := s.mText.Render(leaf) + s.muted.Render("  ·  "+m.projectPage)
-	head := headLeft + baseBg.Render(strings.Repeat(" ", maxInt(0, w-lipgloss.Width(headLeft)-lipgloss.Width(headRight)))) + headRight
+	head := headLeft + baseBg.Render(strings.Repeat(" ", maxInt(0, w-fastWidth(headLeft)-fastWidth(headRight)))) + headRight
 	tabs := m.renderProjectTabs()
 	body := m.renderProjectTabBody(w, h-5) // 2 header rows + tab row + hint
 	hint := m.projectPageHint()
@@ -94,7 +94,7 @@ func (m Model) renderProjectTabs() string {
 	}
 	line := strings.Join(parts, "")
 	fill := lipgloss.Color(m.palette.Base)
-	lineW := lipgloss.Width(line)
+	lineW := fastWidth(line)
 	pad := m.width - lineW - 1
 	if pad < 0 {
 		pad = 0

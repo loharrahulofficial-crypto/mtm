@@ -32,7 +32,45 @@ type viewID int
 type frameCache struct {
 	view  string
 	stamp int64
+	scene int64
 	w, h  int
+}
+
+// panelKey keys every pane-level memo. stamp is the view stamp (any
+// visible-state change), scene is the ambient stamp (nonzero only on
+// scene-bearing panes, so ambient ticks leave other panes cached),
+// theme is the theme version, focus is the pane's shared focus bit.
+type panelKey struct {
+	stamp int64
+	scene int64
+	w, h  int
+	theme int64
+	focus bool
+}
+
+// cachedPanel is one memoized string-level pane render (footer, detail,
+// main). sidebar uses sidebarCache internally.
+type cachedPanel struct {
+	key   panelKey
+	value string
+	ok    bool
+}
+
+// sidebarCache memoizes only the static body rows (brand block, section
+// items, pinned exam chip, filler). On ambient ticks the animated window
+// is re-rendered and spliced at winAt; the static rows are never touched.
+type sidebarCache struct {
+	key   panelKey
+	lines []string
+	winAt int
+	winH  int
+}
+
+type panelCache struct {
+	main    cachedPanel
+	detail  cachedPanel
+	footer  cachedPanel
+	sidebar sidebarCache
 }
 
 const (
@@ -138,7 +176,10 @@ type Model struct {
 	// rebuild. Ambient ticks bump viewStamp like anything else.
 	viewStamp       int64
 	frame           *frameCache
-	lastClockMinute int // minute-of-hour at the last clock-driven redraw; -1 = unset
+	themeVersion    int64
+	ambientStamp    int64 // bumped per ambient tick; scene-bearing panes key on it
+	lastClockMinute int   // minute-of-hour at the last clock-driven redraw; -1 = unset
+	panels          *panelCache
 
 	// Phase 4b-B ambient state
 	ambientSettingSel int
@@ -162,6 +203,7 @@ type Model struct {
 	rewardUntil       time.Time
 	rewardTitle       string
 	rewardFires       []time.Time
+	rewardArmed       bool
 	keymap            KeyMap
 	styles            styles
 	palette           theme.Palette
@@ -332,6 +374,9 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 		palette:         pal,
 		themeMod:        theme.PollModTime(theme.StateDir()),
 		frame:           &frameCache{},
+		themeVersion:    1,
+		ambientStamp:    0,
+		panels:          &panelCache{},
 		lastClockMinute: now.Minute(),
 		detailOn:        true,
 		input:           input,

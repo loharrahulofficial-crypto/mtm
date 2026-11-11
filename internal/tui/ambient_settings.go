@@ -281,10 +281,10 @@ func (m Model) renderAmbientSettings() string {
 
 // padLeftExact pads/clips a (possibly styled) line to exactly w cells.
 func padLeftExact(line string, w int, fill lipgloss.Style) string {
-	if lipgloss.Width(line) > w {
+	if fastWidth(line) > w {
 		return clipStyled(line, w)
 	}
-	return line + fill.Render(strings.Repeat(" ", w-lipgloss.Width(line)))
+	return line + fill.Render(strings.Repeat(" ", w-fastWidth(line)))
 }
 
 // updateAmbientKey handles keys in the :ambient screen.

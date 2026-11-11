@@ -88,7 +88,7 @@ func renderPanelBottom(m Model, title string, w, h int, focused bool, body []str
 			line = body[i]
 		}
 		line = clipStyled(line, innerW)
-		if pad := innerW - lipgloss.Width(line); pad > 0 {
+		if pad := innerW - fastWidth(line); pad > 0 {
 			line += surfaceFill.Render(strings.Repeat(" ", pad))
 		}
 		grid = append(grid, line)
@@ -127,7 +127,7 @@ func panelEdgeBottom(m Model, w int, title string, border, surface lipgloss.Styl
 		return panelEdge(m, w, false, "", border, surface, "")
 	}
 	edge := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Surface)).Render(" " + hint + " ")
-	edgeW := lipgloss.Width(edge)
+	edgeW := fastWidth(edge)
 	rest := w - 2 - edgeW
 	if rest < 0 {
 		return panelEdge(m, w, false, "", border, surface, "")
@@ -146,7 +146,7 @@ func panelBottomRow(m Model, w int, surface lipgloss.Style, hint string) string 
 	}
 	fill := lipgloss.Color(m.palette.Surface)
 	edge := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(fill).Render(" " + hint + " ")
-	edgeW := lipgloss.Width(edge)
+	edgeW := fastWidth(edge)
 	left := (w - edgeW) / 2
 	if left < 0 {
 		left = 0
@@ -172,29 +172,29 @@ func panelTitleRowCentered(m Model, title string, w int, surface lipgloss.Style,
 		return surface.Render(strings.Repeat(" ", w))
 	}
 	text := sectionLabelText(m, title)
-	textW := lipgloss.Width(text)
+	textW := fastWidth(text)
 	lead := 2
 	hintStr := ""
 	hintW := 0
 	if len(hint) > 0 && hint[0] != "" {
 		hintStr = hint[0]
-		hintW = lipgloss.Width(hintStr) + 1
+		hintW = fastWidth(hintStr) + 1
 	}
 	chipsStr := ""
 	chipsW := 0
 	if len(hint) > 1 && hint[1] != "" {
 		candidate := hint[1]
 		// The label is never clipped to make room — drop the chips instead.
-		if textW+lipgloss.Width(candidate)+1 <= w-lead-2-hintW {
+		if textW+fastWidth(candidate)+1 <= w-lead-2-hintW {
 			chipsStr = candidate
-			chipsW = lipgloss.Width(chipsStr) + 1
+			chipsW = fastWidth(chipsStr) + 1
 		}
 	}
 	centerStr := ""
 	centerW := 0
 	if centerHint != "" {
 		centerStr = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Surface)).Render(" " + centerHint + " ")
-		centerW = lipgloss.Width(centerStr) + 2
+		centerW = fastWidth(centerStr) + 2
 	}
 	ruleLen := w - lead - textW - 2 - hintW - chipsW - centerW
 	if ruleLen < 1 {
@@ -248,31 +248,31 @@ func titledBorderCentered(m Model, title string, w int, top bool, edge lipgloss.
 	hintW := 0
 	if len(hint) > 0 && hint[0] != "" {
 		hintStr = hint[0]
-		hintW = lipgloss.Width(hintStr) + 2 // " hint "
+		hintW = fastWidth(hintStr) + 2 // " hint "
 	}
 	chipsStr := ""
 	chipsW := 0
 	if len(hint) > 1 && hint[1] != "" {
 		candidate := hint[1]
 		// The label is never clipped to make room — drop the chips instead.
-		if lipgloss.Width(cap)+lipgloss.Width(candidate)+1 <= w-3-2-hintW {
+		if fastWidth(cap)+fastWidth(candidate)+1 <= w-3-2-hintW {
 			chipsStr = candidate
-			chipsW = lipgloss.Width(chipsStr) + 1
+			chipsW = fastWidth(chipsStr) + 1
 		}
 	}
 	centerStr := ""
 	centerW := 0
 	if centerHint != "" {
 		centerStr = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Surface)).Render(" " + centerHint + " ")
-		centerW = lipgloss.Width(centerStr) + 2
+		centerW = fastWidth(centerStr) + 2
 	}
 	// ╭─ TITLE chips ─── centerHint ─── hint ╮
 	const pre, tail = 3, 2 // "╭─ " and " "+cornerR
 	inner := w - pre - tail - hintW - chipsW - centerW
-	if lipgloss.Width(cap) > inner {
+	if fastWidth(cap) > inner {
 		cap = clipStyled(cap, inner)
 	}
-	fillN := inner - lipgloss.Width(cap) - chipsW
+	fillN := inner - fastWidth(cap) - chipsW
 	if fillN < 0 {
 		fillN = 0
 	}
@@ -357,7 +357,7 @@ func sectionLabelText(m Model, label string) string {
 // used for sidebar sections.
 func sectionLabel(m Model, label string, w int) string {
 	text := sectionLabelText(m, label)
-	ruleLen := w - lipgloss.Width(text) - ContentInset - 2
+	ruleLen := w - fastWidth(text) - ContentInset - 2
 	if ruleLen < 1 {
 		ruleLen = 1
 	}
@@ -396,8 +396,8 @@ func tooSmallView(w, h int, bg lipgloss.Color, quitKey string) string {
 	}
 	contentW := 0
 	for _, l := range box {
-		if lipgloss.Width(l) > contentW {
-			contentW = lipgloss.Width(l)
+		if fastWidth(l) > contentW {
+			contentW = fastWidth(l)
 		}
 	}
 	if contentW > w-2 {
@@ -410,7 +410,7 @@ func tooSmallView(w, h int, bg lipgloss.Color, quitKey string) string {
 		} {
 			box = append(box, l)
 		}
-		contentW = lipgloss.Width("bigger terminal")
+		contentW = fastWidth("bigger terminal")
 	}
 	topPad := (h - len(box) - 2) / 2
 	if topPad < 0 {
@@ -421,7 +421,7 @@ func tooSmallView(w, h int, bg lipgloss.Color, quitKey string) string {
 		lines = append(lines, blank)
 	}
 	for _, l := range box {
-		pad := (w - lipgloss.Width(l)) / 2
+		pad := (w - fastWidth(l)) / 2
 		if pad < 0 {
 			pad = 0
 		}

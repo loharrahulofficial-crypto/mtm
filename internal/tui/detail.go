@@ -255,7 +255,7 @@ func renderCenteredBlock(m Model, w, h int, lines []string) string {
 		out = append(out, "")
 	}
 	for _, l := range lines {
-		pad := (w - lipgloss.Width(l)) / 2
+		pad := (w - fastWidth(l)) / 2
 		if pad < 0 {
 			pad = 0
 		}

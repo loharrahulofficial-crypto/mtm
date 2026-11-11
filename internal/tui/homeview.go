@@ -342,7 +342,7 @@ func renderSceneCorner(m Model, r homeRect) []string {
 	body := m.currentScene().Frame(m.ambientT, r.w-2, r.h-2, st)
 	out := []string{top}
 	for _, l := range body {
-		if w := lipgloss.Width(l); w > r.w-2 {
+		if w := fastWidth(l); w > r.w-2 {
 			l = clipStyled(l, r.w-2)
 		} else if w < r.w-2 {
 			l += pad.Render(strings.Repeat(" ", r.w-2-w))
@@ -449,7 +449,7 @@ func homeGreetingLine(m Model, d homeData, width int) string {
 		return line
 	}
 	for _, candidate := range []string{build(true, false), build(false, false), build(true, true), build(false, true)} {
-		if lipgloss.Width(candidate) <= width {
+		if fastWidth(candidate) <= width {
 			return candidate
 		}
 	}
@@ -476,7 +476,7 @@ func hstack(blocks [][]string, gap int, base lipgloss.Style) []string {
 			if i < len(b) {
 				parts = append(parts, b[i])
 			} else {
-				parts = append(parts, base.Render(strings.Repeat(" ", lipgloss.Width(b[0]))))
+				parts = append(parts, base.Render(strings.Repeat(" ", fastWidth(b[0]))))
 			}
 			if j < len(blocks)-1 {
 				parts = append(parts, gutter[i])
@@ -551,7 +551,7 @@ func todayBody(m Model, w, h int, d homeData) []string {
 			prio = " ! " + strings.ToUpper(t.Priority[:4])
 		}
 
-		label := truncatePlain(t.Title, w-6-9-lipgloss.Width(est)-lipgloss.Width(prio)-3)
+		label := truncatePlain(t.Title, w-6-9-fastWidth(est)-fastWidth(prio)-3)
 		var titleStyle lipgloss.Style
 		if done {
 			titleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bg)
@@ -720,16 +720,16 @@ func examsBody(m Model, w, h int, d homeData) []string {
 		}
 		stripe := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.CourseColor(m.palette, e.task.Project, projectColorOverride(m, e.task.Project)))).Background(bgSurface).Render("▌")
 		txt := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(bgSurface)
-		nameBudget := w - 5 - lipgloss.Width(" — "+inText(e.daysLeft))
+		nameBudget := w - 5 - fastWidth(" — "+inText(e.daysLeft))
 		if e.weight >= 0 && nameBudget > 12 {
-			nameBudget -= lipgloss.Width(fmt.Sprintf(" · %.0f%%", e.weight))
+			nameBudget -= fastWidth(fmt.Sprintf(" · %.0f%%", e.weight))
 		}
 		if nameBudget < 8 {
 			nameBudget = 8
 		}
 		name := truncatePlain(e.task.Title, nameBudget)
 		line := " " + stripe + " " + txt.Render(name) + muted.Render(" — "+inText(e.daysLeft))
-		if e.weight >= 0 && lipgloss.Width(line)+lipgloss.Width(fmt.Sprintf(" · %.0f%%", e.weight)) <= w {
+		if e.weight >= 0 && fastWidth(line)+fastWidth(fmt.Sprintf(" · %.0f%%", e.weight)) <= w {
 			line += muted.Render(fmt.Sprintf(" · %.0f%%", e.weight))
 		}
 		lines = append(lines, padToWidth(line, w, bgSurface))
@@ -795,7 +795,7 @@ func singleExamCard(m Model, e examCard, w int, bgSurface lipgloss.Color) []stri
 		lines = append(lines, "  "+bar)
 	}
 	for i, l := range lines {
-		if pad := w - lipgloss.Width(l); pad > 0 {
+		if pad := w - fastWidth(l); pad > 0 {
 			lines[i] = l + lipgloss.NewStyle().Background(bgSurface).Render(strings.Repeat(" ", pad))
 		}
 	}
@@ -931,12 +931,12 @@ func upNextBody(m Model, w, h int, d homeData) []string {
 			}
 			dueCell = dc.Render(label)
 		}
-		dueW := lipgloss.Width(dueCell)
+		dueW := fastWidth(dueCell)
 		examMark := ""
 		if strings.EqualFold(t.Kind, core.KindExam) {
 			examMark = lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(bgSurface).Bold(true).Render("✦ ")
 		}
-		markW := lipgloss.Width(examMark)
+		markW := fastWidth(examMark)
 		budget := w - 4 - markW - dueW - 2
 		if budget < 8 {
 			budget = 8
@@ -946,7 +946,7 @@ func upNextBody(m Model, w, h int, d homeData) []string {
 		line := " " + stripe + " " + examMark + titleStyle.Render(title)
 		// Right-align the due cell on the panel edge.
 		if dueCell != "" {
-			pad := w - lipgloss.Width(line) - dueW - 1
+			pad := w - fastWidth(line) - dueW - 1
 			if pad < 1 {
 				line = clipStyled(line, w-dueW-2)
 				pad = 1
@@ -1087,12 +1087,12 @@ func heatmapBody(m Model, w, h int, d homeData) []string {
 	monthRow := ""
 	{
 		for _, p := range heatmapMonthPlacements(d.now, weeks, w) {
-			if pad := p.x - lipgloss.Width(monthRow); pad > 0 {
+			if pad := p.x - fastWidth(monthRow); pad > 0 {
 				monthRow += lipgloss.NewStyle().Background(bgSurface).Render(strings.Repeat(" ", pad))
 			}
 			monthRow += muted.Render(p.text)
 		}
-		if pad := w - lipgloss.Width(monthRow); pad > 0 {
+		if pad := w - fastWidth(monthRow); pad > 0 {
 			monthRow += lipgloss.NewStyle().Background(bgSurface).Render(strings.Repeat(" ", pad))
 		}
 	}
@@ -1103,7 +1103,7 @@ func heatmapBody(m Model, w, h int, d homeData) []string {
 		if i%2 == 0 {
 			label = names[i]
 		}
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgSurface).Width(heatLabelW).Render(label + strings.Repeat(" ", heatLabelW-lipgloss.Width(label)))
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(bgSurface).Width(heatLabelW).Render(label + strings.Repeat(" ", heatLabelW-fastWidth(label)))
 	}
 
 	// Stats strip to the right of the grid when the panel is wide enough.
@@ -1152,12 +1152,12 @@ func heatmapBody(m Model, w, h int, d homeData) []string {
 			stripLine = 2
 		}
 		if stripLine >= 0 && stripLine < len(strip) {
-			if pad := statsX - lipgloss.Width(line); pad > 0 {
+			if pad := statsX - fastWidth(line); pad > 0 {
 				line += lipgloss.NewStyle().Background(bgSurface).Render(strings.Repeat(" ", pad))
 			}
 			line += strip[stripLine]
 		}
-		if pad := w - lipgloss.Width(line); pad > 0 {
+		if pad := w - fastWidth(line); pad > 0 {
 			line += lipgloss.NewStyle().Background(bgSurface).Render(strings.Repeat(" ", pad))
 		}
 		lines = append(lines, line)
@@ -1169,7 +1169,7 @@ func heatmapBody(m Model, w, h int, d homeData) []string {
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Heatmap[i])).Background(bgSurface).Render("▪") + " "
 	}
 	legend += legendCell(1) + legendCell(2) + legendCell(3) + legendCell(4) + muted.Render("more")
-	if pad := w - lipgloss.Width(legend); pad > 0 {
+	if pad := w - fastWidth(legend); pad > 0 {
 		legend += lipgloss.NewStyle().Background(bgSurface).Render(strings.Repeat(" ", pad))
 	}
 	if withLegend {

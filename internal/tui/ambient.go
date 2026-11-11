@@ -418,17 +418,22 @@ func splashTickCmd() tea.Cmd {
 // only while a surface wants frames. In gentle idle the clock crawls at
 // a quarter rate so scenes breathe without advancing progress-linked elements.
 func (m Model) handleAmbientTick() (tea.Model, tea.Cmd) {
+	now := m.clock.Now()
+	if m.rewardArmed && !time.Now().Before(m.rewardUntil) {
+		m.rewardArmed = false
+		m.ambientStamp++ // one final frame drops the reward panel
+	}
 	if !m.ambientActive() {
 		m.ambientArmed = false
 		return m, nil
 	}
+	m.ambientStamp++
 	fps := ambientFPS(m)
 	slow := m.slowIdleActive()
 	if slow {
 		fps = slowIdleFPS(fps)
 	}
 	d := time.Second / time.Duration(fps)
-	now := m.clock.Now()
 	var elapsed time.Duration
 	if m.lastAmbientTick.IsZero() {
 		elapsed = d
@@ -641,7 +646,7 @@ func applyAt(out []string, w, y int, line string, style lipgloss.Style, baseColo
 	}
 	// keep background continuity: pad the whole row to w cells
 	rendered := style.Render(line)
-	pad := w - lipgloss.Width(line)
+	pad := w - fastWidth(line)
 	if pad > 0 {
 		rendered = rendered + lipgloss.NewStyle().Background(lipgloss.Color(baseColor)).Render(strings.Repeat(" ", pad))
 	}
@@ -651,11 +656,11 @@ func applyAt(out []string, w, y int, line string, style lipgloss.Style, baseColo
 // spliceCells replaces cells [x, x+width) in a styled line.
 func spliceCells(dst string, x, width int, piece string) string {
 	prefix := clipStyled(dst, x)
-	if pad := x - lipgloss.Width(prefix); pad > 0 {
+	if pad := x - fastWidth(prefix); pad > 0 {
 		prefix += strings.Repeat(" ", pad)
 	}
-	suffix := clipStyled(stripAnsiPrefix(dst, x+width), lipgloss.Width(dst)-x-width)
-	if pad := lipgloss.Width(dst) - x - width - lipgloss.Width(suffix); pad > 0 {
+	suffix := clipStyled(stripAnsiPrefix(dst, x+width), fastWidth(dst)-x-width)
+	if pad := fastWidth(dst) - x - width - fastWidth(suffix); pad > 0 {
 		suffix += strings.Repeat(" ", pad)
 	}
 	return prefix + piece + suffix
@@ -664,7 +669,7 @@ func spliceCells(dst string, x, width int, piece string) string {
 // stripAnsiPrefix returns the cells of dst starting at cell x.
 func stripAnsiPrefix(dst string, x int) string {
 	// reuse ansi.Cut for a correct slice of visible cells
-	return ansi.Cut(dst, x, lipgloss.Width(dst))
+	return ansi.Cut(dst, x, fastWidth(dst))
 }
 
 // renderRewardPanel composes the floating 1.5s completion celebration:
@@ -680,7 +685,7 @@ func (m Model) renderRewardPanel() string {
 	}
 	edge := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(lipgloss.Color(m.palette.Base))
 	head := "✦ task done"
-	fillN := rw - 4 - lipgloss.Width(head)
+	fillN := rw - 4 - fastWidth(head)
 	if fillN < 0 {
 		fillN = 0
 	}
@@ -690,7 +695,7 @@ func (m Model) renderRewardPanel() string {
 	inner := m.sceneRewardFrame(m.ambientT, rw-2, rh-2)
 	lines := []string{top}
 	for _, l := range inner {
-		if w := lipgloss.Width(l); w > rw-2 {
+		if w := fastWidth(l); w > rw-2 {
 			l = clipStyled(l, rw-2)
 		} else if w < rw-2 {
 			l = l + lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base)).Render(strings.Repeat(" ", rw-2-w))
@@ -730,6 +735,7 @@ func (m *Model) fireReward(title string) tea.Cmd {
 	}
 	m.rewardUntil = m.clock.Now().Add(rewardDuration)
 	m.rewardTitle = title
+	m.rewardArmed = true
 	m.armAmbient()
 	return ambientTickCmd(ambientFPS(*m))
 }

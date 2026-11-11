@@ -123,10 +123,10 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 	}
 	fill := lipgloss.NewStyle().Background(bg)
 	gitRun := func(row string) string {
-		if lipgloss.Width(row) > cw {
+		if fastWidth(row) > cw {
 			return clipStyled(row, cw)
 		}
-		if pad := cw - lipgloss.Width(row); pad > 0 {
+		if pad := cw - fastWidth(row); pad > 0 {
 			row += fill.Render(strings.Repeat(" ", pad))
 		}
 		return row
@@ -156,8 +156,8 @@ func calendarCell(m Model, day time.Time, cw, cellH int, today time.Time) []stri
 		any := false
 		if cw < 12 && total > 0 {
 			chip := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Text)).Background(lipgloss.Color(m.palette.SurfaceRaised)).Bold(true).Render(fmt.Sprintf("%d", total))
-			chipW := lipgloss.Width(chip)
-			numW := lipgloss.Width(numStr)
+			chipW := fastWidth(chip)
+			numW := fastWidth(numStr)
 			shown := 0
 			room := cw - 3 - numW - chipW // row fill + num + gap before chip
 			if exam {
@@ -375,7 +375,7 @@ func dayStartT(t time.Time) time.Time {
 }
 
 func center(s string, w int) string {
-	sd := lipgloss.Width(s)
+	sd := fastWidth(s)
 	if sd >= w {
 		return clipStyled(s, w)
 	}
@@ -604,7 +604,7 @@ func renderCalendarBody(m Model, w, h int) []string {
 // joinGridRow joins grid cells with the base gutter and pads with base to w.
 func joinGridRow(baseBG lipgloss.Color, gutter string, cells []string, w int) string {
 	line := strings.Join(cells, gutter)
-	if pad := w - lipgloss.Width(line); pad > 0 {
+	if pad := w - fastWidth(line); pad > 0 {
 		line += lipgloss.NewStyle().Background(baseBG).Render(strings.Repeat(" ", pad))
 	}
 	return line

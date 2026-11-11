@@ -315,7 +315,7 @@ func wrapLines(s string, width, maxLines int) []string {
 	return lines
 }
 
-func lipglossWidth(s string) int { return lipgloss.Width(s) }
+func lipglossWidth(s string) int { return fastWidth(s) }
 
 // verticalCenter pads body lines to exactly width cells and vertically
 // centers the block within height rows.
@@ -330,7 +330,7 @@ func verticalCenter(body []string, height, width int, base lipgloss.Style) strin
 		lines = append(lines, fill)
 	}
 	for _, l := range body {
-		if pad := width - lipgloss.Width(l); pad > 0 {
+		if pad := width - fastWidth(l); pad > 0 {
 			l += base.Render(strings.Repeat(" ", pad))
 		} else if pad < 0 {
 			l = truncatePlain(l, width)
