@@ -125,6 +125,12 @@ func New(name, mode string) Scene {
 		return &bonsaiScene{mode: mode}
 	case "night":
 		return &nightScene{mode: mode}
+	case "mountains":
+		return &mountainsScene{mode: mode}
+	case "river":
+		return &riverScene{mode: mode}
+	case "meteor":
+		return &meteorScene{mode: mode}
 	default:
 		return &nightScene{mode: mode}
 	}
@@ -132,7 +138,7 @@ func New(name, mode string) Scene {
 
 // Registered lists every scene name in stable order.
 func Registered() []string {
-	return []string{"night", "bonsai", "ocean", "rain", "koi", "snow", "campfire"}
+	return []string{"night", "bonsai", "ocean", "rain", "koi", "snow", "campfire", "mountains", "river", "meteor"}
 }
 
 // paintReward draws the scene-specific 1.5s celebration: an eased,

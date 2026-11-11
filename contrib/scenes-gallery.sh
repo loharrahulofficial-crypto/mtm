@@ -9,7 +9,7 @@ OUT=${2:-$(mktemp -d /tmp/mtm-scenes-XXXXXX)}
 . "$(dirname "$0")/sandbox-env.sh"
 mkdir -p "$OUT"
 sizes="24x10 30x16 40x14 64x16 100x30 200x50"
-scenes="night bonsai ocean rain koi snow campfire"
+scenes="night bonsai ocean rain koi snow campfire mountains river meteor"
 for scene in $scenes; do
   for size in $sizes; do
     ppm="$OUT/${scene}-${size}.ppm"

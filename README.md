@@ -334,6 +334,7 @@ ui:
                                 # collapses on short terminals); toggle in :ambient
   scene: auto                   # auto (by local hour) | random | night |
                                 # bonsai | ocean | rain | koi | snow | campfire
+                                # | mountains | river | meteor
   splash_seconds: 3.0           # startup splash length
   reward_animation: true        # 1.5s scene burst when a task is completed
                                 # (rate-limited to 3 per minute)

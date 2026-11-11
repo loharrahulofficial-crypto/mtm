@@ -18,6 +18,22 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   lightning off by default), plus three extras — koi pond (segment-jointed
   fish), snowfall (three parallax flake depths) and campfire (breathing
   radial glow, sparks, smoke)
+- **Three new cozy scenes** (2026-11-11): `mountains` — a dusk valley in
+  the Firewatch idiom: one bold warm gradient, a breathing sun halo,
+  cloud masses melting into the sky, four ridge layers dissolving into
+  haze with atmospheric perspective, snow stipple and slow gliding
+  birds for the fine grids; the sun sinks along the pomodoro arc and
+  break holds it high. `river` — a golden-hour valley: a winding river
+  widening toward the viewer carrying the sky's color, pulsing flow
+  dashes, a flickering sun glitter column, swaying bank grass and
+  fireflies; the sun tracks the pomodoro arc the same way. `meteor` — a
+  meteor-shower night: a denser starfield than night, a faint milky-way
+  wash, thin bright streaks with long fading tails several in flight at
+  once and a brighter bolide every third wave, over a pine ridge (no
+  progress tie-in). With them `ui.scene: auto` rotates by local hour:
+  5–8 mountains, 8–15 ocean, 15–17 river, 17–20 rain, 20–23 night,
+  23–5 meteor; `make demo` seeds `ambient_render: sextant` in its
+  sandbox config
 - **Where they appear** (`ui.ambient: off|splash|sidebar|home|both`, default both):
   startup splash (default 3s, any key skips; skipped on non-TTY,
   `--no-splash`, or when disabled), a framed ambient window at the bottom

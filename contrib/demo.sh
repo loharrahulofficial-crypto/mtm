@@ -79,6 +79,8 @@ sync:
     auto: false
     debounce_seconds: 2
     remote: origin
+ui:
+    ambient_render: sextant
 pomodoro:
     work_minutes: 25
     short_break_minutes: 5

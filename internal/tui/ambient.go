@@ -120,12 +120,18 @@ func (m Model) sceneForLaunch() string {
 	case "auto":
 		h := m.clock.Now().Hour()
 		switch {
-		case h >= 5 && h < 17:
-			return "ocean" // day: tide climbing
+		case h >= 5 && h < 8:
+			return "mountains" // dawn: ridges in first light
+		case h >= 8 && h < 15:
+			return "ocean" // morning into midday: tide climbing
+		case h >= 15 && h < 17:
+			return "river" // late afternoon: golden-hour flow
 		case h >= 17 && h < 20:
 			return "rain"
+		case h >= 20 && h < 23:
+			return "night" // evening: moon and aurora
 		default:
-			return "night" // evening and overnight
+			return "meteor" // deep night: meteor shower
 		}
 	case "random":
 		names := ambient.Registered()
