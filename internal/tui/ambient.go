@@ -510,16 +510,16 @@ type wordmarkGlyphs struct{ letters [][]string }
 // wordmarkSmall is the 3-row wordmark; the t carries a top bar over a stem
 // (reads as a t, never as an I).
 var wordmarkSmall = wordmarkGlyphs{letters: [][]string{
-	{"█▄ ▄█", "█▀▄▀█", "█   █"}, // m
+	{"█   █", "█████", "█   █"}, // m — solid stems + joined bar
 	{"█████", "  █  ", "  █  "}, // t
-	{"█▄ ▄█", "█▀▄▀█", "█   █"}, // m
+	{"█   █", "█████", "█   █"}, // m
 }}
 
 // wordmarkLarge is the 5-row wordmark for roomy terminals.
 var wordmarkLarge = wordmarkGlyphs{letters: [][]string{
-	{"██   ██", "███ ███", "██▀█▀██", "██   ██", "██   ██"}, // m
+	{"██   ██", "███ ███", "███████", "██   ██", "██   ██"}, // m — stems joined at the waist
 	{"███████", "  ███  ", "  ███  ", "  ███  ", "  ███  "}, // t
-	{"██   ██", "███ ███", "██▀█▀██", "██   ██", "██   ██"}, // m
+	{"██   ██", "███ ███", "███████", "██   ██", "██   ██"}, // m
 }}
 
 func (g wordmarkGlyphs) rows() []string {
@@ -621,7 +621,7 @@ func (m Model) renderSplash() string {
 	taglineT := clampUnit((t-1.6)/0.6, 0, 1) * fade
 	if taglineT > 0 && cy+5 < h {
 		const text = "a calmer desk for your courses"
-		blend := ambient.BlendHex(baseHex, m.palette.MutedSoft, taglineT)
+		blend := ambient.BlendHex(baseHex, m.palette.BrightText, taglineT)
 		x0 := centerX(w, text)
 		piece := overlayCells(x0, cy+5, text, blend, false, r, baseHex, limited, dither)
 		out[cy+5] = spliceCells(out[cy+5], x0, fastWidth(text), piece)
