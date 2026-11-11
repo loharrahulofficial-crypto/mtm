@@ -94,7 +94,7 @@ const (
 	ModeSextant   = "sextant"
 )
 
-func resolveMode(m string) string {
+func ResolveMode(m string) string {
 	switch m {
 	case ModeHalfblock, ModeBraille, ModeASCII, ModeQuadrant, ModeSextant:
 		return m

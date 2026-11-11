@@ -17,7 +17,7 @@ func ReportFrameCost(mode string, w, h int) map[string]int64 {
 	if h < 1 {
 		h = 1
 	}
-	mode = resolveMode(mode)
+	mode = ResolveMode(mode)
 	out := make(map[string]int64, len(Registered()))
 	st := SceneState{
 		Progress: 0.5,
@@ -44,7 +44,7 @@ func ReportBytes(mode string, w, h int) map[string]int {
 	if h < 1 {
 		h = 1
 	}
-	mode = resolveMode(mode)
+	mode = ResolveMode(mode)
 	out := make(map[string]int, len(Registered()))
 	st := SceneState{
 		Progress: 0.5,

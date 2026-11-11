@@ -46,16 +46,19 @@ type Report struct {
 	Kind     string    `json:"kind"` // marker kind: real|demo|"unmarked"
 	OK       bool      `json:"ok"`
 	Findings []Finding `json:"findings"`
-	// AmbientBytesPerFrame reports the SGR byte count of one halfblock
-	// frame per scene at 100x30 (deterministic, default theme).
+	// AmbientBytesPerFrame reports the SGR byte count of one frame per
+	// scene at 100x30 in the configured render mode (deterministic, default
+	// theme). AmbientRender carries the resolved mode the numbers were
+	// measured with (halfblock for auto/unknown).
 	AmbientBytesPerFrame map[string]int `json:"ambient_bytes_per_frame,omitempty"`
+	AmbientRender        string         `json:"ambient_render"`
 	// AmbientTier reports the adaptive-quality tier (0=full|1=low-ss|2=low-fps).
 	AmbientTier     int    `json:"ambient_quality_tier"`
 	AmbientTierName string `json:"ambient_quality_name"`
 	// AmbientPaintNS is the slowest single measured reference frame
-	// (halfblock, 100x30, fixed clock), in nanoseconds; AmbientPaintMs is
-	// the same in milliseconds. AmbientTier reports this process's
-	// adaptive-quality tier (a one-shot doctor run reports 0/full).
+	// (configured render mode, 100x30, fixed clock), in nanoseconds;
+	// AmbientPaintMs is the same in milliseconds. AmbientTier reports this
+	// process's adaptive-quality tier (a one-shot doctor run reports 0/full).
 	AmbientPaintNS int64   `json:"ambient_paint_ns"`
 	AmbientPaintMs float64 `json:"ambient_paint_ms"`
 }
@@ -63,11 +66,12 @@ type Report struct {
 // Options carries the inputs Run needs; zero values default to the
 // process environment (real clock, paths.StateDir()).
 type Options struct {
-	Root      string    // data repo
-	StateDir  string    // timer state dir (defaults set by caller)
-	ThemeDir  string    // omarchy state dir for the theme (defaults to theme.StateDir())
-	TrueColor string    // ui.truecolor config value (auto|on|off); empty = auto
-	Now       time.Time // for staleness math
+	Root          string    // data repo
+	StateDir      string    // timer state dir (defaults set by caller)
+	ThemeDir      string    // omarchy state dir for the theme (defaults to theme.StateDir())
+	TrueColor     string    // ui.truecolor config value (auto|on|off); empty = auto
+	AmbientRender string    // ui.ambient_render config value; empty = auto
+	Now           time.Time // for staleness math
 }
 
 var demoSubjectRe = regexp.MustCompile(`(?i)\bdemo\b`)
@@ -107,8 +111,10 @@ func Run(opts Options) Report {
 	}
 
 	// --- ambient render cost (deterministic; one frame per scene) ---
-	rep.AmbientBytesPerFrame = ambient.ReportBytes(ambient.ModeHalfblock, 100, 30)
-	paintCosts := ambient.ReportFrameCost(ambient.ModeHalfblock, 100, 30)
+	resolvedRender := ambient.ResolveMode(opts.AmbientRender)
+	rep.AmbientRender = resolvedRender
+	rep.AmbientBytesPerFrame = ambient.ReportBytes(resolvedRender, 100, 30)
+	paintCosts := ambient.ReportFrameCost(resolvedRender, 100, 30)
 	for _, cost := range paintCosts {
 		if cost > rep.AmbientPaintNS {
 			rep.AmbientPaintNS = cost
@@ -116,6 +122,14 @@ func Run(opts Options) Report {
 	}
 	rep.AmbientPaintMs = float64(rep.AmbientPaintNS) / 1e6
 	rep.AmbientTier, rep.AmbientTierName = ambient.AmbientTier()
+	renderCfg := opts.AmbientRender
+	if renderCfg == "" {
+		renderCfg = "auto"
+	}
+	rep.add(LevelInfo, "render", "", "ui.ambient_render: %s (measuring %s frames)", renderCfg, resolvedRender)
+	if resolvedRender != ambient.ModeSextant {
+		rep.add(LevelInfo, "render", "", "animations render at %s resolution — set ui.ambient_render: sextant (2×3 subcells, Unicode 15 mosaics) for the full ambient detail", resolvedRender)
+	}
 
 	// --- git repo ---
 	repo := sync.New(opts.Root)

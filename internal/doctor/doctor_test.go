@@ -444,3 +444,46 @@ func TestTerminalCapabilityReported(t *testing.T) {
 		t.Fatalf("terminal capability not reported:\n%s", data)
 	}
 }
+
+func TestRenderFindingsAndAmbientModeDefault(t *testing.T) {
+	gitEnv(t)
+	root := t.TempDir()
+	initRepo(t, root, "a1b2c3")
+	writeMarker(t, root, "real")
+	rep := runDoctor(t, root)
+	if rep.AmbientRender != "halfblock" {
+		t.Fatalf("AmbientRender = %q, want halfblock (auto default)", rep.AmbientRender)
+	}
+	renders := findingsOf(rep, LevelInfo, "render")
+	if len(renders) < 2 {
+		t.Fatalf("want a render finding plus a sextant hint, got %d: %+v", len(renders), renders)
+	}
+	hint := false
+	for _, f := range renders {
+		if strings.Contains(f.Message, "sextant") {
+			hint = true
+		}
+	}
+	if !hint {
+		t.Fatal("halfblock measurement did not suggest sextant")
+	}
+}
+
+func TestRenderFindingsAndAmbientModeSextant(t *testing.T) {
+	gitEnv(t)
+	root := t.TempDir()
+	initRepo(t, root, "a1b2c3")
+	writeMarker(t, root, "real")
+	rep := Run(Options{Root: root, StateDir: t.TempDir(), ThemeDir: t.TempDir(), AmbientRender: "sextant", Now: time.Date(2026, 11, 9, 12, 0, 0, 0, time.Local)})
+	if rep.AmbientRender != "sextant" {
+		t.Fatalf("AmbientRender = %q, want sextant", rep.AmbientRender)
+	}
+	for _, f := range findingsOf(rep, LevelInfo, "render") {
+		if strings.Contains(f.Message, "set ui.ambient_render") {
+			t.Fatalf("sextant hint should not appear when sextant is already set: %q", f.Message)
+		}
+	}
+	if len(rep.AmbientBytesPerFrame) == 0 {
+		t.Fatal("ambient bytes per frame missing in sextant mode")
+	}
+}

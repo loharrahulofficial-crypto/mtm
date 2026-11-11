@@ -581,8 +581,35 @@ func (m Model) renderSplash() string {
 	if !reduced && t < 0.55 {
 		headK = ambient.EaseOutCubic(t / 0.55)
 	}
-	r, baseHex, limited, dither, dissolveProg := m.splashSceneRaster(sceneT, t, w, h, headK, total, reduced)
-	out := r.EmitHalfblock(baseHex, true, limited, dither)
+	var r ambient.Raster
+	var baseHex string
+	var limited, dither bool
+	var dissolveProg float64
+	var out []string
+	if ambient.ResolveMode(m.cfg.UI.AmbientRender) == ambient.ModeSextant {
+		// Sextant path: the scene emits 2×3 mosaics natively (Frame is
+		// geometry-aware). The raster-space dissolve cannot run — the
+		// raster is 3 subrows tall — so the tail eases colors to base
+		// (glyphs stay, colors vanish). Overlays render on a flat base
+		// background (rasterCellBG falls back to baseHex on a zero raster).
+		st := m.sceneState()
+		st.Palette = m.dimScenePalette()
+		if headK < 1 {
+			st.Palette = ambient.FadePalette(st.Palette, 1-headK)
+		}
+		baseHex = st.Palette.Base
+		limited, dither = st.PaletteLimited, st.Dither
+		out = m.currentScene().Frame(sceneT, w, h, st)
+		if !reduced && t > total-0.45 {
+			dissolveProg = clampUnit((t-(total-0.45))/0.45, 0, 1)
+			out = fadeToBaseLines(out, baseHex, ambient.EaseInOutCubic(dissolveProg))
+		}
+	} else {
+		var half ambient.Raster
+		half, baseHex, limited, dither, dissolveProg = m.splashSceneRaster(sceneT, t, w, h, headK, total, reduced)
+		r = half
+		out = r.EmitHalfblock(baseHex, true, limited, dither)
+	}
 	// overlays fade with the dissolve tail: 1 = fully lit, 0 = base
 	fade := 1 - ambient.EaseInOutCubic(dissolveProg)
 

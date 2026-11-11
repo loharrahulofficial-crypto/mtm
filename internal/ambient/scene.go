@@ -109,7 +109,7 @@ func renderFrame(s paintable, mode string, t time.Duration, w, h int, state Scen
 // New returns the scene named name (unknown names fall back to night),
 // rendered with the given mode (auto resolves to halfblock).
 func New(name, mode string) Scene {
-	mode = resolveMode(mode)
+	mode = ResolveMode(mode)
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "campfire":
 		return &campfireScene{mode: mode}

@@ -17,7 +17,7 @@ func newDoctorCmd() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "Read-only health checks for the data repo (marker, git, remote, identity, frontmatter, sync, timer)",
+		Short: "Read-only health checks for the data repo (marker, git, remote, identity, frontmatter, sync, timer, render)",
 		Long: `Checks the data repo without changing anything:
 
   git          data repo is a git repository
@@ -34,6 +34,10 @@ func newDoctorCmd() *cobra.Command {
                defaults per role (neutral warning, not a failure)
   terminal     detected terminal and color mode (truecolor | xterm-256),
                and where the override came from (env, config or auto)
+  render       ui.ambient_render setting (auto | halfblock | braille |
+               ascii | quadrant | sextant) and the resolution the ambient
+               animations run at; ambient numbers are measured with it
+               (set sextant for 2×3 subcells)
 
 Exits non-zero when any check fails. --json prints the full report.`,
 		Args: cobra.NoArgs,
@@ -43,11 +47,12 @@ Exits non-zero when any check fails. --json prints the full report.`,
 				return err
 			}
 			rep := doctor.Run(doctor.Options{
-				Root:      cfg.DataRepoPath(),
-				StateDir:  paths.StateDir(),
-				ThemeDir:  theme.StateDir(),
-				TrueColor: cfg.UI.TrueColor,
-				Now:       clock.Real().Now(),
+				Root:          cfg.DataRepoPath(),
+				StateDir:      paths.StateDir(),
+				ThemeDir:      theme.StateDir(),
+				TrueColor:     cfg.UI.TrueColor,
+				AmbientRender: cfg.UI.AmbientRender,
+				Now:           clock.Real().Now(),
 			})
 			if asJSON {
 				enc := json.NewEncoder(cmd.OutOrStdout())

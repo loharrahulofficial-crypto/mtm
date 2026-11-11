@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -286,6 +287,63 @@ func fadeItoa(v uint8) string {
 		return string([]byte{'0' + v/10, '0' + v%10})
 	}
 	return string([]byte{'0' + v})
+}
+
+// fadeToBaseLines eases every cell's fg/bg channel toward base by e
+// (0 = intact, 1 = all base). Glyphs are kept — once bg = fg = base the
+// glyphs are invisible, which is exactly the dissolve's end state. RGB
+// channels lerp; xterm-256 channels pass through unchanged. Used for the
+// splash dissolve tail on render modes whose frames are not halfblock
+// rasters (sextant).
+func fadeToBaseLines(lines []string, base string, e float64) []string {
+	if e <= 0 {
+		return lines
+	}
+	s := strings.TrimPrefix(strings.TrimSpace(base), "#")
+	var br, bg, bb uint8
+	v, err := strconv.ParseUint(s, 16, 32)
+	if err != nil || len(s) != 6 {
+		return lines
+	}
+	br, bg, bb = uint8(v>>16), uint8(v>>8), uint8(v)
+	mix := func(a, b uint8) uint8 {
+		x := float64(a) + (float64(b)-float64(a))*e
+		if x <= 0 {
+			return 0
+		}
+		if x >= 255 {
+			return 255
+		}
+		return uint8(x + 0.5)
+	}
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		cells, ok := parseFadeLine(l)
+		if !ok {
+			out[i] = l
+			continue
+		}
+		var sb strings.Builder
+		sb.Grow(len(l) + 32)
+		cur := fadeSGR{}
+		for _, c := range cells {
+			st := c.sgr
+			if st.fgKind == fadeColorRGB {
+				st.fgR, st.fgG, st.fgB = mix(st.fgR, br), mix(st.fgG, bg), mix(st.fgB, bb)
+			}
+			if st.bgKind == fadeColorRGB {
+				st.bgR, st.bgG, st.bgB = mix(st.bgR, br), mix(st.bgG, bg), mix(st.bgB, bb)
+			}
+			if st != cur {
+				sb.WriteString(fadeSGRString(st))
+				cur = st
+			}
+			sb.WriteString(c.glyph)
+		}
+		sb.WriteString("\x1b[0m")
+		out[i] = sb.String()
+	}
+	return out
 }
 
 // lerpANSILine eases the SGR colors of curr's line toward/away from
