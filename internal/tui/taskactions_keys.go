@@ -32,7 +32,7 @@ func (m Model) updateSimpleTaskAction(act string) (tea.Model, tea.Cmd, bool) {
 	case aStatus:
 		return m.openStatusPicker(), nil, true
 	case aPriority:
-		m.openPriorityPicker()
+		m = m.openPriorityPicker()
 		return m, nil, true
 	case aDue:
 		t := m.selectedTask()
@@ -114,10 +114,10 @@ func (m Model) openStatusPicker() Model {
 	return m
 }
 
-func (m Model) openPriorityPicker() {
+func (m Model) openPriorityPicker() Model {
 	t := m.selectedTask()
 	if t == nil {
-		return
+		return m
 	}
 	items := core.Priorities
 	cur := 1
@@ -131,6 +131,7 @@ func (m Model) openPriorityPicker() {
 	m.pickerItems = append([]string(nil), items...)
 	m.pickerSel = cur
 	m.pickerTitle = "priority of " + t.ID
+	return m
 }
 
 // askDeleteConfirm opens the delete confirmation overlay.
