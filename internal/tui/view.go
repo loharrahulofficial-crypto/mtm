@@ -133,8 +133,10 @@ func (m Model) viewInner() string {
 	footerKey := panelKey{stamp: m.viewStamp, w: m.width, h: 1, theme: m.themeVersion}
 	footer := cachedStringPanel(footerPC, footerKey, func() string { return m.renderFooterBar(m.width) })
 	screen := joinBlocksV([]string{middle, footer})
-	if fade := m.viewFadeAmount(); fade > 0 {
-		screen = fadeBase(screen, fade, string(baseColor))
+	if p := viewFadeProgress(m); p < 1 {
+		screen = crossfadeFrames(stableFrame, screen, p)
+	} else {
+		stableFrame = screen
 	}
 
 	switch m.mode {

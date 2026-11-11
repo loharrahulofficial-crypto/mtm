@@ -328,7 +328,8 @@ func TestListNoDueHasNoStrayDash(t *testing.T) {
 	})
 	upd, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = upd.(Model)
-	m = press(t, m, "1") // list view
+	m = press(t, m, "1")          // list view
+	m.viewFadeStart = time.Time{} // settle the tab crossfade before inspecting the frame
 	v := m.View()
 	line := ""
 	for _, l := range strings.Split(v, "\n") {
@@ -349,7 +350,9 @@ func TestListNoDueHasNoStrayDash(t *testing.T) {
 		{Title: "has due", Status: "todo", Priority: "low", Kind: core.KindTask, Due: far.Format("2006-01-02")},
 	})
 	upd, _ = m2.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	list := renderContents(press(t, upd.(Model), "1"))
+	pressed := press(t, upd.(Model), "1")
+	pressed.viewFadeStart = time.Time{} // settle the tab crossfade before inspecting the frame
+	list := renderContents(pressed)
 	if !strings.Contains(stripANSI(list), far.Format("Jan 2")) {
 		t.Fatalf("due date missing from list: %q", stripANSI(list))
 	}

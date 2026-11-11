@@ -1,52 +1,112 @@
 package tui
 
 import (
-	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 	"github.com/loharrahulofficial-crypto/mtm/internal/clock"
 )
 
-func TestViewFadeAmount(t *testing.T) {
+func TestViewFadeAmountRunsToZeroOverTicks(t *testing.T) {
 	m, s := newTestModel(t, nil)
 	defer func() { _ = s.Close() }()
-	fixed := time.Date(2026, 11, 11, 12, 0, 0, 0, time.Local)
-	m.clock = clock.Fixed(fixed)
-	if got := m.viewFadeAmount(); got != 0 {
-		t.Fatalf("inactive fade amount = %v, want 0", got)
+	start := time.Date(2026, 11, 11, 12, 0, 0, 0, time.Local)
+	m.viewFadeStart = start
+	prev := 2.0
+	for i := 0; i <= 5; i++ {
+		at := start.Add(time.Duration(i) * viewFadeDur / 5)
+		m.clock = clock.Fixed(at)
+		got := m.viewFadeAmount()
+		if i == 0 && got != 1 {
+			t.Fatalf("amount at switch = %v, want 1", got)
+		}
+		if i > 0 && got >= prev {
+			t.Fatalf("amount not decreasing at step %d: %v >= %v", i, got, prev)
+		}
+		prev = got
 	}
-	m.viewFadeStart = fixed
-	if got := m.viewFadeAmount(); got <= 0 || got > 1 {
-		t.Fatalf("just-armed fade amount = %v, want in (0, 1]", got)
+	if prev != 0 {
+		t.Fatalf("amount at end of transition = %v, want 0", prev)
 	}
-	m.viewFadeStart = fixed.Add(-viewFadeDur - time.Millisecond)
+	m.clock = clock.Fixed(start.Add(viewFadeDur + time.Millisecond))
 	if got := m.viewFadeAmount(); got != 0 {
-		t.Fatalf("expired fade amount = %v, want 0", got)
+		t.Fatalf("amount after duration = %v, want 0", got)
+	}
+	m.clock = clock.Fixed(start)
+	if p := viewFadeProgress(m); p != 0 {
+		t.Fatalf("progress at switch = %v, want 0", p)
+	}
+	m.clock = clock.Fixed(start.Add(viewFadeDur))
+	if p := viewFadeProgress(m); p != 1 {
+		t.Fatalf("progress after duration = %v, want 1", p)
+	}
+	m.viewFadeStart = time.Time{}
+	if p := viewFadeProgress(m); p != 1 {
+		t.Fatalf("progress with zero viewFadeStart = %v, want 1", p)
 	}
 }
 
-func TestFadeBaseFullDimBecomesBase(t *testing.T) {
-	line := "\x1b[38;2;200;100;50mred text \x1b[48;5;21m on blue"
-	got := fadeBase(line, 1.0, "#14282d")
-	for _, seq := range scanSGR(got) {
-		params := strings.TrimSuffix(strings.TrimPrefix(seq.seq, "\x1b["), "m")
-		if strings.Contains(params, "200;100;50") || strings.Contains(params, ";21m") {
-			t.Fatalf("unblended color survived full fade: %q", seq.seq)
+func solidFrame(r, g, b int) string {
+	line := "\x1b[48;2;" + strconv.Itoa(r) + ";" + strconv.Itoa(g) + ";" + strconv.Itoa(b) + "m     \x1b[0m"
+	return strings.Join([]string{line, line, line}, "\n")
+}
+
+func TestCrossfadeFramesMidpointBlends(t *testing.T) {
+	frameA := solidFrame(200, 60, 40) // red-ish
+	frameB := solidFrame(40, 90, 220) // blue-ish
+	mid := crossfadeFrames(frameA, frameB, 0.5)
+	if mid == frameA || mid == frameB {
+		t.Fatal("midpoint identical to an endpoint")
+	}
+	re := regexp.MustCompile(`48;2;(\d+);(\d+);(\d+)`)
+	mm := re.FindStringSubmatch(mid)
+	if mm == nil {
+		t.Fatalf("no truecolor bg SGR in midpoint frame: %q", mid)
+	}
+	want := [3]int{(200 + 40) / 2, (60 + 90) / 2, (40 + 220) / 2}
+	var got [3]int
+	for i := 0; i < 3; i++ {
+		v := 0
+		for _, c := range mm[i+1] {
+			v = v*10 + int(c-'0')
+		}
+		got[i] = v
+		if got[i] < want[i]-2 || got[i] > want[i]+2 {
+			t.Fatalf("channel %d = %d, want %d ± 2 (full match %q)", i, got[i], want[i], mm[0])
 		}
 	}
-	if !strings.Contains(got, fmt.Sprintf("%d;%d;%d", 20, 40, 45)) {
-		t.Fatalf("base color missing after full fade: %q", got)
+	// Endpoints: non-positive t returns curr exactly; Crossfade(t=1) returns to exactly.
+	if got := crossfadeFrames(frameA, frameB, 0); got != frameB {
+		t.Fatal("t=0 did not return curr exactly")
+	}
+	if got := crossfadeFrames(frameA, frameB, -0.25); got != frameB {
+		t.Fatal("negative t did not return curr exactly")
+	}
+	aLines := strings.Split(frameA, "\n")
+	bLines := strings.Split(frameB, "\n")
+	if got := ambient.Crossfade(aLines, bLines, 1); strings.Join(got, "\n") != frameB {
+		t.Fatal("ambient.Crossfade(t=1) did not return curr exactly")
 	}
 }
 
-func TestFadeBaseZeroIsIdentity(t *testing.T) {
-	line := "\x1b[38;2;200;100;50mplain \x1b[0m\x1b[48;5;21mblue"
-	if got := fadeBase(line, 0, "#14282d"); got != line {
-		t.Fatalf("zero fade changed the line:\ngot  %q\nwant %q", got, line)
+func TestCrossfadeFramesEmptyPrevReturnsCurr(t *testing.T) {
+	curr := solidFrame(40, 90, 220)
+	if got := crossfadeFrames("", curr, 0.5); got != curr {
+		t.Fatal("empty prev did not return curr unchanged")
+	}
+}
+
+func TestCrossfadeFramesLineCountMismatchReturnsCurr(t *testing.T) {
+	prev := solidFrame(200, 60, 40)                 // 3 lines
+	curr := solidFrame(40, 90, 220) + "\n" + "tail" // 4 lines
+	if got := crossfadeFrames(prev, curr, 0.5); got != curr {
+		t.Fatal("line-count mismatch did not return curr unchanged")
 	}
 }
 

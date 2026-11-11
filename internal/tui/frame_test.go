@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -57,8 +58,9 @@ func TestSelectedRowAlwaysVisible(t *testing.T) {
 			m, _ := newTestModel(t, mkTasks(n))
 			upd, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: h})
 			m = upd.(Model)
-			m.sidebarHidden = true // main pane only: no width noise
-			m = press(t, m, "1")   // list view
+			m.sidebarHidden = true        // main pane only: no width noise
+			m = press(t, m, "1")          // list view
+			m.viewFadeStart = time.Time{} // settle the tab crossfade before inspecting the frame
 			vis := m.visibleListRows()
 			// Walk to the last row and back with every navigation path.
 			for _, key := range []string{"G", "g", "G", "k", "j", "down", "up", "ctrl+d", "G"} {
