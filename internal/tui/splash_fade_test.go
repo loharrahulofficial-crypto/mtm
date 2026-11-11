@@ -68,7 +68,8 @@ func splashPair(t *testing.T, ms int) ([]ambient.RGBPix, []ambient.RGBPix, int, 
 	if secs < 0.55 {
 		headK = ambient.EaseOutCubic(secs / 0.55)
 	}
-	faded := m.sceneFrameFaded(sceneT, secs, 80, 24, headK)
+	fadedRaster, baseHex, limited, dither, _ := m.splashSceneRaster(sceneT, secs, 80, 24, headK, m.splashTotal.Seconds(), m.reducedMotionActive())
+	faded := fadedRaster.EmitHalfblock(baseHex, true, limited, dither)
 	_, _, fadedPix := ambient.DecodeFrame(faded)
 	return fullPix, fadedPix, 80, len(fullPix) / (80 * 2)
 }

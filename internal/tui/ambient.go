@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -573,82 +574,160 @@ func (m Model) renderSplash() string {
 	if total < 1.8 {
 		total = 3.0
 	}
-	if m.reducedMotionActive() {
+	reduced := m.reducedMotionActive()
+	if reduced {
 		t = total // static still: the full composition from the first frame
 	}
 	sceneT := time.Duration(math.Max(0, t-0.25) * float64(time.Second))
-	if m.reducedMotionActive() {
+	if reduced {
 		sceneT = 0 // the scene is a still; idle breathing is the only motion
 	}
 
 	// scene elements drift in behind the fade (head fade is a palette
 	// ramp, not a post-process; overlays composite afterwards)
 	headK := 1.0
-	if !m.reducedMotionActive() && t < 0.55 {
+	if !reduced && t < 0.55 {
 		headK = ambient.EaseOutCubic(t / 0.55)
 	}
-	sceneLines := m.sceneFrameFaded(sceneT, t, w, h, headK)
-
-	out := append([]string{}, sceneLines...)
+	r, baseHex, limited, dither, dissolveProg := m.splashSceneRaster(sceneT, t, w, h, headK, total, reduced)
+	out := r.EmitHalfblock(baseHex, true, limited, dither)
+	// overlays fade with the dissolve tail: 1 = fully lit, 0 = base
+	fade := 1 - ambient.EaseInOutCubic(dissolveProg)
 
 	// wordmark letters rise one by one with a glow pulse
 	cy := h / 2
-	m.wordmarkLetters(out, w, cy, t)
+	m.paintWordmark(out, r, baseHex, w, cy, t, fade)
 
 	// tagline fades in 1.6–2.2s
-	taglineT := clampUnit((t-1.6)/0.6, 0, 1)
+	taglineT := clampUnit((t-1.6)/0.6, 0, 1) * fade
 	if taglineT > 0 && cy+5 < h {
-		blend := ambient.BlendHex(m.palette.Base, m.palette.MutedSoft, taglineT)
-		blendStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(blend))
-		applyAt(out, w, cy+5, centerLine(w, "a calmer desk for your courses"), blendStyle, m.palette.Base)
-		applyAt(out, w, cy+3, centerLine(w, "✦  m t m  ✦"), lipgloss.NewStyle().Foreground(lipgloss.Color(ambient.BlendHex(m.palette.Base, m.palette.Accent, taglineT))).Bold(true), m.palette.Base)
+		const text = "a calmer desk for your courses"
+		blend := ambient.BlendHex(baseHex, m.palette.MutedSoft, taglineT)
+		x0 := centerX(w, text)
+		piece := overlayCells(x0, cy+5, text, blend, false, r, baseHex)
+		out[cy+5] = spliceCells(out[cy+5], x0, fastWidth(text), piece)
 	}
 
 	// footer hint fades in early, stays
-	footT := clampUnit((t-0.35)/0.4, 0, 1)
+	footT := clampUnit((t-0.35)/0.4, 0, 1) * fade
 	if footT > 0 && h >= 2 {
-		blend := ambient.BlendHex(m.palette.Base, m.palette.MutedSoft, footT)
-		applyAt(out, w, h-2, centerLine(w, "press any key to skip"), lipgloss.NewStyle().Foreground(lipgloss.Color(blend)), m.palette.Base)
+		const text = "press any key to skip"
+		blend := ambient.BlendHex(baseHex, m.palette.MutedSoft, footT)
+		x0 := centerX(w, text)
+		piece := overlayCells(x0, h-2, text, blend, false, r, baseHex)
+		out[h-2] = spliceCells(out[h-2], x0, fastWidth(text), piece)
 	}
 
 	return strings.Join(out, "\n")
 }
 
-// sceneFrameFaded renders the splash scene through the palette-intensity
-// head fade (headK 0 = plain base-colored frame, 1 = full color) and the
-// noise dissolve tail. Overlays are composited by the caller afterwards,
-// so they stay crisp.
-func (m *Model) sceneFrameFaded(sceneT time.Duration, tSec float64, w, h int, headK float64) []string {
+// splashSceneRaster renders the (head-faded, tail-dissolved) scene raster
+// and returns it with the base hex and the dissolve progress (0 outside
+// the tail). Overlays are drawn onto it cell by cell, so the dissolve
+// wipes text and scene together.
+func (m *Model) splashSceneRaster(sceneT time.Duration, tSec float64, w, h int, headK, total float64, reduced bool) (ambient.Raster, string, bool, bool, float64) {
 	st := m.sceneState()
 	st.Palette = m.dimScenePalette()
 	if headK < 1 {
 		st.Palette = ambient.FadePalette(st.Palette, 1-headK)
 	}
+	baseHex := st.Palette.Base
 	r := m.currentScene().FramePixels(sceneT, w, h, st)
-	total := m.splashTotal.Seconds()
-	if total < 1.8 {
-		total = 3.0
+	prog := 0.0
+	if !reduced && tSec > total-0.45 {
+		prog = clampUnit((tSec-(total-0.45))/0.45, 0, 1)
+		r = ambient.DissolveRaster(r, ambient.EaseInOutCubic(prog), baseHex)
 	}
-	// tail dissolve (last 0.45s)
-	if !m.reducedMotionActive() && tSec > total-0.45 {
-		prog := clampUnit((tSec-(total-0.45))/0.45, 0, 1)
-		r = ambient.DissolveRaster(r, ambient.EaseInOutCubic(prog), st.Palette.Base)
-	}
-	// transitions always emit '▀' (no '█' glyph pops mid-fade)
-	return r.EmitHalfblock(st.Palette.Base, true, st.PaletteLimited, st.Dither)
+	return r, baseHex, st.PaletteLimited, st.Dither, prog
 }
 
-// wordmarkLetters paints the rising letters of the wordmark into lines.
-func (m Model) wordmarkLetters(out []string, w, cy int, t float64) {
+// rasterCellBG returns the hex of the bottom subcell of terminal cell
+// (x, y). Splash frames are emitted pairOnly ('▀'), so that is exactly
+// the bg the emitted cell carries — overlays inherit it cell by cell.
+func rasterCellBG(r ambient.Raster, baseHex string, x, y int) string {
+	py := 2*y + 1
+	if x < 0 || x >= r.W || py < 0 || py >= r.H {
+		return baseHex
+	}
+	rr, gg, bb := r.Pixel(x, py)
+	return fmt.Sprintf("#%02x%02x%02x", rr, gg, bb)
+}
+
+// overlayCells renders one row of text cells: each cell carries the
+// scene's own background at that position (the scene shows through
+// between glyph strokes and inside counters) with fg = fgHex. bold adds
+// weight. Raw truecolor SGR is emitted; xterm-256 terminals quantize
+// 38;2/48;2 to the nearest cube/gray entry themselves, same as for the
+// scene's own truecolor-on-limited policy.
+func overlayCells(x0, y int, text, fgHex string, bold bool, r ambient.Raster, baseHex string) string {
+	runes := []rune(text)
+	var sb strings.Builder
+	curFG, curBG := "", ""
+	emit := func(sgr string) {
+		sb.WriteString("\x1b[")
+		sb.WriteString(sgr)
+		sb.WriteString("m")
+	}
+	for i, ch := range runes {
+		bg := rasterCellBG(r, baseHex, x0+i, y)
+		if fgHex != curFG {
+			if bold {
+				emit("1;38;2;" + rgbTriplet(fgHex))
+			} else {
+				emit("38;2;" + rgbTriplet(fgHex))
+			}
+			curFG = fgHex
+		}
+		if bg != curBG {
+			emit("48;2;" + rgbTriplet(bg))
+			curBG = bg
+		}
+		sb.WriteRune(ch)
+	}
+	sb.WriteString("\x1b[0m")
+	return sb.String()
+}
+
+// rgbTriplet converts #rrggbb to "r;g;b" (clamped, defaults white).
+func rgbTriplet(hex string) string {
+	s := strings.TrimPrefix(hex, "#")
+	if len(s) != 6 {
+		return "255;255;255"
+	}
+	r, g, b := 0, 0, 0
+	if _, err := fmt.Sscanf(s, "%02x%02x%02x", &r, &g, &b); err != nil {
+		return "255;255;255"
+	}
+	return fmt.Sprintf("%d;%d;%d", r, g, b)
+}
+
+// centerX returns the cell x that centers s in w.
+func centerX(w int, s string) int {
+	d := (w - fastWidth(s)) / 2
+	if d < 0 {
+		d = 0
+	}
+	return d
+}
+
+// paintWordmark paints the rising letters of the wordmark into lines.
+// Each cell keeps the scene's background, so the letters read as lit
+// type rising out of the scene rather than opaque tiles. fade dims the
+// whole wordmark into the dissolve tail.
+func (m Model) paintWordmark(out []string, r ambient.Raster, baseHex string, w, cy int, t, fade float64) {
 	g, large := wordmarkFor(w, m.height)
 	letters := g.letters
-	letterW := len(letters[0][0])
+	letterW := fastWidth(letters[0][0]) // cells, not bytes
 	gap := 3
 	wordW := len(letters)*letterW + (len(letters)-1)*gap
 	x0 := (w - wordW) / 2
 	letterDur := 0.55
 	step := 0.28
 	start := 0.9
+	rowOff := 2
+	if large {
+		rowOff = 3
+	}
 	for i, letter := range letters {
 		appear := clampUnit((t-(start+float64(i)*step))/letterDur, 0, 1)
 		if appear <= 0 {
@@ -663,44 +742,17 @@ func (m Model) wordmarkLetters(out []string, w, cy int, t float64) {
 			pulse := ambient.Envelope(landT, 0, 0.25, 0.55, 1.1)
 			bright = clampUnit(rize+pulse*0.35, 0, 1)
 		}
-		col := ambient.BlendHex(m.palette.Base, m.palette.BrightText, bright)
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(col)).Bold(true)
-		rowOff := 2
-		if large {
-			rowOff = 3
-		}
-		for r, row := range letter {
-			y := cy - rowOff + r + yOff
+		bright *= fade
+		col := ambient.BlendHex(baseHex, m.palette.BrightText, bright)
+		for row, line := range letter {
+			y := cy - rowOff + row + yOff
 			if y < 0 || y >= len(out) {
 				continue
 			}
-			out[y] = spliceCells(out[y], x0+i*(letterW+gap), letterW, style.Render(row))
+			piece := overlayCells(x0+i*(letterW+gap), y, line, col, true, r, baseHex)
+			out[y] = spliceCells(out[y], x0+i*(letterW+gap), letterW, piece)
 		}
 	}
-	_ = large
-}
-
-// centerLine left-pads s so it is centered in w columns.
-func centerLine(w int, s string) string {
-	d := (w - lipglossWidth(s)) / 2
-	if d < 0 {
-		d = 0
-	}
-	return strings.Repeat(" ", d) + s
-}
-
-// applyAt splices a centered/pre-positioned styled line into lines[y].
-func applyAt(out []string, w, y int, line string, style lipgloss.Style, baseColor string) {
-	if y < 0 || y >= len(out) {
-		return
-	}
-	// keep background continuity: pad the whole row to w cells
-	rendered := style.Render(line)
-	pad := w - fastWidth(line)
-	if pad > 0 {
-		rendered = rendered + lipgloss.NewStyle().Background(lipgloss.Color(baseColor)).Render(strings.Repeat(" ", pad))
-	}
-	out[y] = clipStyled(rendered, w)
 }
 
 // spliceCells replaces cells [x, x+width) in a styled line.
