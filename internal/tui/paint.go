@@ -173,27 +173,65 @@ func dropsBG(line string) bool {
 }
 
 // sgrDropsBG reports whether an SGR sequence resets all attributes or sets
-// the background back to default. Parameters are consumed the way ANSI parses
-// them: 38/48/58 introduce an extended color and eat their arguments.
+// the background back to default. Parameters are scanned byte-wise — no
+// splitting; called for every sequence on every line on every frame.
+// Assumes the same shape as the parser: [38|48|58][2|5] extended colors
+// consume their arguments, 49/0/1 reset the background.
 func sgrDropsBG(seq string) bool {
-	params := strings.TrimSuffix(strings.TrimPrefix(seq, "\x1b["), "m")
-	parts := strings.Split(params, ";")
-	for i := 0; i < len(parts); i++ {
-		switch p := parts[i]; p {
+	params := seq[2 : len(seq)-1]
+	if params == "" {
+		return true
+	}
+	i := 0
+	for i < len(params) {
+		start := i
+		for i < len(params) && params[i] != ';' {
+			i++
+		}
+		p := params[start:i]
+		switch p {
 		case "", "0", "00", "000":
 			return true
-		case "38", "48", "58":
-			switch {
-			case i+2 < len(parts) && parts[i+1] == "2":
-				i += 4
-			case i+1 < len(parts) && parts[i+1] == "5":
-				i += 2
-			case i+1 < len(parts):
-				i++
-			}
 		case "49":
 			return true
+		case "38", "48", "58":
+			// Extended color: 38;2;r;g;b or 38;5;n — consume the
+			// argument params so they are not misparsed as resets.
+			i++ // skip ';' after this param
+			if i < len(params) {
+				mode := params[i]
+				switch {
+				case mode == '2': // truecolor: consume 4 more params (r,g,b or ;g;b)
+					for k := 0; k < 4 && i < len(params); k++ {
+						i = skipSGRParam(params, i)
+					}
+				case mode == '5': // 256-color: consume 2 more params (;n)
+					i = skipSGRParam(params, i)
+					i = skipSGRParam(params, i)
+				default:
+					i = skipSGRParam(params, i)
+				}
+			}
+			continue
+		}
+		if i < len(params) {
+			i++ // skip ';' between params
 		}
 	}
 	return false
+}
+
+// skipSGRParam skips from i past the next ';' (or the end), returning the
+// index just past it — i.e. the start of the following parameter.
+func skipSGRParam(params string, i int) int {
+	for i < len(params) {
+		for i < len(params) && params[i] != ';' {
+			i++
+		}
+		if i < len(params) && params[i] == ';' {
+			return i + 1
+		}
+		return len(params)
+	}
+	return len(params)
 }
