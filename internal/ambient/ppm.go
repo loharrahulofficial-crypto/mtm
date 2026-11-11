@@ -14,9 +14,30 @@ import (
 // RGBPix is one 8-bit RGB pixel (DecodeFrame output; row-major, w×h).
 type RGBPix struct{ R, G, B uint8 }
 
+// quadrantGlyphMask maps the 15 non-trivial quadrant glyphs to their
+// 2x2 fill bits (TL=1, TR=2, BL=4, BR=8). U+2596-U+259F blocks are the
+// only set the quadrant renderer emits; anything else falls back to the
+// density approximation.
+var quadrantGlyphMask = map[rune]uint8{
+	'▘': 1, '▝': 2, '▖': 4, '▗': 8,
+	'▀': 3, '▌': 5, '▞': 6, '▛': 7,
+	'▚': 9, '▐': 10, '▜': 11, '▄': 12, '▙': 13, '▟': 14, '█': 15,
+}
+
+// quadrantDistinctive are the glyphs only the quadrant renderer can emit
+// (halfblock uses ▀▄█ only). Their presence doubles DecodeFrame's width
+// so the 2x2 structure survives.
+var quadrantDistinctive = map[rune]bool{
+	'▘': true, '▝': true, '▖': true, '▗': true,
+	'▌': true, '▐': true, '▞': true, '▚': true,
+	'▛': true, '▜': true, '▙': true, '▟': true,
+}
+
 // DecodeFrame converts rendered lines into a pixel grid for PPM output.
 // Grid size: width x 2*height cells (vertical doubling, halfblock
-// geometry). ' ' cells inherit the current SGR color (like a terminal);
+// geometry). Frames containing quadrant glyphs decode at width x 2 so
+// their 2x2 structure survives; frames without them stay 1 column per
+// cell. ' ' cells inherit the current SGR color (like a terminal);
 // braille/ascii cells approximate the glyph with a density blend.
 func DecodeFrame(lines []Line) (int, int, []RGBPix) {
 	h := len(lines)
@@ -60,27 +81,51 @@ func DecodeFrame(lines []Line) (int, int, []RGBPix) {
 			w = len(r)
 		}
 	}
-	pw, ph := w, h*2
+	sx := 1
+	for _, row := range rows {
+		for _, c := range row {
+			if quadrantDistinctive[c.ch] {
+				sx = 2
+				break
+			}
+		}
+	}
+	pw, ph := w*sx, h*2
 	px := make([]RGBPix, pw*ph)
 	for y, row := range rows {
 		for x, c := range row {
+			x0 := x * sx
+			if sx == 2 {
+				if mask, ok := quadrantGlyphMask[c.ch]; ok {
+					pick := func(b uint8) RGBPix {
+						if b == 1 {
+							return c.fg
+						}
+						return c.bg
+					}
+					px[(2*y)*pw+x0] = pick(mask & 1)            // TL
+					px[(2*y)*pw+x0+1] = pick((mask >> 1) & 1)   // TR
+					px[(2*y+1)*pw+x0] = pick((mask >> 2) & 1)   // BL
+					px[(2*y+1)*pw+x0+1] = pick((mask >> 3) & 1) // BR
+					continue
+				}
+			}
+			var top, bottom RGBPix
 			switch c.ch {
 			case '▀':
-				px[(2*y)*pw+x] = c.fg
-				px[(2*y+1)*pw+x] = c.bg
+				top, bottom = c.fg, c.bg
 			case '▄':
-				px[(2*y)*pw+x] = c.bg
-				px[(2*y+1)*pw+x] = c.fg
+				top, bottom = c.bg, c.fg
 			case '█':
-				px[(2*y)*pw+x] = c.fg
-				px[(2*y+1)*pw+x] = c.fg
+				top, bottom = c.fg, c.fg
 			case ' ':
-				px[(2*y)*pw+x] = c.bg
-				px[(2*y+1)*pw+x] = c.bg
+				top, bottom = c.bg, c.bg
 			default:
-				top, bot := inkCell(c.ch, c.fg, c.bg)
-				px[(2*y)*pw+x] = top
-				px[(2*y+1)*pw+x] = bot
+				top, bottom = inkCell(c.ch, c.fg, c.bg)
+			}
+			for dx := 0; dx < sx; dx++ {
+				px[(2*y)*pw+x0+dx] = top
+				px[(2*y+1)*pw+x0+dx] = bottom
 			}
 		}
 	}

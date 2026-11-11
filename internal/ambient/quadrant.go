@@ -34,6 +34,14 @@ func emitQuadrant(px []fpix, ink []float32, w, h int, baseHex string, o emitOpts
 		baseC, _ = parseHex("#14282d")
 	}
 	br, bgc, bb := baseC.r, baseC.g, baseC.b
+	baseF := fpix{float32(br) / 255, float32(bgc) / 255, float32(bb) / 255, 1}
+	const step = float32(1.0 / 255.0)
+	nearBase := func(c fpix) bool {
+		if c.a == 0 {
+			return true // never painted — treat as base, like halfblock's nearBase cell
+		}
+		return abs32(c.r-baseF.r) <= step && abs32(c.g-baseF.g) <= step && abs32(c.b-baseF.b) <= step
+	}
 	baseKey := uint32(br)<<16 | uint32(bgc)<<8 | uint32(bb)
 	stride := w * 2
 	out := make([]Line, 0, h)
@@ -47,7 +55,35 @@ func emitQuadrant(px []fpix, ink []float32, w, h int, baseHex string, o emitOpts
 		for tx := 0; tx < w; tx++ {
 			i0 := row0 + tx*2
 			i1 := row1 + tx*2
-			if ink[i0] <= 0.22 && ink[i0+1] <= 0.22 && ink[i1] <= 0.22 && ink[i1+1] <= 0.22 {
+			// Ink-free cells still carry colors (gradient fills mark no
+			// ink) — only a fully base-colored cell is skipped, like
+			// halfblock's nearBase shortcut.
+			ids := [4]int{i0, i0 + 1, i1, i1 + 1}
+			near := 0
+			for _, j := range ids {
+				if ink[j] <= 0.22 && nearBase(px[j]) {
+					near++
+				}
+			}
+			if near == 4 {
+				if !haveFG || curFG != baseKey {
+					if o.limited {
+						bi := nearestXterm256Dither(br, bgc, bb, tx, ty*2, false)
+						lineBuf = appendXtermSGR(lineBuf, true, uint8(bi))
+					} else {
+						lineBuf = appendSGR(lineBuf, true, br, bgc, bb)
+					}
+					curFG, haveFG = baseKey, true
+				}
+				if !haveBG || curBG != baseKey {
+					if o.limited {
+						bi := nearestXterm256Dither(br, bgc, bb, tx, ty*2+1, false)
+						lineBuf = appendXtermSGR(lineBuf, false, uint8(bi))
+					} else {
+						lineBuf = appendSGR(lineBuf, false, br, bgc, bb)
+					}
+					curBG, haveBG = baseKey, true
+				}
 				lineBuf = append(lineBuf, ' ')
 				continue
 			}
