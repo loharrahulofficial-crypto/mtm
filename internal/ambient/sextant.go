@@ -14,6 +14,10 @@ import "unicode/utf8"
 // table below is the exact permutation verified against the Unicode 15
 // code charts (SEXTANT-1..SEXTANT-23456 in order), not an arithmetic
 // formula. Cell bit layout: TL=1, TR=2, ML=4, MR=8, BL=16, BR=32.
+// lumEps is the luminance spread treated as uniform. 1e-5 is ~1/40th
+// of one opaque 8-bit channel step, far below what a terminal can show.
+const lumEps = 1e-5
+
 var sextantGlyphs = [64]rune{
 	' ', 0x1FB00, 0x1FB01, 0x1FB02, 0x1FB03, 0x1FB04, 0x1FB05, 0x1FB06,
 	0x1FB07, 0x1FB08, 0x1FB09, 0x1FB0A, 0x1FB0B, 0x1FB0C, 0x1FB0D, 0x1FB0E,
@@ -132,8 +136,11 @@ func emitSextant(px []fpix, ink []float32, w, h int, baseHex string, o emitOpts)
 					maxL = ls[i]
 				}
 			}
+			// Sub-8-bit luminance spreads (fraction-painter float noise)
+			// must read as uniform — otherwise a 1e-9 gap flips whole columns
+			// into the fg group on solid fills (barcode artifact).
 			split := 0.5
-			if maxL != minL {
+			if maxL-minL > lumEps {
 				split = (minL + maxL) * 0.5
 			}
 			var fgSum, bgSum [3]float64

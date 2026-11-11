@@ -98,8 +98,11 @@ func emitQuadrant(px []fpix, ink []float32, w, h int, baseHex string, o emitOpts
 					maxL = ls[i]
 				}
 			}
+			// Sub-8-bit luminance spreads (fraction-painter float noise)
+			// must read as uniform — otherwise a 1e-9 gap flips whole columns
+			// into the fg group on solid fills (barcode artifact).
 			split := 0.5
-			if maxL != minL {
+			if maxL-minL > lumEps {
 				split = (minL + maxL) * 0.5
 			}
 			var fgSum, bgSum [3]float64
