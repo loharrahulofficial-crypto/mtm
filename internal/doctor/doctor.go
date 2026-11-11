@@ -54,8 +54,8 @@ type Report struct {
 	// (halfblock, 100x30, fixed clock), in nanoseconds; AmbientPaintMs is
 	// the same in milliseconds. AmbientTier reports this process's
 	// adaptive-quality tier (a one-shot doctor run reports 0/full).
-	AmbientPaintNS   int64   `json:"ambient_paint_ns"`
-	AmbientPaintMs   float64 `json:"ambient_paint_ms"`
+	AmbientPaintNS int64   `json:"ambient_paint_ns"`
+	AmbientPaintMs float64 `json:"ambient_paint_ms"`
 }
 
 // Options carries the inputs Run needs; zero values default to the

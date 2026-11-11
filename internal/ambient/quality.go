@@ -16,8 +16,8 @@ type QualityLevel int
 
 const (
 	TierFull   QualityLevel = iota // everything on
-	TierLowSS                     // supersampling factor 2 → 1
-	TierLowFPS                    // FPS caps halved by the TUI
+	TierLowSS                      // supersampling factor 2 → 1
+	TierLowFPS                     // FPS caps halved by the TUI
 )
 
 // FrameBudget is the per-frame cost budget; three consecutive frames
