@@ -129,3 +129,63 @@ func TestColorsTOMLUnhashedAndHashedValues(t *testing.T) {
 		t.Fatalf("quoted hex: %q", p.Foreground)
 	}
 }
+
+func TestLoadNormalizesColorSpellings(t *testing.T) {
+	dir := t.TempDir()
+	toml := `mode = "dark"
+background = "#AbC"
+foreground = "0xDEAD00"
+selection = "rgb:12/ab/ff"
+accent = "#d3ae78"
+muted = "rgb:01/02/03"
+`
+	writeState(t, dir, toml)
+	ResetDiagnostics()
+	p, err := LoadFrom(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Background != "#aabbcc" {
+		t.Errorf("background = %q, want #aabbcc", p.Background)
+	}
+	if p.Foreground != "#dead00" {
+		t.Errorf("foreground = %q, want #dead00", p.Foreground)
+	}
+	if p.Selection != "#12abff" {
+		t.Errorf("selection = %q, want #12abff", p.Selection)
+	}
+	if p.Muted != "#010203" {
+		t.Errorf("muted = %q, want #010203", p.Muted)
+	}
+	if len(Diagnostics()) != 0 {
+		t.Errorf("unexpected diagnostics: %v", Diagnostics())
+	}
+}
+
+func TestLoadMalformedColorFallsBackWithDiagnosis(t *testing.T) {
+	dir := t.TempDir()
+	toml := `mode = "dark"
+background = "#14282d"
+foreground = "#e8dfc4"
+accent = "not-a-color"
+red = "#d78f7g"
+`
+	writeState(t, dir, toml)
+	ResetDiagnostics()
+	p, err := LoadFrom(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Accent != Defaults().Accent {
+		t.Errorf("accent = %q, want default %q", p.Accent, Defaults().Accent)
+	}
+	if p.Red != Defaults().Red {
+		t.Errorf("red = %q, want default %q", p.Red, Defaults().Red)
+	}
+	got := strings.Join(Diagnostics(), "\n")
+	for _, want := range []string{"accent", "red"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("diagnostics %q missing role %q", got, want)
+		}
+	}
+}

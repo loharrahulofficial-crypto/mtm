@@ -10,6 +10,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/doctor"
 	"github.com/loharrahulofficial-crypto/mtm/internal/paths"
+	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
 func newDoctorCmd() *cobra.Command {
@@ -29,6 +30,8 @@ func newDoctorCmd() *cobra.Command {
                says real (or there is no marker)
   sync         paused/conflicted sync state, rebase in progress
   timer        stale or corrupt timer state in the state dir
+  theme        malformed role(s) in colors.toml — falling back to the
+               defaults per role (neutral warning, not a failure)
 
 Exits non-zero when any check fails. --json prints the full report.`,
 		Args: cobra.NoArgs,
@@ -40,6 +43,7 @@ Exits non-zero when any check fails. --json prints the full report.`,
 			rep := doctor.Run(doctor.Options{
 				Root:     cfg.DataRepoPath(),
 				StateDir: paths.StateDir(),
+				ThemeDir: theme.StateDir(),
 				Now:      clock.Real().Now(),
 			})
 			if asJSON {

@@ -84,7 +84,9 @@ func findingsOf(rep Report, level, check string) []Finding {
 
 func runDoctor(t *testing.T, root string) Report {
 	t.Helper()
-	return Run(Options{Root: root, StateDir: t.TempDir(), Now: time.Date(2026, 11, 9, 12, 0, 0, 0, time.Local)})
+	// ThemeDir pinned to an empty temp dir: the host's real omarchy theme
+	// must never leak into assertions.
+	return Run(Options{Root: root, StateDir: t.TempDir(), ThemeDir: t.TempDir(), Now: time.Date(2026, 11, 9, 12, 0, 0, 0, time.Local)})
 }
 
 func TestHealthyRealRepo(t *testing.T) {
@@ -367,5 +369,60 @@ func TestAmbientTierReported(t *testing.T) {
 	}
 	if rep.AmbientPaintMs <= 0 {
 		t.Fatal("doctor did not report a measured paint time in ms")
+	}
+}
+
+func writeThemeTOML(t *testing.T, dir, toml string) {
+	t.Helper()
+	themeDir := filepath.Join(dir, "current", "theme")
+	if err := os.MkdirAll(themeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(themeDir, "colors.toml"), []byte(toml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMalformedThemeRoleIsReported(t *testing.T) {
+	gitEnv(t)
+	root := t.TempDir()
+	initRepo(t, root, "a1b2c3")
+	writeMarker(t, root, "real")
+	themeDir := t.TempDir()
+	writeThemeTOML(t, themeDir, `mode = "dark"
+background = "#14282d"
+foreground = "#e8dfc4"
+accent = "not-a-color"
+`)
+	rep := Run(Options{Root: root, StateDir: t.TempDir(), ThemeDir: themeDir, Now: time.Date(2026, 11, 9, 12, 0, 0, 0, time.Local)})
+	found := false
+	for _, f := range rep.Findings {
+		if f.Check == "theme" && f.Level == LevelWarn &&
+			strings.Contains(f.Message, "theme: role accent malformed, using fallback") {
+			found = true
+		}
+	}
+	if !found {
+		data, _ := json.MarshalIndent(rep.Findings, "", "  ")
+		t.Fatalf("malformed role not reported as a warning:\n%s", data)
+	}
+}
+
+func TestWellFormedThemeReportsNoThemeFindings(t *testing.T) {
+	gitEnv(t)
+	root := t.TempDir()
+	initRepo(t, root, "a1b2c3")
+	writeMarker(t, root, "real")
+	themeDir := t.TempDir()
+	writeThemeTOML(t, themeDir, `mode = "dark"
+background = "#14282d"
+foreground = "#e8dfc4"
+accent = "#d3ae78"
+`)
+	rep := Run(Options{Root: root, StateDir: t.TempDir(), ThemeDir: themeDir, Now: time.Date(2026, 11, 9, 12, 0, 0, 0, time.Local)})
+	for _, f := range rep.Findings {
+		if f.Check == "theme" {
+			t.Fatalf("unexpected theme finding: %+v", f)
+		}
 	}
 }

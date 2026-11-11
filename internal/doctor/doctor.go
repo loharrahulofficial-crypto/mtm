@@ -21,6 +21,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/marker"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
+	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
 const (
@@ -63,6 +64,7 @@ type Report struct {
 type Options struct {
 	Root     string    // data repo
 	StateDir string    // timer state dir (defaults set by caller)
+	ThemeDir string    // omarchy state dir for the theme (defaults to theme.StateDir())
 	Now      time.Time // for staleness math
 }
 
@@ -266,6 +268,23 @@ func Run(opts Options) Report {
 	// --- timer state (stale / corrupt) ---
 	if opts.StateDir != "" {
 		checkTimer(&rep, opts.StateDir, now)
+	}
+
+	// --- theme health: malformed roles recorded at load ---
+	// mtm's palettes fall back to the default for a malformed role; the
+	// bad role name lands in the diagnostics lists and is surfaced here.
+	themeDir := opts.ThemeDir
+	if themeDir == "" {
+		themeDir = theme.StateDir()
+	}
+	theme.ResetDiagnostics()
+	ambient.ResetDiagnostics()
+	_, _ = theme.LoadFrom(themeDir)
+	for _, d := range theme.Diagnostics() {
+		rep.add(LevelWarn, "theme", "", "theme: %s", d)
+	}
+	for _, d := range ambient.Diagnostics() {
+		rep.add(LevelWarn, "theme", "", "theme: %s", d)
 	}
 
 	return finish()

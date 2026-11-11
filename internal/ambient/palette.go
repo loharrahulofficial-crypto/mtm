@@ -4,7 +4,51 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"testing"
 )
+
+var (
+	diagMu sync.Mutex
+	diags  []string
+	// debugAllowFallback lets tests exercise the production fallback path
+	// (records diagnostics, no panic). Test builds panic by default.
+	debugAllowFallback bool
+)
+
+// recordDiagnostic appends one human-readable diagnostic (deduped).
+func recordDiagnostic(s string) {
+	diagMu.Lock()
+	defer diagMu.Unlock()
+	for _, d := range diags {
+		if d == s {
+			return
+		}
+	}
+	diags = append(diags, s)
+}
+
+// Diagnostics returns the diagnostics recorded since the last reset.
+func Diagnostics() []string {
+	diagMu.Lock()
+	defer diagMu.Unlock()
+	return append([]string{}, diags...)
+}
+
+// ResetDiagnostics clears the diagnostics list.
+func ResetDiagnostics() {
+	diagMu.Lock()
+	defer diagMu.Unlock()
+	diags = nil
+}
+
+// loudFailure panics in test builds unless the test opted into the
+// production fallback path.
+func loudFailure(format string, args ...any) {
+	if testing.Testing() && !debugAllowFallback {
+		panic(fmt.Sprintf(format, args...))
+	}
+}
 
 // DefaultPalette returns the built-in demo/test palette (matches the
 // Omarchy defaults). Used for deterministic frames in tests and reports.
@@ -66,16 +110,45 @@ var blendSteps = []float64{0, 0.15, 0.30, 0.45, 0.60, 0.75, 0.875, 0.94}
 
 func buildPalette(p Palette) *paletteModel {
 	m := &paletteModel{lookup: map[string]int{}}
-	roles := []string{p.Base, p.Surface, p.SurfaceRaised, p.SurfaceStrong, p.Border, p.Text, p.BrightText, p.MutedSoft,
-		p.Accent, p.AccentSoft, p.Success, p.Warning, p.Danger, p.HeatWarm, p.HeatHot, p.HeatOverdue,
-		p.Blue, p.Cyan, p.Yellow, p.Magenta, p.Orange, p.Brown}
+	roleDefs := []struct{ name, val string }{
+		{"Base", p.Base}, {"Surface", p.Surface}, {"SurfaceRaised", p.SurfaceRaised},
+		{"SurfaceStrong", p.SurfaceStrong}, {"Border", p.Border}, {"Text", p.Text},
+		{"BrightText", p.BrightText}, {"MutedSoft", p.MutedSoft}, {"Accent", p.Accent},
+		{"AccentSoft", p.AccentSoft}, {"Success", p.Success}, {"Warning", p.Warning},
+		{"Danger", p.Danger}, {"HeatWarm", p.HeatWarm}, {"HeatHot", p.HeatHot},
+		{"HeatOverdue", p.HeatOverdue}, {"Blue", p.Blue}, {"Cyan", p.Cyan},
+		{"Yellow", p.Yellow}, {"Magenta", p.Magenta}, {"Orange", p.Orange}, {"Brown", p.Brown},
+	}
+	defMu := DefaultPalette()
+	defaults := map[string]string{
+		"Base": defMu.Base, "Surface": defMu.Surface, "SurfaceRaised": defMu.SurfaceRaised,
+		"SurfaceStrong": defMu.SurfaceStrong, "Border": defMu.Border, "Text": defMu.Text,
+		"BrightText": defMu.BrightText, "MutedSoft": defMu.MutedSoft, "Accent": defMu.Accent,
+		"AccentSoft": defMu.AccentSoft, "Success": defMu.Success, "Warning": defMu.Warning,
+		"Danger": defMu.Danger, "HeatWarm": defMu.HeatWarm, "HeatHot": defMu.HeatHot,
+		"HeatOverdue": defMu.HeatOverdue, "Blue": defMu.Blue, "Cyan": defMu.Cyan,
+		"Yellow": defMu.Yellow, "Magenta": defMu.Magenta, "Orange": defMu.Orange, "Brown": defMu.Brown,
+	}
+	resolved := make([]string, 0, len(roleDefs))
+	for _, rd := range roleDefs {
+		v := rd.val
+		if _, ok := parseHex(v); !ok {
+			loudFailure("theme role %s malformed: %q", rd.name, v)
+			recordDiagnostic(fmt.Sprintf("role %s malformed, using fallback (got %q)", rd.name, v))
+			v = defaults[rd.name]
+		}
+		resolved = append(resolved, v)
+	}
+	roles := resolved
 	add := func(hex string) int {
 		if i, ok := m.lookup[hex]; ok {
 			return i
 		}
 		c, ok := parseHex(hex)
 		if !ok {
-			c = rgb{255, 0, 255} // loud fallback for malformed inputs, never silently black
+			loudFailure("theme color malformed: %q", hex)
+			recordDiagnostic(fmt.Sprintf("color %q malformed, using fallback", hex))
+			c = mustBaseRGB(p.Base)
 		}
 		m.lookup[hex] = len(m.table)
 		m.table = append(m.table, c)
@@ -83,7 +156,14 @@ func buildPalette(p Palette) *paletteModel {
 		return m.lookup[hex]
 	}
 	for _, r := range roles {
-		add(r)
+		// Roles keep fixed table slots (cBase..cBrown) — the renderer
+		// addresses them by constant, so duplicates must not dedupe.
+		c, _ := parseHex(r) // resolved above: always valid
+		m.table = append(m.table, c)
+		m.hex = append(m.hex, r)
+		if _, ok := m.lookup[r]; !ok {
+			m.lookup[r] = len(m.table) - 1
+		}
 	}
 	// Blends toward Base for atmosphere. Only the atmospheric roles get
 	// the full ladder; text roles stay raw so type remains legible.
@@ -92,10 +172,10 @@ func buildPalette(p Palette) *paletteModel {
 			if t == 0 {
 				continue
 			}
-			add(blendHex(role, p.Base, t))
+			add(blendHex(role, roles[0], t))
 		}
 	}
-	m.base = m.lookup[p.Base]
+	m.base = cBase
 	m.lum = make([]int, len(m.table))
 	for i, c := range m.table {
 		m.lum[i] = int(0.2126*float64(c.r) + 0.7152*float64(c.g) + 0.0722*float64(c.b))
@@ -122,6 +202,16 @@ func buildPalette(p Palette) *paletteModel {
 		}
 	}
 	return m
+}
+
+// mustBaseRGB returns the theme Base as rgb, or the default base when it
+// is malformed (diagnostics were already recorded).
+func mustBaseRGB(base string) rgb {
+	if c, ok := parseHex(base); ok {
+		return c
+	}
+	c, _ := parseHex("#14282d")
+	return c
 }
 
 // clampHull clamps a float pixel's channels into the theme hull.

@@ -10,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -105,6 +107,134 @@ func StateDir() string {
 func themeDir(stateDir string) string { return filepath.Join(stateDir, "current", "theme") }
 func nameFile(stateDir string) string { return filepath.Join(stateDir, "current", "theme.name") }
 
+var (
+	diagMu sync.Mutex
+	diags  []string
+)
+
+// recordThemeDiagnostic appends one human-readable diagnostic (deduped).
+func recordThemeDiagnostic(s string) {
+	diagMu.Lock()
+	defer diagMu.Unlock()
+	for _, d := range diags {
+		if d == s {
+			return
+		}
+	}
+	diags = append(diags, s)
+}
+
+// Diagnostics returns the diagnostics recorded since the last reset.
+func Diagnostics() []string {
+	diagMu.Lock()
+	defer diagMu.Unlock()
+	return append([]string{}, diags...)
+}
+
+// ResetDiagnostics clears the diagnostics list.
+func ResetDiagnostics() {
+	diagMu.Lock()
+	defer diagMu.Unlock()
+	diags = nil
+}
+
+const hexDigits = "0123456789abcdef"
+
+func isHexN(s string, n int) bool {
+	if len(s) != n {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if !strings.ContainsRune(hexDigits, rune(strings.ToLower(s)[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+// NormalizeHexColor parses the accepted color spellings and returns
+// canonical #rrggbb:
+//
+//	#rgb, #rrggbb, 0xRGB, 0xRRGGBB, rgb:r/g/b with 1–4 hex digits per
+//	component (X11-style, proportionally scaled)
+//
+// Anything else reports ok=false.
+func NormalizeHexColor(v string) (string, bool) {
+	v = strings.TrimSpace(v)
+	lower := strings.ToLower(v)
+	scale := func(part string) (int, bool) {
+		if len(part) < 1 || len(part) > 4 || !isHexN(strings.ToLower(part), len(part)) {
+			return 0, false
+		}
+		maxV := uint64(1)<<(uint(4*len(part))) - 1
+		x, err := strconv.ParseUint(strings.ToLower(part), 16, 64)
+		if err != nil {
+			return 0, false
+		}
+		return int((x*255 + maxV/2) / maxV), true
+	}
+	switch {
+	case strings.HasPrefix(v, "#"):
+		body := v[1:]
+		switch len(body) {
+		case 3:
+			if !isHexN(strings.ToLower(body), 3) {
+				return "", false
+			}
+			return "#" + strings.Repeat(string(strings.ToLower(body)[0]), 2) +
+				strings.Repeat(string(strings.ToLower(body)[1]), 2) +
+				strings.Repeat(string(strings.ToLower(body)[2]), 2), true
+		case 6:
+			if !isHexN(strings.ToLower(body), 6) {
+				return "", false
+			}
+			return "#" + strings.ToLower(body), true
+		}
+		return "", false
+	case strings.HasPrefix(lower, "0x"):
+		body := v[2:]
+		switch len(body) {
+		case 3:
+			if !isHexN(strings.ToLower(body), 3) {
+				return "", false
+			}
+			return "#" + strings.Repeat(string(strings.ToLower(body)[0]), 2) +
+				strings.Repeat(string(strings.ToLower(body)[1]), 2) +
+				strings.Repeat(string(strings.ToLower(body)[2]), 2), true
+		case 6:
+			if !isHexN(strings.ToLower(body), 6) {
+				return "", false
+			}
+			return "#" + strings.ToLower(body), true
+		}
+		return "", false
+	case strings.HasPrefix(lower, "rgb:"):
+		parts := strings.Split(v[4:], "/")
+		if len(parts) != 3 {
+			return "", false
+		}
+		out := make([]int, 3)
+		for i, part := range parts {
+			c, ok := scale(strings.TrimSpace(part))
+			if !ok {
+				return "", false
+			}
+			out[i] = c
+		}
+		return fmt.Sprintf("#%02x%02x%02x", out[0], out[1], out[2]), true
+	}
+	return "", false
+}
+
+func normalizeOrDefault(v, fallback, role string) string {
+	norm, ok := NormalizeHexColor(v)
+	if ok {
+		return norm
+	}
+	recordThemeDiagnostic(fmt.Sprintf("role %s malformed, using fallback (got %q)", role, v))
+	return fallback
+}
+
 // Load reads the active theme under stateDir. It always returns a usable
 // palette: on any failure it falls back to the defaults (and a non-nil
 // error describing what happened).
@@ -125,9 +255,16 @@ func LoadFrom(stateDir string) (Palette, error) {
 		p.Name = name
 	}
 	if bg, fg, sel, ok := readTerminalFallback(themeDir(stateDir)); ok {
-		p.Background, p.Foreground = bg, fg
+		if n, ok := NormalizeHexColor(bg); ok {
+			p.Background = n
+		}
+		if n, ok := NormalizeHexColor(fg); ok {
+			p.Foreground = n
+		}
 		if sel != "" {
-			p.Selection = sel
+			if n, ok := NormalizeHexColor(sel); ok {
+				p.Selection = n
+			}
 		}
 		p.Derive()
 		return p, fmt.Errorf("colors.toml missing or unreadable — used terminal config fallback")
@@ -164,12 +301,19 @@ func parseColorsTOML(data []byte, name string) (Palette, bool) {
 	if name != "" {
 		p.Name = name
 	}
+	if v, ok := m["mode"]; ok {
+		p.Mode = strings.TrimSpace(v) // mode is not a color
+	}
 	set := func(key string, dst *string) {
 		if v, ok := m[key]; ok {
-			*dst = strings.TrimSpace(v)
+			if norm, ok := NormalizeHexColor(v); ok {
+				*dst = norm
+				return
+			}
+			recordThemeDiagnostic(fmt.Sprintf("role %s malformed, using fallback (got %q)", key, v))
+			// keep the Defaults() value for this role
 		}
 	}
-	set("mode", &p.Mode)
 	set("background", &p.Background)
 	set("darker_background", &p.DarkerBg)
 	set("dark_background", &p.DarkBg)

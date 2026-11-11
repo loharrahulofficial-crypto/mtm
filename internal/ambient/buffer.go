@@ -263,11 +263,15 @@ type subcell struct {
 	c  int  // palette index of the ink color
 }
 
-// hexToRGB parses #rrggbb / #rgb into channel bytes.
+// hexToRGB parses #rrggbb / #rgb into channel bytes. Malformed input
+// falls back to the theme default base and records a diagnostic (test
+// builds panic).
 func hexToRGB(s string) (uint8, uint8, uint8) {
 	c, ok := parseHex(s)
 	if !ok {
-		return 255, 0, 255
+		loudFailure("color malformed: %q", s)
+		recordDiagnostic(fmt.Sprintf("color %q malformed, using fallback", s))
+		c = mustBaseRGB("")
 	}
 	return c.r, c.g, c.b
 }
