@@ -1,35 +1,51 @@
 package tui
 
-import "strings"
+import (
+	"strings"
+)
 
 // joinBlocksH concatenates same-height blocks side by side. Every pane is
 // already normalized to exactly its target width×height (renderPanel,
 // renderPanelBorderless and paint guarantee it), so this is byte-identical
 // to lipgloss.JoinHorizontal(lipgloss.Top, parts...) for mtm's panes —
-// but it does no grapheme-width parsing inside the frame loop.
+// but it does no grapheme-width parsing inside the frame loop and no
+// strings.Split intermediates.
 func joinBlocksH(parts []string) string {
-	if len(parts) == 0 {
+	switch len(parts) {
+	case 0:
 		return ""
-	}
-	if len(parts) == 1 {
+	case 1:
 		return parts[0]
 	}
-	lines := make([][]string, len(parts))
 	maxRows := 0
 	total := 0
-	for i, p := range parts {
-		lines[i] = strings.Split(p, "\n")
-		if len(lines[i]) > maxRows {
-			maxRows = len(lines[i])
+	for _, p := range parts {
+		if n := strings.Count(p, "\n") + 1; p != "" && n > maxRows {
+			maxRows = n
 		}
 		total += len(p)
 	}
+	offs := make([]int, len(parts))
 	var b strings.Builder
 	b.Grow(total + maxRows + len(parts))
 	for r := 0; r < maxRows; r++ {
-		for i := range parts {
-			if r < len(lines[i]) {
-				b.WriteString(lines[i][r])
+		for i, p := range parts {
+			o := offs[i]
+			if o >= len(p) {
+				continue // this part ran out of rows; nothing to add
+			}
+			end := strings.IndexByte(p[o:], '\n')
+			var e int
+			if end < 0 {
+				e = len(p)
+			} else {
+				e = o + end
+			}
+			b.WriteString(p[o:e])
+			if end < 0 {
+				offs[i] = len(p)
+			} else {
+				offs[i] = e + 1
 			}
 		}
 		if r < maxRows-1 {

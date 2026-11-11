@@ -12,20 +12,12 @@ func TestAdaptiveStepsDownAndRestores(t *testing.T) {
 	resetAdaptiveForTest()
 	defer resetAdaptiveForTest()
 
-	// 3 frames over budget → TierNoBlur
+	// 3 frames over budget → TierLowSS
 	for i := 0; i < 3; i++ {
 		ObserveFrameCost(40 * time.Millisecond)
 	}
-	if tier, name := AmbientTier(); tier != 1 || name != "no-blur" {
-		t.Fatalf("after 3 over-budget frames: tier = (%d, %q), want (1, no-blur)", tier, name)
-	}
-
-	// 3 more → TierLowSS and fSS halves
-	for i := 0; i < 3; i++ {
-		ObserveFrameCost(40 * time.Millisecond)
-	}
-	if tier, name := AmbientTier(); tier != 2 || name != "low-ss" {
-		t.Fatalf("after 6 over-budget frames: tier = (%d, %q), want (2, low-ss)", tier, name)
+	if tier, name := AmbientTier(); tier != 1 || name != "low-ss" {
+		t.Fatalf("after 3 over-budget frames: tier = (%d, %q), want (1, low-ss)", tier, name)
 	}
 	if fSS != 1 {
 		t.Fatalf("fSS = %d, want 1 at low-ss", fSS)
@@ -35,16 +27,16 @@ func TestAdaptiveStepsDownAndRestores(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		ObserveFrameCost(40 * time.Millisecond)
 	}
-	if tier, name := AmbientTier(); tier != 3 || name != "low-fps" {
-		t.Fatalf("after 9 over-budget frames: tier = (%d, %q), want (3, low-fps)", tier, name)
+	if tier, name := AmbientTier(); tier != 2 || name != "low-fps" {
+		t.Fatalf("after 6 over-budget frames: tier = (%d, %q), want (2, low-fps)", tier, name)
 	}
 
 	// headroom for a long stretch restores one step at a time
 	for i := 0; i < 45; i++ {
 		ObserveFrameCost(5 * time.Millisecond)
 	}
-	if tier, _ := AmbientTier(); tier != 2 {
-		t.Fatalf("after 45 good frames: tier = %d, want 2", tier)
+	if tier, _ := AmbientTier(); tier != 1 {
+		t.Fatalf("after 45 good frames: tier = %d, want 1", tier)
 	}
 	if fSS != 1 {
 		t.Fatalf("fSS = %d, want 1 at low-ss", fSS)
@@ -52,14 +44,8 @@ func TestAdaptiveStepsDownAndRestores(t *testing.T) {
 	for i := 0; i < 45; i++ {
 		ObserveFrameCost(5 * time.Millisecond)
 	}
-	if tier, _ := AmbientTier(); tier != 1 {
-		t.Fatalf("after 90 good frames: tier = %d, want 1", tier)
-	}
-	for i := 0; i < 45; i++ {
-		ObserveFrameCost(5 * time.Millisecond)
-	}
 	if tier, _ := AmbientTier(); tier != 0 {
-		t.Fatalf("after 135 good frames: tier = %d, want 0", tier)
+		t.Fatalf("after 90 good frames: tier = %d, want 0", tier)
 	}
 	if fSS != 2 {
 		t.Fatalf("fSS = %d, want 2 at full", fSS)

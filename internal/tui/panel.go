@@ -319,6 +319,11 @@ func panelEdgeCentered(m Model, w int, top bool, title string, border, surface l
 // clipStyled truncates a line that may contain ANSI escape sequences to
 // exactly width cells (lipgloss MaxWidth is escape-aware).
 func clipStyled(line string, width int) string {
+	// Hot path: most pane lines already fit exactly — skip lipgloss
+	// entirely. lipgloss MaxWidth is a full grapheme parse per call.
+	if fastWidth(line) <= width {
+		return line
+	}
 	return lipgloss.NewStyle().MaxWidth(width).Render(line)
 }
 

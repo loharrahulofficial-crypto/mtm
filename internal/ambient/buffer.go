@@ -249,9 +249,6 @@ func hexF(hex string) (float32, float32, float32, bool) {
 	return float32(c.r) / 255, float32(c.g) / 255, float32(c.b) / 255, true
 }
 
-// blur softens the raster in place (box blur, radius in pixels).
-func (b *buffer) blur(radius int) { b.fb.boxBlur(radius) }
-
 // sub exposes one subcell of the glyph grid.
 func (b *buffer) sub(x, y int) subcell {
 	if x < 0 || y < 0 || x >= b.sw || y >= b.sh {

@@ -7,23 +7,24 @@ import (
 
 // quality.go — adaptive frame-rate control (§4.7).
 //
-// The TUI reports every rendered frame's cost via ObserveFrameCost. If
-// frames blow the budget for three consecutive frames the quality level
-// steps down (blur off → halve supersampling → halve FPS); with forty-five
-// consecutive frames of headroom it steps back up. The active level is
-// reported in `mtm doctor --json`.
+// The TUI reports every rendered end-to-end frame (scene raster + full
+// View()) via ObserveFrameCost. If frames blow the budget for three
+// consecutive frames the quality level steps down (halve supersampling →
+// halve FPS); with forty-five consecutive frames of headroom it steps
+// back up. The active level is reported in `mtm doctor --json`.
 type QualityLevel int
 
 const (
 	TierFull   QualityLevel = iota // everything on
-	TierNoBlur                     // blur disabled (scaffold; no scene paints with blur yet)
-	TierLowSS                      // supersampling factor 2 → 1
-	TierLowFPS                     // FPS caps halved by the TUI
+	TierLowSS                     // supersampling factor 2 → 1
+	TierLowFPS                    // FPS caps halved by the TUI
 )
 
 // FrameBudget is the per-frame cost budget; three consecutive frames
 // slower than this means the machine cannot afford the current level.
-const FrameBudget = 30 * time.Millisecond
+// A variable (not a constant) so tests can shrink it and drive the
+// tier state machine through the real View() path.
+var FrameBudget = 30 * time.Millisecond
 
 var (
 	qualityMu    sync.Mutex
@@ -32,8 +33,9 @@ var (
 	qGoods       int
 )
 
-// ObserveFrameCost records one rendered frame. Level changes apply
-// immediately to the supersampling factor fSS.
+// ObserveFrameCost records one rendered end-to-end frame (scene raster +
+// full View()). Level changes apply immediately to the supersampling
+// factor fSS.
 func ObserveFrameCost(d time.Duration) {
 	qualityMu.Lock()
 	defer qualityMu.Unlock()
@@ -76,12 +78,10 @@ func AmbientTier() (int, string) {
 	switch t {
 	case TierFull:
 		return 0, "full"
-	case TierNoBlur:
-		return 1, "no-blur"
 	case TierLowSS:
-		return 2, "low-ss"
+		return 1, "low-ss"
 	case TierLowFPS:
-		return 3, "low-fps"
+		return 2, "low-fps"
 	default:
 		return int(t), "unknown"
 	}

@@ -25,8 +25,19 @@ func (b *fbuf) fillGradientF(x0, y0, x1, y1 float64, r0, g0, b0, r1, g1, b1 floa
 		r := r0 + (r1-r0)*t32
 		g := g0 + (g1-g0)*t32
 		bl := b0 + (b1-b0)*t32
+		cy := float64(py) + 0.5
+		innerRow := cy >= fy0 && cy <= fy1
 		for px := px0; px < px1; px++ {
-			cx, cy := float64(px)+0.5, float64(py)+0.5
+			cx := float64(px) + 0.5
+			// Interior pixels are fully covered: skip the SDF math
+			// entirely and write the gradient color through.
+			if innerRow && cx >= fx0 && cx <= fx1 && alpha == 1 && o == opNormal {
+				i := py*b.pw + px
+				if i >= 0 && i < len(b.px) {
+					b.px[i] = fpix{r, g, bl, 1}
+				}
+				continue
+			}
 			ddx := math.Max(math.Max(fx0-cx, cx-fx1), 0)
 			ddy := math.Max(math.Max(fy0-cy, cy-fy1), 0)
 			d2 := ddx*ddx + ddy*ddy

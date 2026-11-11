@@ -331,7 +331,13 @@ func overlayFrame(scene, body []string, width int) []string {
 	out := make([]string, len(scene))
 	for i := range scene {
 		if i >= len(body) {
-			out[i] = clipStyled(scene[i], width)
+			// Scene rows past the body are full-width already; avoid the
+			// lipgloss MaxWidth parse on the hot path.
+			if fastWidth(scene[i]) <= width {
+				out[i] = scene[i]
+			} else {
+				out[i] = clipStyled(scene[i], width)
+			}
 			continue
 		}
 		out[i] = overlayLine(scene[i], body[i])

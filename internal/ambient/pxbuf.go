@@ -287,47 +287,6 @@ func (b *fbuf) strokeLineF(x0, y0, x1, y1, width float64, r, g, bl float32, alph
 	}
 }
 
-// boxBlur softens the raster in place (separable passes). Radius is in
-// pixels (0 = no-op). Deterministic.
-func (b *fbuf) boxBlur(radius int) {
-	if radius <= 0 {
-		return
-	}
-	dst := make([]fpix, len(b.px))
-	// horizontal pass
-	for y := 0; y < b.ph; y++ {
-		for x := 0; x < b.pw; x++ {
-			var acc fpix
-			n := 0
-			for k := -radius; k <= radius; k++ {
-				xx := x + k
-				if xx < 0 || xx >= b.pw {
-					continue
-				}
-				acc = acc.add(b.px[y*b.pw+xx])
-				n++
-			}
-			dst[y*b.pw+x] = acc.scale(1 / float32(n))
-		}
-	}
-	// vertical pass
-	for y := 0; y < b.ph; y++ {
-		for x := 0; x < b.pw; x++ {
-			var acc fpix
-			n := 0
-			for k := -radius; k <= radius; k++ {
-				yy := y + k
-				if yy < 0 || yy >= b.ph {
-					continue
-				}
-				acc = acc.add(dst[yy*b.pw+x])
-				n++
-			}
-			b.px[y*b.pw+x] = acc.scale(1 / float32(n))
-		}
-	}
-}
-
 var downPool sync.Pool
 var inkPool sync.Pool
 

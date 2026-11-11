@@ -49,27 +49,3 @@ func TestNormalBlendHalfCoverage(t *testing.T) {
 		t.Fatalf("50%% blend = %v, want ≈ (%.3f, %.3f, %.3f)", got, wantR, wantG, wantB)
 	}
 }
-
-func TestBoxBlurSoftensImpulse(t *testing.T) {
-	m := testPalette()
-	fb := newFBuffer(7, 7)
-	br, bg, bb := m.rgbF(m.base)
-	fb.baseFill(br, bg, bb)
-	r, g, bl := m.rgbF3(m.lookup["#dfc181"])
-	fb.px[3*fb.pw+3] = fpix{r, g, bl, 1}
-	before := len(fb.px)
-	_ = before
-	fb.boxBlur(2)
-	center := fb.px[3*fb.pw+3]
-	neighbor := fb.px[3*fb.pw+4]
-	off := fb.px[3*fb.pw+6]
-	if neighbor.r <= br || neighbor.g <= bg || neighbor.b <= bb {
-		t.Fatal("blur did not spread the impulse to the neighbor pixel")
-	}
-	if center.r < neighbor.r {
-		t.Fatal("blur amplified the edge over the center")
-	}
-	if off.r != br || off.g != bg || off.b != bb {
-		t.Fatal("blur leaked outside its radius")
-	}
-}
