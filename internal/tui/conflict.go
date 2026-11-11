@@ -204,7 +204,30 @@ func (m Model) renderConflictScreen() string {
 	if len(m.conflicts) == 0 {
 		b.WriteString(s.dim.Render("  no unmerged files — nothing to do") + "\n\n")
 	} else {
-		for i, f := range m.conflicts {
+		// Window the list so the selection never leaves the screen.
+		listH := h - 8 // header (3) + counts + footer rows
+		if listH < 1 {
+			listH = 1
+		}
+		start := 0
+		if m.conflictSel >= listH {
+			start = m.conflictSel - listH + 1
+		}
+		if max := len(m.conflicts) - listH; start > max {
+			start = max
+		}
+		if start < 0 {
+			start = 0
+		}
+		end := start + listH
+		if end > len(m.conflicts) {
+			end = len(m.conflicts)
+		}
+		if start > 0 {
+			b.WriteString(s.dim.Width(w).Render(fmt.Sprintf("  ↑%d more", start)) + "\n")
+		}
+		for i := start; i < end; i++ {
+			f := m.conflicts[i]
 			mark := "✗"
 			markStyle := overdueBase
 			if m.conflictDone[f] {
@@ -215,7 +238,7 @@ func (m Model) renderConflictScreen() string {
 			if i == m.conflictSel {
 				cursor = "▸ "
 			}
-			pathLine := plain.Render(cursor) + markStyle.Render(mark) + plain.Render(" "+f)
+			pathLine := plain.Render(cursor) + markStyle.Render(mark) + plain.Render(" "+truncatePlain(f, w-4))
 			if i == m.conflictSel {
 				b.WriteString(s.selected.Width(w).Render(pathLine) + "\n")
 			} else {
@@ -227,6 +250,9 @@ func (m Model) renderConflictScreen() string {
 					b.WriteString(s.dim.Width(w).Render("      task: "+t) + "\n")
 				}
 			}
+		}
+		if end < len(m.conflicts) {
+			b.WriteString(s.dim.Width(w).Render(fmt.Sprintf("  ↓%d more", len(m.conflicts)-end)) + "\n")
 		}
 		b.WriteString("\n")
 		resolved, total := m.resolvedCount(), len(m.conflicts)

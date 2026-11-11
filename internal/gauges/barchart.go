@@ -73,15 +73,15 @@ func barChartLayout(n, width, barWidth int) barChartGrid {
 	if barW > 3 {
 		barW = 3
 	}
-	// Shrink gap, then bar width, until the grid fits.
-	for _, cand := range []struct{ barW, gap int }{{barW, 3}, {barW, 2}, {2, 2}, {2, 1}} {
+	// Shrink gap, then bar width, until the grid fits. The final 1/0
+	// fallback still overflows on absurdly narrow panels; callers clip.
+	for _, cand := range []struct{ barW, gap int }{{barW, 3}, {barW, 2}, {2, 2}, {2, 1}, {1, 0}} {
 		gridW := n*cand.barW + (n-1)*cand.gap
 		if gridW <= width {
 			return layoutWith(n, width, cand.barW, cand.gap, gridW)
 		}
 	}
-	return layoutWith(n, width, 2, 1, n*2+(n-1))
-
+	return layoutWith(n, width, 1, 0, n)
 }
 
 func layoutWith(n, width, barW, gap, gridW int) barChartGrid {

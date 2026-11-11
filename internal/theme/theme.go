@@ -302,7 +302,13 @@ func parseColorsTOML(data []byte, name string) (Palette, bool) {
 		p.Name = name
 	}
 	if v, ok := m["mode"]; ok {
-		p.Mode = strings.TrimSpace(v) // mode is not a color
+		mode := strings.ToLower(strings.TrimSpace(v))
+		switch mode {
+		case "dark", "light":
+			p.Mode = mode
+		default:
+			recordThemeDiagnostic(fmt.Sprintf("mode %q is not dark|light, using dark", v))
+		}
 	}
 	set := func(key string, dst *string) {
 		if v, ok := m[key]; ok {
@@ -331,12 +337,18 @@ func parseColorsTOML(data []byte, name string) (Palette, bool) {
 	set("cyan", &p.Cyan)
 	set("orange", &p.Orange)
 	set("brown", &p.Brown)
-	// A theme without at least background+foreground is not usable.
-	if _, ok := m["background"]; !ok {
-		return p, false
-	}
-	if _, ok := m["foreground"]; !ok {
-		return p, false
+	// A theme without at least background+foreground is not usable;
+	// malformed values are not usable either (set() kept the fallback,
+	// which would make a broken file look like a working theme).
+	for _, key := range []string{"background", "foreground"} {
+		v, ok := m[key]
+		if !ok {
+			return p, false
+		}
+		if _, ok := NormalizeHexColor(v); !ok {
+			recordThemeDiagnostic(fmt.Sprintf("role %s is malformed (%q); theme rejected", key, v))
+			return p, false
+		}
 	}
 	p.Derive()
 	return p, true

@@ -15,6 +15,51 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
+const maxAgendaEntries = 8
+
+// calendarBodyDims reports the calendar body size (panel inner w/h), exactly
+// as the render path derives them. Handlers share it so hit tests and
+// clamps can never drift from the render.
+func calendarBodyDims(m Model) (w, h int) {
+	mainW, _ := mainPaneSize(m)
+	return mainW - 2, m.height - 1 - 2
+}
+
+// agendaCapFor computes how many agenda entries fit: body height minus the
+// weekday row, the month grid and the agenda chrome, capped at
+// maxAgendaEntries. The render and the mouse handler share it.
+func agendaCapFor(m Model, w, h int) int {
+	if w < 28 {
+		return 0
+	}
+	_, cellH, weeks, _ := calendarLayout(m, w, h)
+	gridLines := 1 + weeks*cellH + 2 // weekday header + grid + gap + agenda head
+	a := h - gridLines - 1
+	if a < 1 {
+		a = 1
+	}
+	if a > maxAgendaEntries {
+		a = maxAgendaEntries
+	}
+	return a
+}
+
+// agendaWindow returns the first agenda index to render so the selected
+// entry stays visible.
+func agendaWindow(sel, capN, total int) int {
+	if sel < capN || capN < 1 {
+		return 0
+	}
+	start := sel - capN + 1
+	if max := total - capN; start > max {
+		start = max
+	}
+	if start < 0 {
+		start = 0
+	}
+	return start
+}
+
 func (m Model) updateCalendarKey(act string) (tea.Model, tea.Cmd) {
 	switch act {
 	case aUp:
@@ -527,21 +572,17 @@ func renderCalendarBody(m Model, w, h int) []string {
 
 	agenda := agendaTasks(m)
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
-	agendaH := h - len(lines) - 1
-	if agendaH < 1 {
-		agendaH = 1
-	}
-	const maxAgendaEntries = 8
-	agendaCap := agendaH
-	if agendaCap > maxAgendaEntries {
-		agendaCap = maxAgendaEntries
-	}
+	agendaCap := agendaCapFor(m, w, h)
+	start := agendaWindow(m.calAgendaSel, agendaCap, len(agenda))
 	bgRaised := lipgloss.Color(m.palette.SurfaceRaised)
-	for i, t := range agenda {
-		if i >= agendaCap {
+	shown := 0
+	for i := start; i < len(agenda); i++ {
+		if shown >= agendaCap {
 			lines = append(lines, s.muted.Render(fmt.Sprintf("  +%d more", len(agenda)-i)))
 			break
 		}
+		shown++
+		t := agenda[i]
 		done := isDone(t.Project, t.Status)
 		timeStr := ""
 		if len(t.Due) > len("2006-01-02") {
@@ -615,8 +656,7 @@ func (m *Model) clickCalendar(x, y int) {
 	if m.width < 28 {
 		return
 	}
-	innerW := m.width - 2
-	contentH := m.height - 2
+	innerW, contentH := calendarBodyDims(*m)
 	colWidths, cellH, weeks, gridStart := calendarLayout(*m, innerW, contentH)
 	_ = gridStart
 	const padTop = 1
@@ -645,8 +685,10 @@ func (m *Model) clickCalendar(x, y int) {
 	}
 	// Agenda selection.
 	agendaTop := padTop + gridTop + weeks*cellH + 2 // blank + agenda header
-	idx := y - agendaTop
-	if idx >= 0 && idx < len(agendaTasks(*m)) {
+	row := y - agendaTop
+	agendaCap := agendaCapFor(*m, innerW, contentH)
+	start := agendaWindow(m.calAgendaSel, agendaCap, len(agendaTasks(*m)))
+	if idx := start + row; row >= 0 && idx < len(agendaTasks(*m)) {
 		m.calAgendaSel = idx
 	}
 }

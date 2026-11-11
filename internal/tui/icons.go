@@ -27,6 +27,7 @@ var iconDefs = []struct {
 	{"plus", "\uf067", "+"},
 	{"chev_left", "\uf053", "‹"},
 	{"chev_right", "\uf054", "›"},
+	{"chev_up", "\uf077", "⌃"},
 	{"dot", "\uf111", "•"},
 	{"due", "\uf133", "◑"},
 	{"course", "\uf02d", "▮"},

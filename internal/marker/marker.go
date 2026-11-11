@@ -93,11 +93,40 @@ func writeFile(root string, m Marker) error {
 		return err
 	}
 	path := filepath.Join(root, Filename)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	tmp, err := os.CreateTemp(root, ".mtm-marker-*")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmpName := tmp.Name()
+	ok := false
+	defer func() {
+		if !ok {
+			_ = os.Remove(tmpName)
+		}
+	}()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpName, 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return err
+	}
+	if d, err := os.Open(root); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+	ok = true
+	return nil
 }
 
 // FindUp walks up from dir looking for a .mtm-data marker. Returns the

@@ -105,8 +105,17 @@ func boardColumnsModel(m Model) []boardColumn {
 			}
 		}
 		if !placed && len(cols) > 0 {
-			cols[0].shown = append(cols[0].shown, t) // unknown status: first column
-			cols[0].total++
+			// Unknown status: first non-done column, so the card is never
+			// swallowed by the done-recency filter.
+			idx := 0
+			for i := range cols {
+				if !cols[i].isDone {
+					idx = i
+					break
+				}
+			}
+			cols[idx].shown = append(cols[idx].shown, t)
+			cols[idx].total++
 		}
 	}
 	for i := range cols {
@@ -338,14 +347,88 @@ func boardLayout(m Model, w int) (winStart, visCols, colW int) {
 	return winStart, visCols, colW
 }
 
-// contentHForClick mirrors renderBoardBody's usable card area height:
-// inner panel height minus the two header rows.
-func contentHForClick(m Model) int {
-	bodyH := m.height - 4 // panel pad+border (2) + header rows (2)
+// boardReserve reports how many footer rows the body needs (0 or 1).
+// h is the inner body height passed to renderBoardBody.
+func boardReserve(m Model, h int, colsModel []boardColumn, cols [][]*core.Task, winStart, view int) int {
+	maxFitPreview := (h - 2) / boardBaseH(m)
+	for i := winStart; i < view; i++ {
+		if len(cols[i]) > maxFitPreview {
+			return 1
+		}
+	}
+	for i := winStart; i < view; i++ {
+		if colsModel[i].hidden > 0 {
+			return 1
+		}
+	}
+	return 0
+}
+
+// boardBodyH mirrors renderBoardBody's usable card area height.
+func boardBodyH(m Model, h int, colsModel []boardColumn, cols [][]*core.Task, winStart, view int) int {
+	bodyH := h - 2 - boardReserve(m, h, colsModel, cols, winStart, view)
 	if bodyH < boardBaseH(m) {
 		bodyH = boardBaseH(m)
 	}
 	return bodyH
+}
+
+// boardRowHeights measures each slot's height across the visible columns:
+// max card height at that row, or boardBaseH when a column is shorter.
+func boardRowHeights(m Model, cols [][]*core.Task, winStart, view, colW int, now time.Time, head map[string][2]int) []int {
+	maxRow := 0
+	for i := winStart; i < view; i++ {
+		if len(cols[i]) > maxRow {
+			maxRow = len(cols[i])
+		}
+	}
+	heights := make([]int, maxRow)
+	for r := 0; r < maxRow; r++ {
+		h := boardBaseH(m)
+		for i := winStart; i < view; i++ {
+			if r < len(cols[i]) {
+				if ch := cardLineCount(m, cols[i][r], colW, now, head); ch > h {
+					h = ch
+				}
+			}
+		}
+		heights[r] = h
+	}
+	return heights
+}
+
+// boardRowWindow returns the first row index to render so the selected row
+// fits in bodyH. Slot heights are dynamic, so candidate starts are stacked
+// until the selection fits; the selection's own slot always fits when
+// bodyH >= boardBaseH, so a window always exists.
+func boardRowWindow(heights []int, sel, bodyH int) int {
+	if len(heights) == 0 {
+		return 0
+	}
+	if sel < 0 {
+		sel = 0
+	}
+	if sel >= len(heights) {
+		sel = len(heights) - 1
+	}
+	for start := 0; start <= sel; start++ {
+		y := 0
+		fits := false
+		for r := start; r < len(heights); r++ {
+			if y+heights[r] > bodyH {
+				break
+			}
+			if r == sel {
+				fits = true
+				break
+			}
+			y += heights[r]
+		}
+		if fits {
+			return start
+		}
+	}
+	return sel
 }
 
 // boardInset is the 1-cell base-colored inset at the left and right edge of
@@ -434,36 +517,32 @@ func renderBoardBody(m Model, w, h int) []string {
 	// heights adapt per row across all visible columns, so card bottoms
 	// stay aligned. If the panel is too short for another slot, the
 	// overflow is summarized in ONE combined footer cell inside the
-	// column ("+N more · +N older · D shows all").
-	maxFitPreview := (h - 2) / boardBaseH(m)
-	reserve := 0
-	for i := winStart; i < view; i++ {
-		if len(cols[i]) > maxFitPreview {
-			reserve = 1
-			break
-		}
-	}
-	for i := winStart; i < view; i++ {
-		if colsModel[i].hidden > 0 {
-			reserve = 1
-			break
-		}
-	}
-	bodyH := h - 2 - reserve
-	if bodyH < boardBaseH(m) {
-		bodyH = boardBaseH(m)
-	}
+	// column ("+N more · +N older · D shows all"). Rows above the fold
+	// scroll off; the window keeps the selected row visible.
+	bodyH := boardBodyH(m, h, colsModel, cols, winStart, view)
 	isDone := func(p, st string) bool { return m.store.IsDoneStatus(p, st) }
 	head := subtaskCounts(m.store.Tasks(), isDone)
+	heights := boardRowHeights(m, cols, winStart, view, colW, now, head)
+	startRow := boardRowWindow(heights, m.boardRow, bodyH)
 	y := 0
 	slotsRendered := 0
-	for r := 0; ; r++ {
+	maxSlots := 0
+	for i := winStart; i < view; i++ {
+		if len(cols[i]) > maxSlots {
+			maxSlots = len(cols[i])
+		}
+	}
+	cardInset := baseBG.Render(" ")
+	if startRow > 0 {
+		cardInset = mutedBGBase.Render(m.icon("chev_up"))
+	}
+	for r := startRow; ; r++ {
 		cardLines := make([][]string, 0, visCols)
 		for i := winStart; i < view; i++ {
 			if r < len(cols[i]) {
 				sel := i == m.boardCol && r == m.boardRow && m.focus != focusSidebar
 				cardLines = append(cardLines, renderCard(m, cols[i][r], colW, sel, now, head))
-			} else if r == 0 {
+			} else if r == startRow {
 				cardLines = append(cardLines, cardPlaceholder(m, colW, boardBaseH(m)))
 			} else {
 				cardLines = append(cardLines, blankCard(m, colW, boardBaseH(m)))
@@ -479,6 +558,10 @@ func renderBoardBody(m Model, w, h int) []string {
 			break
 		}
 		for lineIdx := 0; lineIdx < slotH; lineIdx++ {
+			inset := baseBG.Render(" ")
+			if lineIdx == 0 {
+				inset = cardInset
+			}
 			cells := make([]string, 0, len(cardLines))
 			for _, cl := range cardLines {
 				if lineIdx < len(cl) {
@@ -488,17 +571,10 @@ func renderBoardBody(m Model, w, h int) []string {
 					cells = append(cells, lipgloss.NewStyle().Background(lipgloss.Color(m.palette.SurfaceRaised)).Render(strings.Repeat(" ", colW)))
 				}
 			}
-			lines = append(lines, baseInsetRow(baseBG, gutter, baseBG.Render(" "), cells, w, ""))
+			lines = append(lines, baseInsetRow(baseBG, gutter, inset, cells, w, ""))
 		}
 		y += slotH
 		slotsRendered++
-		// Stop when every visible column is fully shown.
-		maxSlots := 0
-		for i := winStart; i < view; i++ {
-			if len(cols[i]) > maxSlots {
-				maxSlots = len(cols[i])
-			}
-		}
 		if r+1 >= maxSlots {
 			break
 		}
@@ -508,7 +584,7 @@ func renderBoardBody(m Model, w, h int) []string {
 	// fit the column width, on the column's own background.
 	footerNeeded := false
 	for i := winStart; i < view; i++ {
-		if len(cols[i]) > slotsRendered || colsModel[i].hidden > 0 {
+		if len(cols[i]) > startRow+slotsRendered || colsModel[i].hidden > 0 {
 			footerNeeded = true
 			break
 		}
@@ -516,7 +592,7 @@ func renderBoardBody(m Model, w, h int) []string {
 	if footerNeeded {
 		cells := make([]string, 0, visCols)
 		for i := winStart; i < view; i++ {
-			more := len(cols[i]) - slotsRendered
+			more := len(cols[i]) - (startRow + slotsRendered)
 			if more < 0 {
 				more = 0
 			}
@@ -723,39 +799,31 @@ func cardMetaFits(m Model, t *core.Task, w int, now time.Time, head map[string][
 
 // boardSlotHeights measures each visible card slot: 5 lines normally,
 // 6 when the tags+sub-bar pack wraps. Shared by the renderer and the
-// mouse hit test so they always agree on row positions.
+// mouse hit test so they always agree on row positions. Returns slots
+// for rows starting at the scroll window, in body-relative y order.
 func boardSlotHeights(m Model, cols [][]*core.Task, w, bodyH int) [][2]int {
+	slots, _ := boardSlots(m, cols, w, bodyH)
+	return slots
+}
+
+// boardSlots is boardSlotHeights plus the window's first row index.
+func boardSlots(m Model, cols [][]*core.Task, w, bodyH int) ([][2]int, int) {
 	winStart, visCols, colW := boardLayout(m, w)
 	view := winStart + visCols
 	head := subtaskCounts(m.store.Tasks(), func(p, st string) bool { return m.store.IsDoneStatus(p, st) })
 	now := m.clock.Now()
-	maxSlots := 0
-	for i := winStart; i < view; i++ {
-		if len(cols[i]) > maxSlots {
-			maxSlots = len(cols[i])
-		}
-	}
+	heights := boardRowHeights(m, cols, winStart, view, colW, now, head)
+	startRow := boardRowWindow(heights, m.boardRow, bodyH)
 	slots := [][2]int{}
 	y := 0
-	for r := 0; ; r++ {
-		h := boardBaseH(m)
-		for i := winStart; i < view; i++ {
-			if r < len(cols[i]) {
-				if ch := cardLineCount(m, cols[i][r], colW, now, head); ch > h {
-					h = ch
-				}
-			}
-		}
-		if y+h > bodyH {
+	for r := startRow; r < len(heights); r++ {
+		if y+heights[r] > bodyH {
 			break
 		}
-		slots = append(slots, [2]int{y, h})
-		y += h
-		if r+1 >= maxSlots {
-			break
-		}
+		slots = append(slots, [2]int{y, heights[r]})
+		y += heights[r]
 	}
-	return slots
+	return slots, startRow
 }
 
 func renderCard(m Model, t *core.Task, w int, selected bool, now time.Time, head map[string][2]int) []string {
@@ -941,7 +1009,11 @@ func wrapTitle(s string, width int) (string, string) {
 // into the column under the cursor (drag-to-move). Motion during a drag
 // tracks the hovered column for the drop-target highlight.
 func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
-	cols := boardColumns(m)
+	colsModel := boardColumnsModel(m)
+	cols := make([][]*core.Task, len(colsModel))
+	for i := range colsModel {
+		cols[i] = colsModel[i].shown
+	}
 	statuses := m.boardStatuses()
 	n := len(cols)
 	if n == 0 {
@@ -982,8 +1054,10 @@ func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
 	}
 	local := x - 2 // panel pad (1) + body inset (1)
 	view := winStart + visCols
-	bodyH := contentHForClick(m)
-	slots := boardSlotHeights(m, cols, innerW, bodyH)
+	// Same body height the renderer uses: contentH = m.height-1, panel
+	// chrome 2 → body h = m.height-3.
+	bodyH := boardBodyH(m, m.height-3, colsModel, cols, winStart, view)
+	slots, startRow := boardSlots(m, cols, innerW, bodyH)
 	col := -1
 	for i := winStart; i < view; i++ {
 		off := boardInset + (i-winStart)*(colW+boardGap)
@@ -1003,7 +1077,7 @@ func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
 	line := y - 3 // pad(1) + header(2)
 	for idx, sl := range slots {
 		if line >= sl[0] && line < sl[0]+sl[1] {
-			row = idx
+			row = startRow + idx
 			break
 		}
 	}

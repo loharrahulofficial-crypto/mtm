@@ -136,9 +136,9 @@ func loadReminderState() reminderState {
 	return state
 }
 
-func saveReminderState(state reminderState) error {
+func saveReminderState(state reminderState, now time.Time) error {
 	// Prune entries older than 30 days so the file never grows without bound.
-	cutoff := time.Now().Add(-remindersMaxAge).Format(core.TimestampFormat)
+	cutoff := now.Add(-remindersMaxAge).Format(core.TimestampFormat)
 	for key, at := range state.Sent {
 		if at < cutoff {
 			delete(state.Sent, key)
@@ -200,7 +200,7 @@ func runReminders(s *store.Store, cfg config.Config, now time.Time, send func(ti
 		}
 	}
 	if commit && len(res.Sent) > 0 {
-		if err := saveReminderState(state); err != nil {
+		if err := saveReminderState(state, now); err != nil {
 			return res, fmt.Errorf("record sent reminders: %w", err)
 		}
 	}

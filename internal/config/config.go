@@ -131,7 +131,7 @@ type UIConfig struct {
 	SplashSeconds float64 `yaml:"splash_seconds"`
 	// RewardAnimation shows a 1.5s scene celebration when a task is done.
 	RewardAnimation bool `yaml:"reward_animation"`
-	// AmbientFPS caps animation frames per second (default 8, max 30).
+	// AmbientFPS caps animation frames per second (default 60, max 60).
 	AmbientFPS int `yaml:"ambient_fps"`
 	// AmbientIdle: slow (default) | pause | off. "slow" drops the
 	// Home/sidebar scene to ~4 FPS after 30 s with no input and pauses it
@@ -204,7 +204,7 @@ func Default() Config {
 			Scene:           "auto",
 			SplashSeconds:   3.0,
 			RewardAnimation: true,
-			AmbientFPS:      8,
+			AmbientFPS:      60,
 			AmbientIdle:     "slow",
 			AmbientRender:   "auto",
 			AmbientDither:   "on",
@@ -321,8 +321,17 @@ func Load() (Config, error) {
 		}
 		cfg.UI.Scene = strings.ToLower(strings.TrimSpace(cfg.UI.Scene))
 	}
+	switch r := strings.ToLower(strings.TrimSpace(cfg.WeekStart)); r {
+	case "monday", "sunday":
+		cfg.WeekStart = r
+	case "":
+		cfg.WeekStart = "monday"
+	default:
+		return cfg, fmt.Errorf("config %s: week_start must be monday|sunday, got %q", Path(), cfg.WeekStart)
+	}
 	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.AmbientRender)); r {
 	case "auto", "halfblock", "braille", "ascii":
+		cfg.UI.AmbientRender = r
 	case "":
 		cfg.UI.AmbientRender = "auto"
 	default:
@@ -339,11 +348,12 @@ func Load() (Config, error) {
 	default:
 		return cfg, fmt.Errorf("config %s: ui.ambient_idle must be slow|pause|off, got %q", Path(), cfg.UI.AmbientIdle)
 	}
-	if cfg.UI.AmbientFPS < 1 || cfg.UI.AmbientFPS > 30 {
-		return cfg, fmt.Errorf("config %s: ui.ambient_fps must be in [1, 30], got %d", Path(), cfg.UI.AmbientFPS)
+	if cfg.UI.AmbientFPS < 1 || cfg.UI.AmbientFPS > 60 {
+		return cfg, fmt.Errorf("config %s: ui.ambient_fps must be in [1, 60], got %d", Path(), cfg.UI.AmbientFPS)
 	}
 	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.AmbientDither)); r {
 	case "on", "off":
+		cfg.UI.AmbientDither = r
 	case "":
 		cfg.UI.AmbientDither = "on"
 	default:

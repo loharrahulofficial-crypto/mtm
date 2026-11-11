@@ -543,7 +543,9 @@ func (s *Store) uniqueID() string {
 	}
 }
 
-// validateProjectName rejects absolute paths and traversal.
+// validateProjectName rejects absolute paths, traversal, and "." itself:
+// a "." project would make its directory the projects/ ROOT, after which
+// RemoveProject(".") would delete every project.
 func validateProjectName(name string) error {
 	if name == "" {
 		return errors.New("empty project name")
@@ -552,6 +554,9 @@ func validateProjectName(name string) error {
 		return fmt.Errorf("project name %q must be relative", name)
 	}
 	clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(name)))
+	if clean == "." {
+		return fmt.Errorf("project name %q is not a project", name)
+	}
 	if clean == ".." || strings.HasPrefix(clean, "../") {
 		return fmt.Errorf("project name %q escapes the repo", name)
 	}
@@ -668,6 +673,11 @@ func (s *Store) RemoveProject(name string) error {
 		return err
 	}
 	dir := filepath.Join(s.Root, "projects", filepath.FromSlash(name))
+	// Belt and braces: never remove the projects/ root itself.
+	root := filepath.Join(s.Root, "projects")
+	if dir == root {
+		return fmt.Errorf("refusing to remove the projects root")
+	}
 	if err := os.RemoveAll(dir); err != nil {
 		return err
 	}

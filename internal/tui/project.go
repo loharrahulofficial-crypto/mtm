@@ -167,10 +167,12 @@ func (m Model) updateProjectPageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "j", "down":
 		m.projectSel++
 		m.clampProjectSel()
+		m.followProjectTaskSel()
 		return m, nil
 	case "k", "up":
 		m.projectSel--
 		m.clampProjectSel()
+		m.followProjectTaskSel()
 		return m, nil
 	case "pgdown", "ctrl+d":
 		if m.projectTab == projectTabDevlog || m.projectTab == projectTabTasks {
@@ -180,6 +182,7 @@ func (m Model) updateProjectPageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.projectSel += 4
 		m.clampProjectSel()
+		m.followProjectTaskSel()
 		return m, nil
 	case "pgup", "ctrl+u":
 		if m.projectTab == projectTabDevlog || m.projectTab == projectTabTasks {
@@ -191,16 +194,19 @@ func (m Model) updateProjectPageKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.projectSel -= 4
 		m.clampProjectSel()
+		m.followProjectTaskSel()
 		return m, nil
 	case "g":
 		m.projectSel = 0
 		m.clampProjectSel()
+		m.followProjectTaskSel()
 		return m, nil
 	case "G":
 		m.projectScroll = 1 << 30 // clamp on render
 		m.clampProjectScroll()
 		m.projectSel = 1 << 30
 		m.clampProjectSel()
+		m.followProjectTaskSel()
 		return m, nil
 	case "enter":
 		if m.projectTab == projectTabTasks {
@@ -309,6 +315,33 @@ func (m *Model) clampProjectScroll() {
 	}
 	if m.projectScroll > 1<<20 {
 		m.projectScroll = 1 << 20
+	}
+}
+
+// projectTasksWindow is the number of task rows the Tasks tab shows. Body
+// h = m.height-6 (2 header rows + tab row + hint), entries window = h-1.
+func (m Model) projectTasksWindow() int {
+	w := m.height - 7
+	if w < 1 {
+		w = 1
+	}
+	return w
+}
+
+// followProjectTaskSel scrolls the Tasks tab so the selected row stays
+// inside the window. Only called on the Tasks tab; the Dev log and roadmap
+// keep their own scroll model.
+func (m *Model) followProjectTaskSel() {
+	if m.projectTab != projectTabTasks {
+		return
+	}
+	w := m.projectTasksWindow()
+	if m.projectSel < m.projectScroll {
+		m.projectScroll = m.projectSel
+		return
+	}
+	if m.projectSel >= m.projectScroll+w {
+		m.projectScroll = m.projectSel - w + 1
 	}
 }
 

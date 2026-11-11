@@ -295,8 +295,8 @@ func TestAmbientIdleValidation(t *testing.T) {
 		t.Fatalf("default ambient_idle = %q, want slow", cfg.UI.AmbientIdle)
 	}
 	// default fps is 8
-	if cfg.UI.AmbientFPS != 8 {
-		t.Fatalf("default ambient_fps = %d, want 8", cfg.UI.AmbientFPS)
+	if cfg.UI.AmbientFPS != 60 {
+		t.Fatalf("default ambient_fps = %d, want 60", cfg.UI.AmbientFPS)
 	}
 	// all values accepted
 	for _, v := range []string{"slow", "pause", "off"} {

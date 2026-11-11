@@ -14,6 +14,29 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
 )
 
+// maxDetailScroll mirrors the render bound: the last notes line index.
+// glamour caches by body+width, so repeat calls are cheap.
+func (m *Model) maxDetailScroll() int {
+	t := m.detailTask()
+	if t == nil {
+		return 0
+	}
+	nb := strings.TrimRight(t.Body, "\n")
+	if nb == "" {
+		return 0
+	}
+	w := detailWidth(m.width, m.detailOn)
+	notesW := w - 3
+	if notesW < 8 {
+		notesW = 8
+	}
+	n := len(strings.Split(m.glamourRender(nb, notesW), "\n"))
+	if n < 1 {
+		return 0
+	}
+	return n - 1
+}
+
 type detailData struct {
 	Task      *core.Task
 	Project   string

@@ -39,7 +39,7 @@ type rgb struct{ r, g, b uint8 }
 
 func parseHex(s string) (rgb, bool) {
 	s = strings.TrimSpace(s)
-	if len(s) == 4 { // #abc → #aabbcc
+	if len(s) == 4 && s[0] == '#' { // #abc → #aabbcc
 		return parseHex("#" + strings.Repeat(string(s[1]), 2) + strings.Repeat(string(s[2]), 2) + strings.Repeat(string(s[3]), 2))
 	}
 	if len(s) != 7 || s[0] != '#' {

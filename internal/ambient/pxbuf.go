@@ -3,6 +3,7 @@ package ambient
 import (
 	"math"
 	"sync"
+	"sync/atomic"
 )
 
 // pxbuf.go — the supersampled float pixel buffer every scene renders into.
@@ -46,9 +47,14 @@ type fbuf struct {
 	ink    []float32 // per-pixel ink coverage (non-background paint)
 }
 
-// fSS is the supersampling factor per axis. Adaptive quality (§4.7) may
-// halve it to 1 at runtime; it is a package variable, not a constant.
-var fSS = 2
+// fSSV() is the supersampling factor per axis. Adaptive quality (§4.7) may
+// halve it to 1 at runtime; it is a package atomic, not a constant.
+var fSS atomic.Int64
+
+func init() { fSS.Store(3) }
+
+// fSSV reads the current supersampling factor.
+func fSSV() int { return int(fSS.Load()) }
 
 // fbPool reuses the supersampled raster across frames (the app renders at
 // most a handful of fixed sizes; holding them avoids ~1 MB of alloc
@@ -62,7 +68,7 @@ func newFBuffer(sw, sh int) *fbuf {
 	if sh < 1 {
 		sh = 1
 	}
-	pw, ph := sw*fSS, sh*fSS
+	pw, ph := sw*fSSV(), sh*fSSV()
 	need := pw * ph
 	if v, ok := fbPool.Get().(*fbuf); ok && cap(v.px) >= need {
 		fb := &fbuf{sw: sw, sh: sh, pw: pw, ph: ph, px: v.px[:need]}
@@ -157,16 +163,29 @@ func (b *fbuf) blendPx(x, y int, src fpix, o blendOp) {
 
 // fillRectF fills a rect in sub-cell coordinates with soft edges.
 func (b *fbuf) fillRectF(x0, y0, x1, y1 float64, r, g, bl float32, alpha float64, o blendOp) {
-	fx0, fy0 := x0*float64(fSS), y0*float64(fSS)
-	fx1, fy1 := x1*float64(fSS), y1*float64(fSS)
-	feather := float64(fSS) * 0.75
+	fx0, fy0 := x0*float64(fSSV()), y0*float64(fSSV())
+	fx1, fy1 := x1*float64(fSSV()), y1*float64(fSSV())
+	feather := float64(fSSV()) * 0.75
 	px0 := int(math.Floor(fx0 - feather))
 	px1 := int(math.Ceil(fx1 + feather))
 	py0 := int(math.Floor(fy0 - feather))
 	py1 := int(math.Ceil(fy1 + feather))
 	for py := py0; py < py1; py++ {
+		cy := float64(py) + 0.5
+		innerRow := cy >= fy0 && cy <= fy1
 		for px := px0; px < px1; px++ {
-			cx, cy := float64(px)+0.5, float64(py)+0.5
+			cx := float64(px) + 0.5
+			// Interior pixels are fully covered: skip the SDF math.
+			// px must be inside the raster: py*b.pw + px can be a valid
+			// index yet land in the wrong row.
+			if innerRow && cx >= fx0 && cx <= fx1 && alpha == 1 && o == opNormal {
+				if px >= 0 && px < b.pw && py >= 0 && py < b.ph {
+					b.px[py*b.pw+px] = fpix{r, g, bl, 1}
+					b.inkAt(px, py, 1)
+				}
+				continue
+			}
+
 			ddx := math.Max(math.Max(fx0-cx, cx-fx1), 0)
 			ddy := math.Max(math.Max(fy0-cy, cy-fy1), 0)
 			d2 := ddx*ddx + ddy*ddy
@@ -187,13 +206,13 @@ func (b *fbuf) fillRect(x0, y0, x1, y1 int, r, g, bl float32, alpha float64, o b
 
 // fillCircleF fills a circle in sub-cell coordinates with soft edges.
 func (b *fbuf) fillCircleF(cx, cy, radius float64, r, g, bl float32, alpha float64, o blendOp) {
-	px0 := int(math.Floor((cx - radius - 1) * float64(fSS)))
-	px1 := int(math.Ceil((cx + radius + 1) * float64(fSS)))
-	py0 := int(math.Floor((cy - radius - 1) * float64(fSS)))
-	py1 := int(math.Ceil((cy + radius + 1) * float64(fSS)))
-	fcx, fcy := cx*float64(fSS), cy*float64(fSS)
-	fr := radius * float64(fSS)
-	feather := float64(fSS) * 0.7
+	px0 := int(math.Floor((cx - radius - 1) * float64(fSSV())))
+	px1 := int(math.Ceil((cx + radius + 1) * float64(fSSV())))
+	py0 := int(math.Floor((cy - radius - 1) * float64(fSSV())))
+	py1 := int(math.Ceil((cy + radius + 1) * float64(fSSV())))
+	fcx, fcy := cx*float64(fSSV()), cy*float64(fSSV())
+	fr := radius * float64(fSSV())
+	feather := float64(fSSV()) * 0.7
 	for py := py0; py < py1; py++ {
 		for px := px0; px < px1; px++ {
 			dx := float64(px) + 0.5 - fcx
@@ -211,13 +230,13 @@ func (b *fbuf) fillCircleF(cx, cy, radius float64, r, g, bl float32, alpha float
 
 // fillEllipseF fills an axis-aligned ellipse in sub-cell coordinates.
 func (b *fbuf) fillEllipseF(cx, cy, rx, ry float64, r, g, bl float32, alpha float64, o blendOp) {
-	fxcx, fxcy := cx*float64(fSS), cy*float64(fSS)
-	frx, fry := math.Max(rx*float64(fSS), 0.5), math.Max(ry*float64(fSS), 0.5)
+	fxcx, fxcy := cx*float64(fSSV()), cy*float64(fSSV())
+	frx, fry := math.Max(rx*float64(fSSV()), 0.5), math.Max(ry*float64(fSSV()), 0.5)
 	px0 := int(math.Floor(fxcx - frx - 2))
 	px1 := int(math.Ceil(fxcx + frx + 2))
 	py0 := int(math.Floor(fxcy - fry - 2))
 	py1 := int(math.Ceil(fxcy + fry + 2))
-	feather := float64(fSS) * 0.75
+	feather := float64(fSSV()) * 0.75
 	scale := math.Min(frx, fry)
 	for py := py0; py < py1; py++ {
 		for px := px0; px < px1; px++ {
@@ -236,10 +255,10 @@ func (b *fbuf) fillEllipseF(cx, cy, rx, ry float64, r, g, bl float32, alpha floa
 
 // strokeCircleF strokes a ring (ripples, halos): an annulus SDF stroke.
 func (b *fbuf) strokeCircleF(cx, cy, radius, width float64, r, g, bl float32, alpha float64, o blendOp) {
-	fcx, fcy := cx*float64(fSS), cy*float64(fSS)
-	fr := radius * float64(fSS)
-	fw := math.Max(width*float64(fSS), 0.5)
-	feather := float64(fSS) * 0.75
+	fcx, fcy := cx*float64(fSSV()), cy*float64(fSSV())
+	fr := radius * float64(fSSV())
+	fw := math.Max(width*float64(fSSV()), 0.5)
+	feather := float64(fSSV()) * 0.75
 	px0 := int(math.Floor(fcx - fr - fw/2 - feather))
 	px1 := int(math.Ceil(fcx + fr + fw/2 + feather))
 	py0 := int(math.Floor(fcy - fr - fw/2 - feather))
@@ -260,13 +279,13 @@ func (b *fbuf) strokeCircleF(cx, cy, radius, width float64, r, g, bl float32, al
 
 // strokeLineF strokes a line with the given width (sub-cell units).
 func (b *fbuf) strokeLineF(x0, y0, x1, y1, width float64, r, g, bl float32, alpha float64, o blendOp) {
-	fx0, fy0, fx1, fy1 := x0*float64(fSS), y0*float64(fSS), x1*float64(fSS), y1*float64(fSS)
-	fw := width * float64(fSS)
+	fx0, fy0, fx1, fy1 := x0*float64(fSSV()), y0*float64(fSSV()), x1*float64(fSSV()), y1*float64(fSSV())
+	fw := width * float64(fSSV())
 	minX := int(math.Floor(math.Min(fx0, fx1) - fw - 1))
 	maxX := int(math.Ceil(math.Max(fx0, fx1) + fw + 1))
 	minY := int(math.Floor(math.Min(fy0, fy1) - fw - 1))
 	maxY := int(math.Ceil(math.Max(fy0, fy1) + fw + 1))
-	feather := float64(fSS) * 0.75
+	feather := float64(fSSV()) * 0.75
 	dx, dy := fx1-fx0, fy1-fy0
 	len2 := dx*dx + dy*dy
 	if len2 == 0 {
@@ -302,12 +321,12 @@ func (b *fbuf) downsample() []fpix {
 	for sy := 0; sy < b.sh; sy++ {
 		for sx := 0; sx < b.sw; sx++ {
 			var acc fpix
-			for dy := 0; dy < fSS; dy++ {
-				for dx := 0; dx < fSS; dx++ {
-					acc = acc.add(b.px[(sy*fSS+dy)*b.pw+(sx*fSS+dx)])
+			for dy := 0; dy < fSSV(); dy++ {
+				for dx := 0; dx < fSSV(); dx++ {
+					acc = acc.add(b.px[(sy*fSSV()+dy)*b.pw+(sx*fSSV()+dx)])
 				}
 			}
-			out[sy*b.sw+sx] = acc.scale(1 / float32(fSS*fSS))
+			out[sy*b.sw+sx] = acc.scale(1 / float32(fSSV()*fSSV()))
 		}
 	}
 	return out
@@ -324,12 +343,12 @@ func (b *fbuf) downsampleInk() []float32 {
 	for sy := 0; sy < b.sh; sy++ {
 		for sx := 0; sx < b.sw; sx++ {
 			var acc float32
-			for dy := 0; dy < fSS; dy++ {
-				for dx := 0; dx < fSS; dx++ {
-					acc += b.ink[(sy*fSS+dy)*b.pw+(sx*fSS+dx)]
+			for dy := 0; dy < fSSV(); dy++ {
+				for dx := 0; dx < fSSV(); dx++ {
+					acc += b.ink[(sy*fSSV()+dy)*b.pw+(sx*fSSV()+dx)]
 				}
 			}
-			out[sy*b.sw+sx] = acc / float32(fSS*fSS)
+			out[sy*b.sw+sx] = acc / float32(fSSV()*fSSV())
 		}
 	}
 	return out

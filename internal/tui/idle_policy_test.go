@@ -28,25 +28,30 @@ func seatIdleFor(t *testing.T, m Model, d time.Duration) Model {
 
 func TestAmbientFPSDefaultsAndCaps(t *testing.T) {
 	m := ambientPolicyModel(t)
-	if got := ambientFPS(m); got != 8 {
-		t.Fatalf("default Home cap = %d, want 8", got)
+	if got := ambientFPS(m); got != 60 {
+		t.Fatalf("default ambient fps = %d, want 60", got)
 	}
 	m.cfg.UI.AmbientFPS = 12
-	if got := ambientFPS(m); got != 8 {
-		t.Fatalf("Home cap with fps=12 = %d, want 8 (cap lowered)", got)
+	if got := ambientFPS(m); got != 12 {
+		t.Fatalf("user ambient fps = %d, want 12", got)
 	}
 	m.cfg.UI.AmbientFPS = 24
-	if got := ambientFPS(m); got != 8 {
-		t.Fatalf("Home cap with fps=24 = %d, want 8 (cap beats user)", got)
+	if got := ambientFPS(m); got != 24 {
+		t.Fatalf("user ambient fps = %d, want 24", got)
+	}
+	m.cfg.UI.AmbientFPS = 90
+	if got := ambientFPS(m); got != 60 {
+		t.Fatalf("fps above the 60 cap = %d, want 60", got)
 	}
 	m.mode = modeFocus
 	m.timer = core.TimerView{Phase: core.TimerPhaseWork, Running: true}
-	if got := ambientFPS(m); got != 24 {
-		t.Fatalf("Focus cap with timer running = %d, want 24", got)
+	m.cfg.UI.AmbientFPS = 60
+	if got := ambientFPS(m); got != 60 {
+		t.Fatalf("Focus fps = %d, want 60", got)
 	}
 	m.mode = modeSplash
-	if got := ambientFPS(m); got != 24 {
-		t.Fatalf("Splash cap = %d, want 24", got)
+	if got := ambientFPS(m); got != 60 {
+		t.Fatalf("Splash fps = %d, want 60", got)
 	}
 }
 
@@ -105,6 +110,9 @@ func TestAmbientIdleResumesOnInput(t *testing.T) {
 	if m.ambientActive() {
 		t.Fatal("expected paused at 6 min idle")
 	}
+	// Let the paused tick chain die the way it does in the real event loop.
+	die, _ := m.Update(ambientTickMsg{})
+	m = die.(Model)
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	m = updated.(Model)
 	if !m.ambientActive() {

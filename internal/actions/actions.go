@@ -88,10 +88,10 @@ func CompleteTask(s *store.Store, t *core.Task) (string, error) {
 	}
 	t.Status = doneStatus
 	t.Completed = s.Clock.Stamp()
-	spawnMsg := SpawnNextOccurrence(s, t)
 	if err := s.Update(t); err != nil {
 		return "", err
 	}
+	spawnMsg := SpawnNextOccurrence(s, t)
 	return spawnMsg, nil
 }
 
@@ -105,18 +105,22 @@ func SetStatus(s *store.Store, t *core.Task, canonical string) (string, error) {
 		return "", fmt.Errorf("project %q: %w", t.Project, err)
 	}
 	wasDone := p.IsDoneStatus(t.Status)
-	spawnMsg := ""
+	spawn := false
 	t.Status = canonical
 	if p.IsDoneStatus(canonical) {
 		t.Completed = s.Clock.Stamp()
 		if !wasDone {
-			spawnMsg = SpawnNextOccurrence(s, t)
+			spawn = true
 		}
 	} else {
 		t.Completed = ""
 	}
 	if err := s.Update(t); err != nil {
 		return "", err
+	}
+	spawnMsg := ""
+	if spawn {
+		spawnMsg = SpawnNextOccurrence(s, t)
 	}
 	return spawnMsg, nil
 }

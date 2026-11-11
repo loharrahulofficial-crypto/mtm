@@ -238,6 +238,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.animFrame = 0
 		m.animTaskID = ""
 		return m, nil
+
+	case viewFadeTickMsg:
+		if m.viewFadeAmount() > 0 {
+			return m, viewFadeTickCmd()
+		}
+		return m, nil
 	}
 	return m.dispatch(msg)
 }

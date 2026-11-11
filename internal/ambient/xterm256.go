@@ -124,11 +124,20 @@ func nearestXterm256Pair(r, g, b uint8) (uint8, uint8) {
 }
 
 // nearestXterm256 maps (r,g,b) to the nearest palette entry by perceptual
-// distance (cube + gray ramp + system colors).
+// distance over the 16..255 cube+gray range (system colors 0..15 are not
+// searched — they are unreliable across terminals).
 func nearestXterm256(r, g, b uint8) uint8 {
 	f, _ := nearestXterm256Pair(r, g, b)
 	return f
 }
+
+// export for the TUI's overlay emitter; keeps one quantization path.
+func Xterm256For(r, g, b uint8, x, y int, dither bool) uint8 {
+	return nearestXterm256Dither(r, g, b, x, y, dither)
+}
+
+// Xterm256RGBOf resolves a 256-palette index to its RGB bytes.
+func Xterm256RGBOf(idx uint8) (uint8, uint8, uint8) { return xterm256RGB(idx) }
 
 // nearestXterm256Dither maps (r,g,b) to a palette entry. With dither off,
 // returns the nearest entry. With dither on, ordered-dithers between the

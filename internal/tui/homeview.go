@@ -503,13 +503,21 @@ func todayBody(m Model, w, h int, d homeData) []string {
 	now := d.now
 	nowMin := now.Hour()*60 + now.Minute()
 
+	// Window the list so the selected row is always rendered.
+	start := 0
+	if capN := h - 1; capN > 0 && m.homeSel >= capN {
+		start = m.homeSel - capN + 1
+	}
 	lines := []string{}
 	dividerPlaced := false
-	for i, t := range d.todayRows {
-		if i >= h-1 {
+	shown := 0
+	for i := start; i < len(d.todayRows); i++ {
+		if shown >= h-1 {
 			lines = append(lines, muted.Render(fmt.Sprintf(" +%d more", len(d.todayRows)-i)))
 			break
 		}
+		shown++
+		t := d.todayRows[i]
 		timeStr := "     "
 		timed := false
 		if len(t.Due) > len("2006-01-02") {

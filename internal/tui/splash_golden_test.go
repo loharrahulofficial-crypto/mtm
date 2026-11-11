@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
+	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 	"github.com/loharrahulofficial-crypto/mtm/internal/clock"
 	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
@@ -41,6 +42,10 @@ func TestSplashGolden(t *testing.T) {
 			cfg := config.Default()
 			cfg.DataRepo = t.TempDir()
 			cfg.Sync.Auto = false
+			// Golden frames must not depend on the machine's speed: pin
+			// the adaptive-quality tier, or slow renders trip the frame
+			// budget and supersampling drops mid-suite.
+			ambient.SetQualityTier(ambient.TierFull)
 			root := t.TempDir()
 			s, err := store.Open(root, filepath.Join(root, "index.json"))
 			if err != nil {

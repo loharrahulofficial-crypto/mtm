@@ -11,6 +11,12 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 )
 
+// CalDays returns whole calendar days from from's date to to's date.
+// Delegates to core.CalDays (exact across DST transitions).
+func CalDays(from, to time.Time) int {
+	return core.CalDays(from, to)
+}
+
 // Parse reads a stored timestamp in any of the layouts the store writes.
 func Parse(s string, loc *time.Location) (time.Time, bool) {
 	s = strings.TrimSpace(s)
@@ -56,9 +62,7 @@ func HumanDayStamp(s string, loc *time.Location) string {
 
 // DaysAgo counts whole days from t to now, floor by calendar day.
 func DaysAgo(now, t time.Time) int {
-	nd := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	td := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-	return int(nd.Sub(td).Hours() / 24)
+	return CalDays(t, now)
 }
 
 // RelDay renders "today", "1d ago" or "3d ago".

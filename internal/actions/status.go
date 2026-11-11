@@ -70,7 +70,7 @@ func LoadStatusSnapshot(s *store.Store, now time.Time) StatusSnapshot {
 			continue
 		}
 		examDay := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, now.Location())
-		days := int(examDay.Sub(today).Hours() / 24)
+		days := core.CalDays(today, examDay)
 		if days < 0 || isDone(t.Project, t.Status) {
 			continue
 		}
@@ -111,7 +111,7 @@ func LoadStatusSnapshot(s *store.Store, now time.Time) StatusSnapshot {
 		if err != nil {
 			continue
 		}
-		days := int(dayStamp(day).Sub(today).Hours() / 24)
+		days := core.CalDays(today, dayStamp(day))
 		if best == nil || days < bestDays {
 			best, bestDays = m, days
 		}

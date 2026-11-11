@@ -23,7 +23,7 @@ func TestHelpOverlayMatchesKeymap(t *testing.T) {
 		seqToAction[seq] = action
 	}
 
-	help := StripANSI(renderHelpBox(m.keymap, m.styles, 120))
+	help := StripANSI(renderHelpBox(m.keymap, m.styles, 120, 1000, 0))
 
 	// (a) every bound action is shown with its key and description
 	for _, e := range HelpEntries(m.keymap) {

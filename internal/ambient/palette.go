@@ -2,6 +2,7 @@ package ambient
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -251,6 +252,10 @@ func BlendHex(from, to string, t float64) string { return blendHex(from, to, t) 
 
 // blendHex is theme.Blend specialized locally so ambient does not import
 // the theme package (TUI passes roles in; ambient stays value-only).
+// blendHex mixes two colors in linear light, not sRGB: the eye tolerates
+// hue rotations through weird midtones less than physics does, and straight
+// sRGB lerps through gray mush (orange→blue paths read as mud). Scenes get
+// deeper sky gradients and hotter glow for free.
 func blendHex(from, to string, t float64) string {
 	fr, ok1 := parseHex(from)
 	to_, ok2 := parseHex(to)
@@ -263,15 +268,33 @@ func blendHex(from, to string, t float64) string {
 	if t >= 1 {
 		return to
 	}
-	mix := func(a, b uint8) uint8 { return uint8(float64(a)*(1-t) + float64(b)*t + 0.5) }
-	return fmt.Sprintf("#%02x%02x%02x", mix(fr.r, to_.r), mix(fr.g, to_.g), mix(fr.b, to_.b))
+	mix := func(a, b uint8) uint8 {
+		return uint8(math.Round(linearToSRGB(srgbToLinear(a)*(1-t) + srgbToLinear(b)*t)))
+	}
+	b := rgb{mix(fr.r, to_.r), mix(fr.g, to_.g), mix(fr.b, to_.b)}
+	return fmt.Sprintf("#%02x%02x%02x", b.r, b.g, b.b)
+}
+
+func srgbToLinear(v uint8) float64 {
+	c := float64(v) / 255
+	if c <= 0.04045 {
+		return c / 12.92
+	}
+	return math.Pow((c+0.055)/1.055, 2.4)
+}
+
+func linearToSRGB(c float64) float64 {
+	if c <= 0.0031308 {
+		return c*12.92*255 + 0.5
+	}
+	return (1.055*math.Pow(c, 1/2.4)-0.055)*255 + 0.5
 }
 
 type rgb struct{ r, g, b uint8 }
 
 func parseHex(s string) (rgb, bool) {
 	s = strings.TrimSpace(s)
-	if len(s) == 4 {
+	if len(s) == 4 && s[0] == '#' {
 		s = "#" + strings.Repeat(string(s[1]), 2) + strings.Repeat(string(s[2]), 2) + strings.Repeat(string(s[3]), 2)
 	}
 	if len(s) != 7 || s[0] != '#' {

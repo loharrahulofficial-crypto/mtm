@@ -305,21 +305,39 @@ func writeGitHubCache(repo string, entry ghCacheEntry) {
 }
 
 func writeFileAtomicCache(path string, data []byte, mode os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".github-*.json")
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".github-*.json")
 	if err != nil {
 		return err
 	}
 	name := tmp.Name()
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(name)
+		_ = tmp.Close()
+		_ = os.Remove(name)
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(name)
 		return err
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(name)
+		_ = os.Remove(name)
 		return err
 	}
-	return os.Rename(name, path)
+	if err := os.Chmod(name, mode); err != nil {
+		_ = os.Remove(name)
+		return err
+	}
+	if err := os.Rename(name, path); err != nil {
+		_ = os.Remove(name)
+		return err
+	}
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+	return nil
 }
 
 // commitStreak counts consecutive days with ≥1 commit, anchored on today

@@ -206,11 +206,10 @@ func (m Model) openNotesEditor() Model {
 
 func (m Model) updateNotesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc", "ctrl+s":
+	case "esc", "ctrl+s", "ctrl+c":
+		// ctrl+c must never silently discard typed notes; it saves and
+		// closes like esc (and never hard-quits like ctrl+c elsewhere).
 		return m.saveNotesAndClose()
-	case "ctrl+c":
-		m.mode = modeNormal
-		return m, nil
 	}
 	var cmd tea.Cmd
 	m.notes, cmd = m.notes.Update(msg)

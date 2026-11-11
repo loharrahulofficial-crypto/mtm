@@ -126,7 +126,7 @@ func PlanExam(s *store.Store, examID string, estMinutes int) ([]*core.Task, erro
 	now := s.Clock.Now()
 	y, m, d := now.Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, now.Location())
-	daysBefore := int(dueDay.Sub(today).Hours() / 24)
+	daysBefore := core.CalDays(today, dueDay)
 	if daysBefore < 0 {
 		daysBefore = 0
 	}

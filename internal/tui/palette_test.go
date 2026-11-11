@@ -180,3 +180,47 @@ func TestExamCoursePalettePickFillsInput(t *testing.T) {
 		t.Fatal("exam was not created via the palette")
 	}
 }
+
+// Regression test for the palette scroll bug: items below the fold were
+// selected without being rendered. paletteWindow must keep the selected
+// row visible for every possible selection index.
+func TestPaletteWindowKeepsSelectionVisible(t *testing.T) {
+	items := make([]paletteItem, 0, 40)
+	for i := 0; i < 40; i++ {
+		items = append(items, paletteItem{id: strings.Repeat("x", 3) + string(rune('0'+i%10)) + string(rune('a'+i/10)), label: "t", group: "Tasks"})
+	}
+	const maxItems = 10
+	for sel := range items {
+		start := paletteWindow(items, sel, maxItems)
+		if start > sel {
+			t.Fatalf("sel %d: window starts past the selection (%d)", sel, start)
+		}
+		slots := 0
+		lastGroup := ""
+		visible := false
+		for i := start; i < len(items); i++ {
+			if slots >= maxItems {
+				break
+			}
+			it := items[i]
+			if it.group != lastGroup && strings.TrimSpace(it.group) != "" {
+				slots++
+				lastGroup = it.group
+				if slots > maxItems {
+					break
+				}
+			}
+			if i == sel {
+				visible = slots < maxItems
+				break
+			}
+			slots++
+		}
+		if !visible {
+			t.Fatalf("sel %d not visible from window start %d", sel, start)
+		}
+	}
+	if got := paletteWindow(items, 0, maxItems); got != 0 {
+		t.Fatalf("top selection: window = %d, want 0", got)
+	}
+}

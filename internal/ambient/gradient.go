@@ -9,13 +9,13 @@ import "math"
 // fillGradientF fills the rect with a vertical interpolation between the
 // two palette colors. Edges are feathered like fillRectF.
 func (b *fbuf) fillGradientF(x0, y0, x1, y1 float64, r0, g0, b0, r1, g1, b1 float32, alpha float64, o blendOp) {
-	fx0, fy0 := x0*float64(fSS), y0*float64(fSS)
-	fx1, fy1 := x1*float64(fSS), y1*float64(fSS)
+	fx0, fy0 := x0*float64(fSSV()), y0*float64(fSSV())
+	fx1, fy1 := x1*float64(fSSV()), y1*float64(fSSV())
 	span := fy1 - fy0
 	if span <= 0 {
 		span = 1
 	}
-	feather := float64(fSS) * 0.75
+	feather := float64(fSSV()) * 0.75
 	px0, px1 := int(math.Floor(fx0-feather)), int(math.Ceil(fx1+feather))
 	py0, py1 := int(math.Floor(fy0-feather)), int(math.Ceil(fy1+feather))
 	for py := py0; py < py1; py++ {

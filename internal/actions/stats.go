@@ -21,6 +21,13 @@ func dayStamp(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
+// dayKey is the calendar-day identity of t (YYYY-MM-DD). Unix-second
+// arithmetic breaks across DST transitions (midnights can be 82800/90000s
+// apart), so streak math and day-bucket indexing work on day keys.
+func dayKey(t time.Time) string {
+	return t.Format("2006-01-02")
+}
+
 // completionStamp is the moment a task is counted as finished: the
 // completion stamp when present, falling back to the updated stamp for
 // tasks that are done but were never stamped.
@@ -83,15 +90,15 @@ type StreakReport struct {
 func Streaks(s *store.Store, minMinutes int, now time.Time) StreakReport {
 	loc := now.Location()
 	isDone := func(project, status string) bool { return s.IsDoneStatus(project, status) }
-	active := map[int64]bool{}
-	minutes := map[int64]int{}
+	active := map[string]bool{}
+	minutes := map[string]int{}
 	for _, t := range s.Tasks() {
 		if ts, ok := completionStamp(t, isDone, loc); ok {
-			active[dayStamp(ts).Unix()] = true
+			active[dayKey(ts)] = true
 		}
 		if t.TimeLoggedMinutes > 0 {
 			if day, ok := loggedDay(t, isDone, loc); ok {
-				minutes[day.Unix()] += t.TimeLoggedMinutes
+				minutes[dayKey(day)] += t.TimeLoggedMinutes
 			}
 		}
 	}
@@ -102,14 +109,19 @@ func Streaks(s *store.Store, minMinutes int, now time.Time) StreakReport {
 			}
 		}
 	}
-	days := make([]int64, 0, len(active))
+	days := make([]string, 0, len(active))
 	for d := range active {
 		days = append(days, d)
 	}
-	sort.Slice(days, func(i, j int) bool { return days[i] < days[j] })
+	sort.Strings(days)
 	longest, run := 0, 0
+	var prev time.Time
 	for i, d := range days {
-		if i > 0 && d == days[i-1]+86400 {
+		cur, err := time.ParseInLocation("2006-01-02", d, loc)
+		if err != nil {
+			continue
+		}
+		if i > 0 && cur.Equal(prev.AddDate(0, 0, 1)) {
 			run++
 		} else {
 			run = 1
@@ -117,15 +129,15 @@ func Streaks(s *store.Store, minMinutes int, now time.Time) StreakReport {
 		if run > longest {
 			longest = run
 		}
+		prev = cur
 	}
-	const day = 86400
 	current := 0
-	for d := dayStamp(now).Unix(); ; d -= day {
-		if active[d] {
+	for d := dayStamp(now); ; d = d.AddDate(0, 0, -1) {
+		if active[dayKey(d)] {
 			current++
 			continue
 		}
-		if d == dayStamp(now).Unix() {
+		if d.Equal(dayStamp(now)) {
 			continue // today may not be done yet; the streak lives off yesterday
 		}
 		break
@@ -178,7 +190,10 @@ func CollectStats(s *store.Store, now time.Time, since time.Time, period string,
 	isDone := func(project, status string) bool { return s.IsDoneStatus(project, status) }
 	since = dayStamp(since)
 	until := dayStamp(now)
-	days := int(until.Sub(since).Hours()/24) + 1
+	days := 1
+	for d := since; d.Before(until); d = d.AddDate(0, 0, 1) {
+		days++
+	}
 	if days > 800 {
 		// Documented limit: ancient history beyond 800 days is dropped,
 		// never mis-bucketed.
@@ -195,6 +210,12 @@ func CollectStats(s *store.Store, now time.Time, since time.Time, period string,
 		Days:           days,
 		DayCompletions: make([]int, days),
 		DayHours:       make([]float64, days),
+	}
+	// Calendar-day bucket index; Hour/24 arithmetic mis-buckets across DST.
+	dayIndex := map[string]int{}
+	for x, i := since, 0; !x.After(until); x = x.AddDate(0, 0, 1) {
+		dayIndex[dayKey(x)] = i
+		i++
 	}
 	courses, err := ListCourses(s)
 	if err != nil {
@@ -216,7 +237,10 @@ func CollectStats(s *store.Store, now time.Time, since time.Time, period string,
 		if day.Before(since) || day.After(until) {
 			continue
 		}
-		idx := int(day.Sub(since).Hours() / 24)
+		idx, ok := dayIndex[dayKey(day)]
+		if !ok {
+			continue
+		}
 		hours := float64(t.TimeLoggedMinutes) / 60
 		rep.Completed++
 		rep.DayCompletions[idx]++

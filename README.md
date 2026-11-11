@@ -41,8 +41,8 @@ Requires Go ≥ 1.25 and git on PATH.
 
 ```sh
 mtm init                                   # creates the data repo + default config
-mtm add "buy milk"                         # natural language: dates, !priority, +tags, project:
-mtm add "submit report friday !high +urgent project:college/dbms"
+mtm add "buy milk"                         # natural language: dates, !priority, #tags, @project
+mtm add "submit report friday !high #urgent @college/dbms"
 mtm today                                  # what's due today
 mtm                                       # the TUI (0 Home · 1 List · 2 Board · 3 Calendar · 4 Courses · 5 Stats)
 mtm done 3db991                            # mark done
@@ -83,8 +83,8 @@ streak; open issue/PR counts via `gh` when authenticated, cached 15 min)
 ### System
 `mtm remind` (one-shot reminder check; run it from a timer),
 `mtm systemd install|uninstall|status` (user sync + reminder timers),
-`mtm version`, `mtm sync`, `mtm tui`, `mtm demo` (throwaway demo sandbox),
-`mtm doctor` (read-only health checks, `--json` for scripting)
+`mtm version`, `mtm sync`, `mtm tui`, `mtm doctor` (read-only health checks,
+`--json` for scripting). `make demo` builds a throwaway 73-task demo sandbox
 
 Run `mtm <command> -h` for a command's own reference and examples.
 
@@ -215,7 +215,7 @@ bars with progress, today marker, at-risk/overdue colours) and **Dev-log**.
 
 ```sh
 mtm export                     # markdown report to stdout (grouped by course)
-mtm export --format json -o export.json
+mtm export --format json --out export.json
 mtm export --format csv --project college/dbms
 mtm ical                       # RFC 5545 calendar to stdout
 mtm ical --out ~/mtm.ics
@@ -281,13 +281,13 @@ against this schema.
 ## Configuration reference
 
 `~/.config/mtm/config.yaml`. Every key is optional; defaults are shown.
-Run `mtm init` to see a fully-commented default file.
+`mtm init` writes the generated default file (plain YAML, no comments).
 
 ```yaml
 data_repo: ~/.local/share/mtm   # where the data lives (git repo)
 default_project: inbox          # where new tasks land without a project:
 editor: ""                      # $EDITOR, else $VISUAL, else vi
-date_format: "2006-01-02"
+date_format: "2006-01-02"       # reserved (not yet wired)
 week_start: monday              # or "sunday"
 
 sort:                           # task-list sort, applied in order
@@ -334,10 +334,12 @@ ui:
                                 # collapses on short terminals); toggle in :ambient
   scene: auto                   # auto (by local hour) | random | night |
                                 # bonsai | ocean | rain | koi | snow | campfire
-  splash_seconds: 2.5           # startup splash length
+  splash_seconds: 3.0           # startup splash length
   reward_animation: true        # 1.5s scene burst when a task is completed
                                 # (rate-limited to 3 per minute)
-  ambient_fps: 10               # animation cap (max 30)
+                                # tab switches cross-fade out of the base over
+                                # ~220ms (skipped with reduced motion)
+  ambient_fps: 60               # animation cap (max 60)
   ambient_render: auto          # auto | halfblock (▀▄ 2x vertical) | braille | ascii
   rain_lightning: false         # rare lightning in the rain scene
   truecolor: auto               # auto | on | off — 24-bit color; auto =
@@ -390,7 +392,7 @@ reminders:
 ~/.local/state/mtm/timer.json     # timer/Pomodoro state (outside the repo)
 ~/.local/state/mtm/timer.lock
 ~/.local/state/mtm/reminders.json # sent reminders (dedup; outside the repo)
-~/.local/state/mtm/mtm-sync-state.json  # sync paused flag (lives in .git/)
+~/.local/share/mtm/.git/mtm-sync-state.json  # sync paused flag (inside the data repo's .git directory)
 ```
 
 Each task is one Markdown file:
@@ -532,7 +534,7 @@ mtm completion fish > ~/.config/fish/completions/mtm.fish
   · `--no-ambient` disables for one run · `--no-splash` skips the splash
 - board: `h`/`l` move between columns · `D` toggle the Done filter
 - calendar: `h`/`l` move the day · `J`/`K` change months
-- courses: `g` record a grade · `e` add an exam
+- courses: `g` record a grade · `:exam <course>` in the palette to add an exam
 - ideas: `a` capture · `r` rate 1–5 · `p` promote to a project · `s` cycle
   status · `m`/`M` notes
 - project page (`enter` on a project in the sidebar, or `:roadmap`):

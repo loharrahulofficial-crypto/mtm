@@ -896,12 +896,16 @@ func (m Model) renderProjectTasks(w, h int) []string {
 		mstone := ""
 		if t.Milestone != "" {
 			if title, ok := mstoneTitles[t.Milestone]; ok {
-				mstone = truncatePlain(title, 14)
+				mstone = truncatePlain(title, dueW)
 			}
 		}
 		line := fmt.Sprintf(" %s", textStyle.Render(rowText))
-		fill := " " + mstone + strings.Repeat(" ", dueW-len(mstone)) + due
-		pad := w - fastWidth(line) - len(fill) - 1
+		fillW := dueW - fastWidth(mstone)
+		if fillW < 0 {
+			fillW = 0
+		}
+		fill := " " + mstone + strings.Repeat(" ", fillW) + due
+		pad := w - fastWidth(line) - fastWidth(fill) - 1
 		if pad < 1 {
 			pad = 1
 		}

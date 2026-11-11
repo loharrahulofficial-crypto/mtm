@@ -26,6 +26,10 @@ func parseFrontMatter(data []byte, out any) (body string, err error) {
 		bodyBytes = rest[idx+len("\n"+fence+"\n"):]
 	case bytes.HasSuffix(rest, []byte("\n"+fence)):
 		front = rest[:len(rest)-len("\n"+fence)]
+	case bytes.Equal(rest, []byte(fence)) || bytes.Equal(rest, []byte(fence+"\n")):
+		// Empty-but-valid frontmatter: "---\n---" or "---\n---\n".
+		front = nil
+		bodyBytes = nil
 	default:
 		return "", fmt.Errorf("missing closing frontmatter fence")
 	}

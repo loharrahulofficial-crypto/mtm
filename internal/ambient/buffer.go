@@ -135,7 +135,7 @@ func (b *buffer) mark(x, y int, ch rune, ci int) {
 		return
 	}
 	i := y*b.sw + x
-	b.cells[i] = subcell{ch: ch, c: ci}
+	b.cells[i] = subcell{ch: ch, c: ci, marked: true}
 	r, g, bl := b.rgbF(ci)
 	b.fb.fillRect(x, y, x+1, y+1, r, g, bl, 1, opNormal)
 	if b.curLayer != 0 {
@@ -150,8 +150,11 @@ func (b *buffer) glow(x, y int, ci int) {
 	}
 	i := y*b.sw + x
 	c := &b.cells[i]
-	if c.ch == 0 && c.c == 0 {
-		c.c = ci // first writer wins for the glyph grid (ascii/braille)
+	// First writer wins for the glyph grid (ascii/braille), even when the
+	// ink color is palette index 0.
+	if !c.marked {
+		c.c = ci
+		c.marked = true
 	}
 	r, g, bl := b.rgbF(ci)
 	b.fb.fillEllipseF(float64(x)+0.5, float64(y)+0.5, 0.72, 0.72, r, g, bl, 0.85, opAdd)
@@ -276,8 +279,9 @@ func (b *buffer) sub(x, y int) subcell {
 }
 
 type subcell struct {
-	ch rune // 0 = unmarked
-	c  int  // palette index of the ink color
+	ch     rune // 0 = unmarked
+	c      int  // palette index of the ink color
+	marked bool // glow claims cells properly even for palette index 0
 }
 
 // hexToRGB parses #rrggbb / #rgb into channel bytes. Malformed input

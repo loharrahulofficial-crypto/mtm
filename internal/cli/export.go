@@ -2,13 +2,13 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/actions"
+	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 )
 
 func newExportCmd() *cobra.Command {
@@ -33,7 +33,8 @@ spreadsheets.
   --since DATE  only tasks touched on/after DATE (2006-01-02)
   --out FILE    write to FILE instead of stdout (mode 0600)
 
-Ideas and milestones land as reserved top-level keys in a later schema.`,
+Ideas, milestones and the dev-log land as populated top-level keys in
+schema_version 2.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, s, err := openStore()
@@ -75,7 +76,7 @@ Ideas and milestones land as reserved top-level keys in a later schema.`,
 				return err
 			}
 			if strings.TrimSpace(out) != "" {
-				if err := os.WriteFile(out, data, 0o600); err != nil {
+				if err := store.WriteFileAtomic(out, data, 0o600); err != nil {
 					return fmt.Errorf("write %s: %w", out, err)
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "wrote %s (%d bytes)\n", out, len(data))

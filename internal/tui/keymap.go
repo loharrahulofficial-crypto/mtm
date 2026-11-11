@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -254,14 +255,43 @@ func isSequenceBinding(seq string) bool {
 	return true
 }
 
-// Match returns the action bound exactly to seq, or "" if none.
+// Match returns the action bound exactly to seq, or "" if none. Ties
+// (several actions bound to the same sequence) resolve to the
+// lexicographically smallest action name — deterministic; duplicates are
+// reported at startup via DuplicateBindings.
 func (k KeyMap) Match(seq string) string {
+	best := ""
 	for action, bound := range k.binds {
-		if bound == seq {
-			return action
+		if bound != seq {
+			continue
+		}
+		if best == "" || action < best {
+			best = action
 		}
 	}
-	return ""
+	return best
+}
+
+// DuplicateBindings reports sequences bound to more than one action, so
+// the user learns their keys: config has a collision instead of wondering
+// why one binding silently shadows the other.
+func (k KeyMap) DuplicateBindings() []string {
+	seqOf := map[string][]string{}
+	for a, s := range k.binds {
+		if s == "" {
+			continue
+		}
+		seqOf[s] = append(seqOf[s], a)
+	}
+	var dups []string
+	for s, actions := range seqOf {
+		if len(actions) > 1 {
+			sort.Strings(actions)
+			dups = append(dups, fmt.Sprintf("%q: %s", s, strings.Join(actions, "/")))
+		}
+	}
+	sort.Strings(dups)
+	return dups
 }
 
 // HelpEntries returns {action, description, sequence} in stable display order.

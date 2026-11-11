@@ -15,6 +15,8 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/store"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 	"github.com/loharrahulofficial-crypto/mtm/internal/theme"
+
+	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 )
 
 // DumpFixedTime is the fixed local-naive clock the --dump command and the
@@ -28,6 +30,10 @@ var DumpFixedTime = time.Date(2026, 11, 7, 14, 32, 0, 0, time.UTC)
 //
 // view: home|list|board|calendar|courses|focus|stats|ideas|project|roadmap|devlog
 func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, t time.Time) Model {
+	// Golden frames must not depend on the machine's speed: the ambient
+	// adaptive-quality loop otherwise steps the supersampling down when a
+	// slow test render trips the frame budget.
+	ambient.SetQualityTier(ambient.TierFull)
 	s.Clock = clock.Fixed(t)
 
 	lipgloss.SetColorProfile(termenv.TrueColor)

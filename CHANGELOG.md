@@ -19,7 +19,7 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   fish), snowfall (three parallax flake depths) and campfire (breathing
   radial glow, sparks, smoke)
 - **Where they appear** (`ui.ambient: off|splash|sidebar|home|both`, default both):
-  startup splash (default 2.5s, any key skips; skipped on non-TTY,
+  startup splash (default 3s, any key skips; skipped on non-TTY,
   `--no-splash`, or when disabled), a framed ambient window at the bottom
   of the sidebar filling only the free rows under the course list (the new
   default surface; minimum 8 rows, collapses on short terminals; toggle
@@ -57,14 +57,20 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   terminal, color mode and override source (`terminal` check)
 - **`ui.ambient*` config**: `ambient`, `scene` (`auto` picks by local hour,
   `random` per launch), `splash_seconds`, `reward_animation`,
-  `ambient_fps` (default 8, max 30), `ambient_idle`
+  `ambient_fps` (default 60, max 60), `ambient_idle`
   (`slow` (default) | `pause` | `off` — Home/sidebar drops to ~4 FPS after
   30 s without input and pauses on a still frame after 5 minutes, resumes
   instantly on any key or mouse event; Focus exempt while the timer runs),
   `ambient_render`
   (`auto` | `halfblock` | `braille` | `ascii`), `rain_lightning` (default off)
-- The Home/sidebar ambient cap is now **8 FPS** (was 12); Focus and the
-  splash stay at 24 FPS. `ui.ambient_fps` is honoured up to those caps
+- The ambient render is a little more cinematic: supersampling 3x at full
+  quality (adaptive tier drops to 2, then 1), and scenes now mix colors in
+  linear light instead of sRGB, so skies glow and sunsets keep hue.
+- Tab switches cross-fade out of the base color over ~220ms (all entry
+  points; skipped under `ui.reduced_motion`).
+- The ambient cap is now **60 FPS** everywhere (`ui.ambient_fps`,
+  honoured up to `max 60`); adaptive quality still steps down (halved
+  supersampling, then halved FPS) when frames blow the 30 ms budget
 - `mtm doctor --json` now reports `ambient_paint_ms` / `ambient_paint_ns`
   (slowest measured reference scene frame, 100x30) alongside
   `ambient_quality_tier` / `ambient_quality_name`

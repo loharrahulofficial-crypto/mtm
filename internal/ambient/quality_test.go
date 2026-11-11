@@ -6,7 +6,7 @@ import (
 )
 
 // quality_test.go — §4.7: adaptive tiers step down over budget and restore
-// with headroom, and fSS tracks the tier.
+// with headroom, and fSSV() tracks the tier.
 
 func TestAdaptiveStepsDownAndRestores(t *testing.T) {
 	resetAdaptiveForTest()
@@ -19,8 +19,8 @@ func TestAdaptiveStepsDownAndRestores(t *testing.T) {
 	if tier, name := AmbientTier(); tier != 1 || name != "low-ss" {
 		t.Fatalf("after 3 over-budget frames: tier = (%d, %q), want (1, low-ss)", tier, name)
 	}
-	if fSS != 1 {
-		t.Fatalf("fSS = %d, want 1 at low-ss", fSS)
+	if fSSV() != 2 {
+		t.Fatalf("fSSV() = %d, want 2 at low-ss", fSSV())
 	}
 
 	// 3 more → TierLowFPS
@@ -38,8 +38,8 @@ func TestAdaptiveStepsDownAndRestores(t *testing.T) {
 	if tier, _ := AmbientTier(); tier != 1 {
 		t.Fatalf("after 45 good frames: tier = %d, want 1", tier)
 	}
-	if fSS != 1 {
-		t.Fatalf("fSS = %d, want 1 at low-ss", fSS)
+	if fSSV() != 2 {
+		t.Fatalf("fSSV() = %d, want 2 at low-ss", fSSV())
 	}
 	for i := 0; i < 45; i++ {
 		ObserveFrameCost(5 * time.Millisecond)
@@ -47,8 +47,8 @@ func TestAdaptiveStepsDownAndRestores(t *testing.T) {
 	if tier, _ := AmbientTier(); tier != 0 {
 		t.Fatalf("after 90 good frames: tier = %d, want 0", tier)
 	}
-	if fSS != 2 {
-		t.Fatalf("fSS = %d, want 2 at full", fSS)
+	if fSSV() != 3 {
+		t.Fatalf("fSSV() = %d, want 3 at full", fSSV())
 	}
 }
 
@@ -67,11 +67,11 @@ func TestSetQualityTierForces(t *testing.T) {
 	resetAdaptiveForTest()
 	defer resetAdaptiveForTest()
 	SetQualityTier(TierLowSS)
-	if fSS != 1 {
-		t.Fatalf("fSS = %d after SetQualityTier(LowSS), want 1", fSS)
+	if fSSV() != 2 {
+		t.Fatalf("fSSV() = %d after SetQualityTier(LowSS), want 2", fSSV())
 	}
 	SetQualityTier(TierFull)
-	if fSS != 2 {
-		t.Fatalf("fSS = %d after SetQualityTier(Full), want 2", fSS)
+	if fSSV() != 3 {
+		t.Fatalf("fSSV() = %d after SetQualityTier(Full), want 3", fSSV())
 	}
 }

@@ -316,7 +316,7 @@ func (m *Model) sceneFrameWith(t time.Duration, w, h int, adjust func(ambient.Pa
 		return cur.Frame(t, w, h, st)
 	}
 	stOld := st
-	stOld.Seed = m.ambientSeed
+	stOld.Seed = st.Seed // outgoing scene must render with the same seed as the live scene
 	oldR := m.scenePrev.FramePixels(t, w, h, stOld)
 	newR := cur.FramePixels(t, w, h, st)
 	prog := float64(m.clock.Now().Sub(m.crossfadeStart)) / float64(m.crossfadeDur)
@@ -340,27 +340,19 @@ func (m *Model) sceneRewardFrame(t time.Duration, w, h int) []string {
 	return m.currentScene().Reward(t, w, h, st)
 }
 
-// ambientFPS resolves the configured cap against the per-surface budget:
-// ≤ 24 FPS while a scene is the focus surface (or the splash), ≤ 8 FPS
-// behind Home/sidebar. Adaptive quality halves on top of this; the idle
-// policy drops Home/sidebar to ~4 FPS after 30 s without input.
+// ambientFPS resolves the configured cap: up to 60 FPS on every surface
+// (adaptive quality steps down on its own when frames blow the budget).
+// The idle policy drops to a crawl after 30 s without input.
 func ambientFPS(m Model) int {
 	fps := m.cfg.UI.AmbientFPS
 	if fps < 1 {
-		fps = 8
+		fps = 60
 	}
-	cap := 8
-	if m.mode == modeFocus || m.mode == modeSplash {
-		cap = 24
-	}
-	if fps > cap {
-		fps = cap
+	if fps > 60 {
+		fps = 60
 	}
 	if m.ambientIdleState() == idleSlow && fps > idleSlowFPS {
 		fps = idleSlowFPS
-	}
-	if fps > 30 {
-		fps = 30
 	}
 	return fps
 }
@@ -369,7 +361,7 @@ func ambientFPS(m Model) int {
 // wants it. The ticker stops entirely otherwise: zero work while idle.
 // A paused Pomodoro in Focus mode crawls instead: the scene breathes at
 // a gentle rate, progress-linked elements stay frozen.
-func (m Model) armAmbient() tea.Cmd {
+func (m *Model) armAmbient() tea.Cmd {
 	if !m.ambientActive() {
 		m.ambientArmed = false
 		return nil
@@ -378,7 +370,7 @@ func (m Model) armAmbient() tea.Cmd {
 		return nil
 	}
 	m.ambientArmed = true
-	fps := ambientFPS(m)
+	fps := ambientFPS(*m)
 	if m.slowIdleActive() {
 		return ambientTickCmd(slowIdleFPS(fps))
 	}
@@ -404,8 +396,8 @@ func slowIdleFPS(full int) int {
 }
 
 func ambientTickCmd(fps int) tea.Cmd {
-	if tier, _ := ambient.AmbientTier(); tier >= 3 {
-		// adaptive quality stepped down: halve the effective rate
+	if tier, _ := ambient.AmbientTier(); tier >= int(ambient.TierLowFPS) {
+		// Adaptive quality stepped down to the low-FPS tier: halve the rate.
 		fps /= 2
 		if fps < 4 {
 			fps = 4
@@ -596,7 +588,7 @@ func (m Model) renderSplash() string {
 
 	// wordmark letters rise one by one with a glow pulse
 	cy := h / 2
-	m.paintWordmark(out, r, baseHex, w, cy, t, fade)
+	m.paintWordmark(out, r, baseHex, w, cy, t, fade, limited, dither)
 
 	// tagline fades in 1.6–2.2s
 	taglineT := clampUnit((t-1.6)/0.6, 0, 1) * fade
@@ -604,7 +596,7 @@ func (m Model) renderSplash() string {
 		const text = "a calmer desk for your courses"
 		blend := ambient.BlendHex(baseHex, m.palette.MutedSoft, taglineT)
 		x0 := centerX(w, text)
-		piece := overlayCells(x0, cy+5, text, blend, false, r, baseHex)
+		piece := overlayCells(x0, cy+5, text, blend, false, r, baseHex, limited, dither)
 		out[cy+5] = spliceCells(out[cy+5], x0, fastWidth(text), piece)
 	}
 
@@ -614,7 +606,7 @@ func (m Model) renderSplash() string {
 		const text = "press any key to skip"
 		blend := ambient.BlendHex(baseHex, m.palette.MutedSoft, footT)
 		x0 := centerX(w, text)
-		piece := overlayCells(x0, h-2, text, blend, false, r, baseHex)
+		piece := overlayCells(x0, h-2, text, blend, false, r, baseHex, limited, dither)
 		out[h-2] = spliceCells(out[h-2], x0, fastWidth(text), piece)
 	}
 
@@ -656,10 +648,10 @@ func rasterCellBG(r ambient.Raster, baseHex string, x, y int) string {
 // overlayCells renders one row of text cells: each cell carries the
 // scene's own background at that position (the scene shows through
 // between glyph strokes and inside counters) with fg = fgHex. bold adds
-// weight. Raw truecolor SGR is emitted; xterm-256 terminals quantize
-// 38;2/48;2 to the nearest cube/gray entry themselves, same as for the
-// scene's own truecolor-on-limited policy.
-func overlayCells(x0, y int, text, fgHex string, bold bool, r ambient.Raster, baseHex string) string {
+// weight. On truecolor (limited=false) raw 24-bit SGR is emitted; on
+// limited palettes every fg/bg goes through the xterm-256 quantizer so
+// the frame never contains an escape the terminal would drop.
+func overlayCells(x0, y int, text, fgHex string, bold bool, r ambient.Raster, baseHex string, limited, dither bool) string {
 	runes := []rune(text)
 	var sb strings.Builder
 	curFG, curBG := "", ""
@@ -670,22 +662,56 @@ func overlayCells(x0, y int, text, fgHex string, bold bool, r ambient.Raster, ba
 	}
 	for i, ch := range runes {
 		bg := rasterCellBG(r, baseHex, x0+i, y)
-		if fgHex != curFG {
-			if bold {
-				emit("1;38;2;" + rgbTriplet(fgHex))
-			} else {
-				emit("38;2;" + rgbTriplet(fgHex))
-			}
-			curFG = fgHex
+		fgSGR := overlayColorSGR(true, fgHex, bold, x0+i, y, limited, dither)
+		bgSGR := overlayColorSGR(false, bg, false, x0+i, y, limited, dither)
+		if fgSGR != curFG {
+			emit(fgSGR)
+			curFG = fgSGR
 		}
-		if bg != curBG {
-			emit("48;2;" + rgbTriplet(bg))
-			curBG = bg
+		if bgSGR != curBG {
+			emit(bgSGR)
+			curBG = bgSGR
 		}
 		sb.WriteRune(ch)
 	}
 	sb.WriteString("\x1b[0m")
 	return sb.String()
+}
+
+// overlayColorSGR builds the SGR payload for one overlay color.
+func overlayColorSGR(fg bool, hex string, bold bool, x, y int, limited, dither bool) string {
+	r, g, b := hexToRGB(hex)
+	if limited {
+		idx := ambient.Xterm256For(r, g, b, x, y, dither)
+		prefix := "48;5;"
+		if fg {
+			prefix = "38;5;"
+		}
+		if fg && bold {
+			return fmt.Sprintf("1;%s%d", prefix, idx)
+		}
+		return fmt.Sprintf("%s%d", prefix, idx)
+	}
+	if fg && bold {
+		return "1;38;2;" + rgbTriplet(hex)
+	}
+	if fg {
+		return "38;2;" + rgbTriplet(hex)
+	}
+	return "48;2;" + rgbTriplet(hex)
+}
+
+// hexToRGB parses #rrggbb into bytes (defaults 255 on malformed input).
+func hexToRGB(hex string) (uint8, uint8, uint8) {
+	s := strings.TrimPrefix(hex, "#")
+	if len(s) != 6 {
+		return 255, 255, 255
+	}
+	r, g, b := uint8(255), uint8(255), uint8(255)
+	if _, err := fmt.Sscanf(s, "%02x%02x%02x", &r, &g, &b); err != nil {
+		return 255, 255, 255
+	}
+	return r, g, b
 }
 
 // rgbTriplet converts #rrggbb to "r;g;b" (clamped, defaults white).
@@ -714,7 +740,7 @@ func centerX(w int, s string) int {
 // Each cell keeps the scene's background, so the letters read as lit
 // type rising out of the scene rather than opaque tiles. fade dims the
 // whole wordmark into the dissolve tail.
-func (m Model) paintWordmark(out []string, r ambient.Raster, baseHex string, w, cy int, t, fade float64) {
+func (m Model) paintWordmark(out []string, r ambient.Raster, baseHex string, w, cy int, t, fade float64, limited, dither bool) {
 	g, large := wordmarkFor(w, m.height)
 	letters := g.letters
 	letterW := fastWidth(letters[0][0]) // cells, not bytes
@@ -749,7 +775,7 @@ func (m Model) paintWordmark(out []string, r ambient.Raster, baseHex string, w, 
 			if y < 0 || y >= len(out) {
 				continue
 			}
-			piece := overlayCells(x0+i*(letterW+gap), y, line, col, true, r, baseHex)
+			piece := overlayCells(x0+i*(letterW+gap), y, line, col, true, r, baseHex, limited, dither)
 			out[y] = spliceCells(out[y], x0+i*(letterW+gap), letterW, piece)
 		}
 	}
@@ -838,8 +864,9 @@ func (m *Model) fireReward(title string) tea.Cmd {
 	m.rewardUntil = m.clock.Now().Add(rewardDuration)
 	m.rewardTitle = title
 	m.rewardArmed = true
-	m.armAmbient()
-	return ambientTickCmd(ambientFPS(*m))
+	// Never start a second chain: if ambient is already ticking, return nil
+	// and let the existing chain renew (handleAmbientTick preserves it).
+	return m.armAmbient()
 }
 
 // skipSplash fast-forwards the splash into its dissolve tail: the next

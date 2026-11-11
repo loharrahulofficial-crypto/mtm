@@ -178,8 +178,10 @@ func writeEvent(buf *bytes.Buffer, ev FeedEvent, opts Options) {
 func parseDue(s string) (time.Time, bool, error) {
 	s = strings.TrimSpace(s)
 	if len(s) > len("2006-01-02") {
-		if t, err := time.ParseInLocation(core.TimestampFormat, s, time.Local); err == nil {
-			return t, false, nil
+		for _, layout := range []string{core.TimestampFormat, "2006-01-02 15:04"} {
+			if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
+				return t, false, nil
+			}
 		}
 		return time.Time{}, false, fmt.Errorf("unparseable timestamp %q", s)
 	}

@@ -57,6 +57,9 @@ func Detect(getenv func(string) string) Terminal {
 	case term == "mlterm":
 		t = Terminal{Program: "mlterm", TrueColor: true, Sixel: true}
 	case strings.HasPrefix(term, "tmux"):
+		// Product decision (pinned by caps_test.go): tmux is assumed
+		// truecolor-capable; limited tmux outers get 24-bit quantized by
+		// the scene's palette path instead of by caps.
 		t = Terminal{Program: "tmux", TrueColor: true}
 	case strings.HasPrefix(term, "screen"):
 		t = Terminal{Program: "screen"}

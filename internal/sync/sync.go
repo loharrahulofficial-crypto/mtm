@@ -219,12 +219,13 @@ func (r Repo) LoadState() (State, error) {
 	}
 	var st State
 	if err := json.Unmarshal(data, &st); err != nil {
-		return State{}, fmt.Errorf("parse %s: %w", p, err)
+		return State{}, fmt.Errorf("parse %s: %w (delete the file to resume sync from a clean slate; conflicts are never auto-resolved)", p, err)
 	}
 	return st, nil
 }
 
-// SaveState persists the sync state.
+// SaveState persists the sync state atomically (temp+rename+fsync), so a
+// crash mid-write never leaves a corrupt mtm-sync-state.json behind.
 func (r Repo) SaveState(st State) error {
 	p, err := r.statePath()
 	if err != nil {
@@ -234,7 +235,41 @@ func (r Repo) SaveState(st State) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p, data, 0o600)
+	dir := filepath.Dir(p)
+	tmp, err := os.CreateTemp(dir, ".mtm-sync-state-*")
+	if err != nil {
+		return fmt.Errorf("create temp sync state: %w", err)
+	}
+	tmpName := tmp.Name()
+	ok := false
+	defer func() {
+		if !ok {
+			_ = os.Remove(tmpName)
+		}
+	}()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write sync state: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("sync sync state: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close sync state: %w", err)
+	}
+	if err := os.Chmod(tmpName, 0o600); err != nil {
+		return fmt.Errorf("chmod sync state: %w", err)
+	}
+	if err := os.Rename(tmpName, p); err != nil {
+		return fmt.Errorf("rename sync state: %w", err)
+	}
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+	ok = true
+	return nil
 }
 
 // ClearState removes the persisted sync state.
@@ -251,13 +286,18 @@ func (r Repo) ClearState() error {
 }
 
 // Ahead returns how many local commits are not on the upstream branch.
-// It returns 0 when there is no upstream.
+// It returns 0 when there is no upstream configured; any other git error
+// is reported, not silently treated as "in sync".
 func (r Repo) Ahead() (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	// No upstream → 0, by definition. Any other failure is an error.
+	if _, err := r.git(ctx, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"); err != nil {
+		return 0, nil
+	}
 	out, err := r.git(ctx, "rev-list", "--count", "@{upstream}..HEAD")
 	if err != nil {
-		return 0, nil // no upstream configured
+		return 0, fmt.Errorf("rev-list @{upstream}..HEAD: %w", err)
 	}
 	var n int
 	_, err = fmt.Sscanf(out, "%d", &n)

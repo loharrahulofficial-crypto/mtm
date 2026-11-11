@@ -91,7 +91,7 @@ func MilestoneRisk(m *Milestone, now time.Time) int {
 		return MilestoneRiskOK
 	}
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
-	days := int(day.Sub(today).Hours() / 24)
+	days := CalDays(today, day)
 	if days < 0 {
 		return MilestoneRiskOverdue
 	}

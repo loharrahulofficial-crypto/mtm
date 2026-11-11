@@ -225,7 +225,7 @@ func NextMilestone(s *store.Store, now time.Time) (*core.Milestone, int, bool) {
 		if err != nil {
 			continue
 		}
-		days := int(day.Sub(today).Hours() / 24)
+		days := core.CalDays(today, day)
 		if best == nil || days < bestDays {
 			best, bestDays = m, days
 		}

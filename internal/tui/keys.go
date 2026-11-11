@@ -11,8 +11,23 @@ import (
 func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	res, cmd := m.dispatchRaw(msg)
 	if nm, ok := res.(Model); ok {
-		armCmd := nm.armAmbient()
-		return nm, tea.Batch(cmd, armCmd)
+		cmds := []tea.Cmd{}
+		if armCmd := nm.armAmbient(); armCmd != nil {
+			cmds = append(cmds, armCmd)
+		}
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		// A view change anywhere arms the page-fade; every entry point
+		// (keys, mouse, palette, sidebar) funnels through here.
+		if nm.view != m.view && !nm.reducedMotionActive() {
+			nm.viewFadeStart = m.clock.Now()
+			cmds = append(cmds, viewFadeTickCmd())
+		}
+		if len(cmds) == 1 {
+			return nm, cmds[0]
+		}
+		return nm, tea.Batch(cmds...)
 	}
 	return res, cmd
 }
@@ -119,10 +134,34 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateConfirmKey(msg)
 	case modeHelp:
 		switch msg.String() {
-		case "esc", "q", m.keymap.Seq(aHelp):
+		case "j", "down":
+			m.helpScroll++
+			return m, nil
+		case "k", "up":
+			if m.helpScroll > 0 {
+				m.helpScroll--
+			}
+			return m, nil
+		case "pgdown", "ctrl+d":
+			m.helpScroll += 8
+			return m, nil
+		case "pgup", "ctrl+u":
+			m.helpScroll -= 8
+			if m.helpScroll < 0 {
+				m.helpScroll = 0
+			}
+			return m, nil
+		case "g":
+			m.helpScroll = 0
+			return m, nil
+		case "G":
+			m.helpScroll = 1 << 30 // clamped at render
+			return m, nil
+		default:
+			m.helpScroll = 0
 			m.mode = modeNormal
+			return m, nil
 		}
-		return m, nil
 	case modeConflict:
 		return m.updateConflictKey(msg)
 	case modeNotes:
@@ -426,7 +465,7 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case tea.MouseWheelUp:
 		m.focusTo(x, sidebarW, mainW, detailW)
 		if m.focus == focusDetail {
-			m.detailScroll = clampInt(m.detailScroll-3, 0, 1<<30)
+			m.detailScroll = clampInt(m.detailScroll-3, 0, m.maxDetailScroll())
 			return m, nil
 		}
 		if m.view == viewCourses && m.focus != focusSidebar {
@@ -448,7 +487,7 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case tea.MouseWheelDown:
 		m.focusTo(x, sidebarW, mainW, detailW)
 		if m.focus == focusDetail {
-			m.detailScroll = clampInt(m.detailScroll+3, 0, 1<<30)
+			m.detailScroll = clampInt(m.detailScroll+3, 0, m.maxDetailScroll())
 			return m, nil
 		}
 		if m.view == viewCourses && m.focus != focusSidebar {
@@ -579,11 +618,19 @@ func searchRowLine(rowLines []int, line int) int {
 }
 
 func (m Model) sidebarIndexAt(y int) int {
-	if y < brandLines {
-		return -1
+	// Match the renderer: panel top chrome (1 row), then the brand block,
+	// then visible rows starting at `top` (sidebarRowPlan).
+	innerW := sideWidth(m.width, m.sidebarHidden) - 2
+	if innerW < 1 {
+		innerW = 1
 	}
-	row := brandLines
-	for _, r := range sidebarRows(m.sidebarItems) {
+	innerH := m.height - 1 - 2
+	top, _, _, _ := sidebarRowPlan(m, innerW, innerH)
+	row := 1 + brandLines
+	for i, r := range sidebarRows(m.sidebarItems) {
+		if i < top {
+			continue
+		}
 		if y == row {
 			return r.sel // -1 for headers (not selectable)
 		}

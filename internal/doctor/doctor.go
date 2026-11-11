@@ -188,7 +188,7 @@ func Run(opts Options) Report {
 			if d.IsDir() {
 				rel, rerr := filepath.Rel(walkBase, path)
 				if rerr == nil && demo.IsDemoProject(filepath.ToSlash(rel)) {
-					demoProjects = append(demoProjects, filepath.ToSlash(rel))
+					demoProjects = append(demoProjects, filepath.ToSlash(filepath.Join(base, rel)))
 				}
 				return nil
 			}
@@ -241,7 +241,7 @@ func Run(opts Options) Report {
 	}
 	for _, p := range demoProjects {
 		if flagDemoAsFail {
-			rep.add(demoLevel, "demo-data", filepath.Join(opts.Root, "projects", filepath.FromSlash(p)), "project %s is a demo corpus project", p)
+			rep.add(demoLevel, "demo-data", filepath.Join(opts.Root, filepath.FromSlash(p)), "project %s is a demo corpus project", p)
 		}
 	}
 	treeHasDemo := len(demoTasks) > 0 || len(demoProjects) > 0

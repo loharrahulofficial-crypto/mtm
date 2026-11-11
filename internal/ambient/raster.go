@@ -1,7 +1,6 @@
 package ambient
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 )
@@ -220,12 +219,19 @@ func applySGRStrings(fg, bg, seq string) (string, string) {
 			if p == "48" {
 				target = &bg
 			}
+			if i+2 < len(parts) && parts[i+1] == "5" {
+				if idx, ok := atoiSmall(parts[i+2]); ok && idx >= 0 && idx <= 255 {
+					*target = xterm256Hex(uint8(idx))
+				}
+				i += 3
+				continue
+			}
 			if i+4 < len(parts) && parts[i+1] == "2" {
 				r, ok1 := atoiSmall(parts[i+2])
 				g, ok2 := atoiSmall(parts[i+3])
 				b, ok3 := atoiSmall(parts[i+4])
 				if ok1 && ok2 && ok3 {
-					*target = fmt.Sprintf("#%02x%02x%02x", r, g, b)
+					*target = rgbHex(uint8(r), uint8(g), uint8(b))
 				}
 				i += 5
 				continue

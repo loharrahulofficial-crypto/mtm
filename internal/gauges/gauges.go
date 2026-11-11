@@ -153,7 +153,7 @@ func DueHeat(due string, now time.Time, done bool) Heat {
 	}
 	y, m, d := now.Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, now.Location())
-	days := int(day.Sub(today).Hours() / 24)
+	days := core.CalDays(today, day)
 	switch {
 	case days < 0:
 		return HeatOverdue
@@ -175,7 +175,7 @@ func DueLabel(due string, now time.Time) (string, Heat) {
 	}
 	y, m, d := now.Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, now.Location())
-	days := int(day.Sub(today).Hours() / 24)
+	days := core.CalDays(today, day)
 	switch {
 	case days < 0:
 		h := DueHeat(due, now, false)

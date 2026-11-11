@@ -25,7 +25,7 @@ type ambientSettingRow struct {
 func ambientRows() []ambientSettingRow {
 	scenes := append([]string{"auto", "random"}, ambient.Registered()...)
 	surfaces := []string{"both", "sidebar", "home", "splash", "off"}
-	fpsSteps := []int{10, 15, 20, 30}
+	fpsSteps := []int{10, 15, 30, 45, 60}
 	fmtSeconds := []float64{1.0, 2.5, 4.0, 6.0}
 	renders := []string{"auto", "halfblock", "braille", "ascii"}
 	cycleStr := func(cur string, dir int, options []string) string {

@@ -130,7 +130,7 @@ func inkCell(ch rune, fg, bg RGBPix) (RGBPix, RGBPix) {
 }
 
 // applySGR parses one SGR parameter list and updates the current
-// foreground/background. Only 38/48;2 (and resets) are tracked.
+// foreground/background. 38/48;2, 38/48;5 (and resets) are tracked.
 func applySGR(fg, bg RGBPix, params string) (RGBPix, RGBPix) {
 	parts := strings.Split(strings.TrimSuffix(params, "m"), ";")
 	i := 0
@@ -151,6 +151,14 @@ func applySGR(fg, bg RGBPix, params string) (RGBPix, RGBPix) {
 			target := &fg
 			if p == "48" {
 				target = &bg
+			}
+			if i+2 < len(parts) && parts[i+1] == "5" {
+				if idx, ok := atoiSmall(parts[i+2]); ok && idx >= 0 && idx <= 255 {
+					r, g, b := xterm256RGB(uint8(idx))
+					*target = RGBPix{r, g, b}
+				}
+				i += 3
+				continue
 			}
 			if i+4 < len(parts) && parts[i+1] == "2" {
 				r, ok1 := atoiSmall(parts[i+2])

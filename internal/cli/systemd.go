@@ -20,9 +20,9 @@ type systemdUnit struct {
 
 func renderUnits(mtmPath string) []systemdUnit {
 	syncTimer := "[Unit]\nDescription=mtm: periodic sync of the data repo\n\n[Timer]\nOnBootSec=2min\nOnUnitActiveSec=15min\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n"
-	syncService := fmt.Sprintf("[Unit]\nDescription=mtm: sync the data repo\n\n[Service]\nType=oneshot\nExecStart=%s sync\n", mtmPath)
+	syncService := fmt.Sprintf("[Unit]\nDescription=mtm: sync the data repo\n\n[Service]\nType=oneshot\nExecStart=%q sync\n", mtmPath)
 	remindTimer := "[Unit]\nDescription=mtm: reminder check every 5 minutes\n\n[Timer]\nOnBootSec=1min\nOnUnitActiveSec=5min\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n"
-	remindService := fmt.Sprintf("[Unit]\nDescription=mtm: send due reminders\n\n[Service]\nType=oneshot\nExecStart=%s remind\n", mtmPath)
+	remindService := fmt.Sprintf("[Unit]\nDescription=mtm: send due reminders\n\n[Service]\nType=oneshot\nExecStart=%q remind\n", mtmPath)
 	return []systemdUnit{
 		{"mtm-sync.service", syncService},
 		{"mtm-sync.timer", syncTimer},

@@ -64,10 +64,10 @@ func ObserveFrameCost(d time.Duration) {
 // applyTierLocked needs the caller to hold qualityMu.
 func applyTierLocked() {
 	if qualityTierV >= TierLowSS {
-		fSS = 1
+		fSS.Store(2)
 		return
 	}
-	fSS = 2
+	fSS.Store(3)
 }
 
 // AmbientTier reports the active level as (id, name).

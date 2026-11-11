@@ -60,22 +60,34 @@ func TestAntiAliasEdgeCoverage(t *testing.T) {
 
 func TestDownsampleBoxAverage(t *testing.T) {
 	m := testPalette()
-	fb := newFBuffer(2, 2) // 4x4 pixels
+	fss := fSSV()
+	fb := newFBuffer(2, 2) // (2·fSS)² pixels
 	baseR, baseG, baseB := m.rgbF(m.base)
 	fb.baseFill(baseR, baseG, baseB)
-	// one full 2x2 supersampled block of accent at subcell (0,0)
+	// one full fSS² supersampled block of accent at subcell (0,0)
 	r, g, bl := m.rgbF(m.lookup["#d3ae78"])
-	for y := 0; y < 2; y++ {
-		for x := 0; x < 2; x++ {
+	for y := 0; y < fss; y++ {
+		for x := 0; x < fss; x++ {
 			fb.px[y*fb.pw+x] = fpix{r, g, bl, 1}
 		}
 	}
 	ds := fb.downsample()
-	if ds[0] != (fpix{r, g, bl, 1}) {
+	const eps = 1e-6
+	close := func(a, b float32) bool {
+		d := a - b
+		if d < 0 {
+			d = -d
+		}
+		return d < eps
+	}
+	same := func(p, q fpix) bool {
+		return p.a == q.a && close(p.r, q.r) && close(p.g, q.g) && close(p.b, q.b)
+	}
+	if ds[0].a != 1 || !close(ds[0].r, r) || !close(ds[0].g, g) || !close(ds[0].b, bl) {
 		t.Fatalf("block did not survive downsample: %+v", ds[0])
 	}
 	for i := 1; i < len(ds); i++ {
-		if ds[i] != (fpix{baseR, baseG, baseB, 1}) {
+		if !same(ds[i], fpix{baseR, baseG, baseB, 1}) {
 			t.Fatalf("untouched subcell changed: idx=%d %+v", i, ds[i])
 		}
 	}

@@ -93,7 +93,12 @@ func Slugify(title string) string {
 	}
 	slug := strings.Trim(b.String(), "-")
 	if len(slug) > 48 {
-		slug = strings.TrimSuffix(slug[:48], "-")
+		// Truncate on a rune boundary so multibyte titles never split a rune.
+		r := []rune(slug)
+		if len(r) > 48 {
+			r = r[:48]
+		}
+		slug = strings.TrimRight(strings.TrimSuffix(string(r), "-"), "-")
 	}
 	if slug == "" {
 		slug = "task"

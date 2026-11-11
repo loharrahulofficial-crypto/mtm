@@ -7,8 +7,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderHelpBox renders the keybinding help overlay.
-func renderHelpBox(km KeyMap, s styles, width int) string {
+// renderHelpBox renders the keybinding help overlay. The box is windowed
+// to `height` rows: j/k scroll through the entries. Without windowing,
+// terminals shorter than the content would drop the bottom groups.
+func renderHelpBox(km KeyMap, s styles, width, height, scroll int) string {
 	type group struct {
 		name    string
 		actions []string
@@ -35,21 +37,46 @@ func renderHelpBox(km KeyMap, s styles, width int) string {
 		boxW = 44
 	}
 
-	var b strings.Builder
-	raised := lipgloss.Color(s.p.SurfaceRaised)
-	b.WriteString(s.mAccent.Render("  keybindings") + "\n\n")
+	lines := []string{s.mAccent.Render("  keybindings"), ""}
 	for _, g := range groups {
-		b.WriteString(s.mMuted.Render("  "+strings.ToUpper(g.name)) + "\n")
+		lines = append(lines, s.mMuted.Render("  "+strings.ToUpper(g.name)))
 		for _, action := range g.actions {
 			e, ok := entries[action]
 			if !ok {
 				continue
 			}
 			key := padRight(e[2], 12)
-			b.WriteString(fmt.Sprintf("    %s %s\n", s.mAccent.Render(key), s.mText.Render(e[1])))
+			lines = append(lines, fmt.Sprintf("    %s %s", s.mAccent.Render(key), s.mText.Render(e[1])))
 		}
 	}
-	b.WriteString("\n" + s.mMuted.Render("  any key closes · config: keys: in config.yaml"))
+
+	// Window to the screen: content is allLines, scroll is the first row.
+	maxContent := height - 6 // rounded border (2) + padding (2) + margin (2)
+	if maxContent < 3 {
+		maxContent = 3
+	}
+	start := scroll
+	if maxStart := len(lines) - maxContent; start > maxStart {
+		start = maxStart
+	}
+	if start < 0 {
+		start = 0
+	}
+	visible := lines
+	if len(lines) > maxContent {
+		visible = lines[start : start+maxContent]
+	}
+
+	var b strings.Builder
+	for _, l := range visible {
+		b.WriteString(l + "\n")
+	}
+	if hint := helpScrollHint(len(lines), maxContent, start); hint != "" {
+		b.WriteString("\n" + s.mMuted.Render(hint))
+	} else {
+		b.WriteString("\n" + s.mMuted.Render("  j/k scroll · any key closes · config: keys: in config.yaml"))
+	}
+	raised := lipgloss.Color(s.p.SurfaceRaised)
 	block := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(s.p.Accent)).
@@ -57,6 +84,13 @@ func renderHelpBox(km KeyMap, s styles, width int) string {
 		Padding(1, 2).
 		Render(b.String())
 	return paint(block, fastWidth(block), lipgloss.Height(block), raised)
+}
+
+func helpScrollHint(total, maxContent, start int) string {
+	if total <= maxContent {
+		return ""
+	}
+	return fmt.Sprintf("  j/k scroll · %d-%d of %d · esc closes", start+1, start+maxContent, total)
 }
 
 // renderConfirmBox renders the delete/archive confirmation overlay.

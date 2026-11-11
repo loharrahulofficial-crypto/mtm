@@ -39,6 +39,11 @@ func WriteFileAtomic(path string, data []byte, perm fs.FileMode) error {
 	if err := os.Rename(tmpName, path); err != nil {
 		return fmt.Errorf("rename %s -> %s: %w", tmpName, path, err)
 	}
+	// fsync the directory so the rename itself is durable.
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
 	ok = true
 	return nil
 }

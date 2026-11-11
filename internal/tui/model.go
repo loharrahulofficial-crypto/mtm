@@ -317,9 +317,13 @@ type Model struct {
 	paletteRecent []string
 	paletteInput  textinput.Model
 
+	helpScroll int // j/k scroll offset for the help overlay
+
 	// animations
 	animFrame  int // 0 = idle; >0 = frames left in a pop/ease animation
 	animTaskID string
+
+	viewFadeStart time.Time // zero unless a tab-switch fade is in flight
 
 	// sync
 	pendingCommits []string
@@ -399,6 +403,14 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 	}
 	if unknown := m.keymap.ApplyOverrides(cfg.Keys); len(unknown) > 0 {
 		m.statusMsg = fmt.Sprintf("ignoring unknown keys: entries: %s", strings.Join(unknown, ", "))
+	}
+	if dups := m.keymap.DuplicateBindings(); len(dups) > 0 {
+		dupMsg := "duplicate keys: " + strings.Join(dups, ", ")
+		if m.statusMsg == "" {
+			m.statusMsg = dupMsg
+		} else {
+			m.statusMsg += " · " + dupMsg
+		}
 	}
 	m.timer = actions.LoadTimerView(s)
 	m.sidebarItems = m.buildSidebar()

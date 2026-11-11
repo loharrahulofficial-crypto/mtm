@@ -53,7 +53,7 @@ func (m Model) viewInner() string {
 		return tooSmallView(m.width, m.height, baseColor, m.keymap.Seq(aQuit))
 	}
 	if m.mode == modeConflict {
-		return m.renderConflictScreen()
+		return normalizeBlock(m.renderConflictScreen(), m.width, m.height, baseColor)
 	}
 	if m.mode == modeSplash {
 		return normalizeBlock(m.renderSplash(), m.width, m.height, baseColor)
@@ -76,7 +76,7 @@ func (m Model) viewInner() string {
 		screen := joinBlocksV([]string{page, footer})
 		switch m.mode {
 		case modeHelp:
-			return overlay(m.width, m.height, screen, renderHelpBox(m.keymap, m.styles, m.width), baseColor)
+			return overlay(m.width, m.height, screen, renderHelpBox(m.keymap, m.styles, m.width, m.height, m.helpScroll), baseColor)
 		case modeConfirm:
 			return overlay(m.width, m.height, screen, m.renderConfirmBox(), baseColor)
 		case modePicker:
@@ -133,10 +133,13 @@ func (m Model) viewInner() string {
 	footerKey := panelKey{stamp: m.viewStamp, w: m.width, h: 1, theme: m.themeVersion}
 	footer := cachedStringPanel(footerPC, footerKey, func() string { return m.renderFooterBar(m.width) })
 	screen := joinBlocksV([]string{middle, footer})
+	if fade := m.viewFadeAmount(); fade > 0 {
+		screen = fadeBase(screen, fade, string(baseColor))
+	}
 
 	switch m.mode {
 	case modeHelp:
-		return overlay(m.width, m.height, screen, renderHelpBox(m.keymap, m.styles, m.width), baseColor)
+		return overlay(m.width, m.height, screen, renderHelpBox(m.keymap, m.styles, m.width, m.height, m.helpScroll), baseColor)
 	case modeConfirm:
 		return overlay(m.width, m.height, screen, m.renderConfirmBox(), baseColor)
 	case modePicker:

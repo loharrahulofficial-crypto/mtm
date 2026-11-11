@@ -129,18 +129,26 @@ func TestRewardRateLimit(t *testing.T) {
 	m.cfg.UI.Ambient = "both"
 	m.cfg.UI.RewardAnimation = true
 	m.animations = true
+	// fireReward shares an already-armed tick chain (rate-limited): the
+	// visible effect is a re-armed reward panel, not a new ticker.
 	for i := 0; i < 3; i++ {
-		if cmd := m.fireReward("task"); cmd == nil {
+		m.rewardArmed = false
+		_ = m.fireReward("task")
+		if !m.rewardArmed {
 			t.Fatalf("reward %d fired nothing", i)
 		}
 	}
-	if cmd := m.fireReward("task"); cmd != nil {
+	m.rewardArmed = false
+	_ = m.fireReward("task")
+	if m.rewardArmed {
 		t.Fatal("fourth reward inside the minute rate-limit window was not skipped")
 	}
 	// window passes → fires again
 	m.rewardFires = m.rewardFires[:1]
 	m.rewardFires[0] = m.clock.Now().Add(-2 * time.Minute)
-	if cmd := m.fireReward("task"); cmd == nil {
+	m.rewardArmed = false
+	_ = m.fireReward("task")
+	if !m.rewardArmed {
 		t.Fatal("reward after the rate-limit window fired nothing")
 	}
 }
@@ -246,9 +254,9 @@ func TestAmbientTickCrawlsWhenPaused(t *testing.T) {
 	}
 }
 
-// TestAmbientFPSCappedPerSurface: the frame budget is ≤ 24 FPS on the
-// focus surface (and splash), ≤ 8 FPS behind Home/sidebar.
-func TestAmbientFPSCappedPerSurface(t *testing.T) {
+// TestAmbientFPSClampedUniformSurface: one cap everywhere (60 FPS); the
+// adaptive-quality tier and the idle policy still throttle on their own.
+func TestAmbientFPSClampedUniformSurface(t *testing.T) {
 	set := func(m Model, v int) Model { m.cfg.UI.AmbientFPS = v; return m }
 	normal := freshAmbientModel(t)
 	focus := freshAmbientModel(t)
@@ -257,26 +265,26 @@ func TestAmbientFPSCappedPerSurface(t *testing.T) {
 	focus.mode = modeFocus
 	splash.mode = modeSplash
 	for _, tc := range []struct {
-		cfg   int
-		home  int
-		focus int
+		cfg  int
+		want int
 	}{
-		{30, 8, 24},
-		{20, 8, 20},
-		{8, 8, 8},
-		{0, 8, 8},
+		{60, 60},
+		{45, 45},
+		{20, 20},
+		{8, 8},
+		{0, 60},
 	} {
 		m := set(normal, tc.cfg)
-		if got := ambientFPS(m); got != tc.home {
-			t.Errorf("cfg %d: home/sidebar cap = %d, want %d", tc.cfg, got, tc.home)
+		if got := ambientFPS(m); got != tc.want {
+			t.Errorf("cfg %d: normal surface = %d, want %d", tc.cfg, got, tc.want)
 		}
 		m = set(focus, tc.cfg)
-		if got := ambientFPS(m); got != tc.focus {
-			t.Errorf("cfg %d: focus cap = %d, want %d", tc.cfg, got, tc.focus)
+		if got := ambientFPS(m); got != tc.want {
+			t.Errorf("cfg %d: focus surface = %d, want %d", tc.cfg, got, tc.want)
 		}
 		m = set(splash, tc.cfg)
-		if got := ambientFPS(m); got != tc.focus {
-			t.Errorf("cfg %d: splash cap = %d, want %d", tc.cfg, got, tc.focus)
+		if got := ambientFPS(m); got != tc.want {
+			t.Errorf("cfg %d: splash surface = %d, want %d", tc.cfg, got, tc.want)
 		}
 	}
 }

@@ -47,7 +47,14 @@ func baseHexFromLines(lines []Line) string {
 			if !ok1 || !ok2 || !ok3 {
 				continue
 			}
-			counts[fmt.Sprintf("#%02x%02x%02x", r, g, b)]++
+			counts[rgbHex(uint8(r), uint8(g), uint8(b))]++
+		}
+		for _, mm := range sgrBg256.FindAllStringSubmatch(line, -1) {
+			idx, ok := atoiSmall(mm[1])
+			if !ok || idx < 0 || idx > 255 {
+				continue
+			}
+			counts[xterm256Hex(uint8(idx))]++
 		}
 	}
 	best := "#14282d"
@@ -66,6 +73,18 @@ func baseHexFromLines(lines []Line) string {
 }
 
 var sgrBg = regexp.MustCompile(`48;2;([0-9]+;[0-9]+;[0-9]+)`)
+var sgrBg256 = regexp.MustCompile(`48;5;([0-9]+)`)
+
+// rgbHex formats channel bytes as "#%02x%02x%02x".
+func rgbHex(r, g, b uint8) string {
+	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
+}
+
+// xterm256Hex resolves a 256-palette index to "#rrggbb".
+func xterm256Hex(idx uint8) string {
+	r, g, b := xterm256RGB(idx)
+	return rgbHex(r, g, b)
+}
 
 // BlackFrame renders an all-base frame with the same cell grid as lines.
 func BlackFrame(lines []Line) []Line {

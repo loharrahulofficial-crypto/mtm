@@ -189,7 +189,7 @@ func TestReminderStatePruned(t *testing.T) {
 		"old-key":    old,
 		"recent-key": recent,
 	}}
-	if err := saveReminderState(st); err != nil {
+	if err := saveReminderState(st, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	loaded := loadReminderState()

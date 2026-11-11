@@ -322,6 +322,9 @@ func blankSurfaceLine(m Model, n int) string {
 func renderCourseList(m Model, cards []courseCard, w, h int) []string {
 	surface := lipgloss.Color(m.palette.Surface)
 	raised := lipgloss.Color(m.palette.SurfaceRaised)
+	if h < 1 {
+		return []string{}
+	}
 
 	nameW := 6
 	for _, c := range cards {
@@ -330,11 +333,24 @@ func renderCourseList(m Model, cards []courseCard, w, h int) []string {
 		}
 	}
 	nameW = clampInt(nameW, 4, 14)
+	start := 0
+	if m.courseSel >= h && h > 0 {
+		start = m.courseSel - h + 1
+	}
+	if start > len(cards)-h {
+		start = len(cards) - h
+		if start < 0 {
+			start = 0
+		}
+	}
 	lines := []string{}
-	for i, c := range cards {
-		if i >= h {
+	shown := 0
+	for i := start; i < len(cards); i++ {
+		if shown >= h {
 			break
 		}
+		shown++
+		c := cards[i]
 		selected := i == m.courseSel
 		bg := surface
 		if selected {
@@ -378,8 +394,17 @@ func renderCourseList(m Model, cards []courseCard, w, h int) []string {
 		line := " " + stripe + " " + nameStyle.Render(name) + " " + pctStyle.Render(pct) + " " + chip
 		lines = append(lines, padToWidth(line, w, bg))
 	}
-	if len(cards) > len(lines) {
-		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(surface).Render(fmt.Sprintf(" +%d more", len(cards)-len(lines))))
+	end := start + shown
+	below := len(cards) - end
+	if below > 0 || start > 0 {
+		label := ""
+		if start > 0 {
+			label = fmt.Sprintf(" ↑%d", start)
+		}
+		if below > 0 {
+			label += fmt.Sprintf(" +%d more", below)
+		}
+		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Muted)).Background(surface).Render(label))
 	}
 	return lines
 }

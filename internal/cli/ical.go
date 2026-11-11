@@ -84,7 +84,7 @@ ical.timezone is set in config.yaml.
 				return err
 			}
 			if strings.TrimSpace(out) != "" {
-				if err := os.WriteFile(out, data, 0o600); err != nil {
+				if err := store.WriteFileAtomic(out, data, 0o600); err != nil {
 					return fmt.Errorf("write %s: %w", out, err)
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "wrote %s (%d bytes)\n", out, len(data))

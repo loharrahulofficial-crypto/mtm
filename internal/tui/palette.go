@@ -519,12 +519,15 @@ func (m Model) renderPaletteBox() string {
 	if len(items) == 0 {
 		content = append(content, muted.Render("  no matches — keep typing"))
 	}
+	start := paletteWindow(items, m.paletteSel, maxItems)
 	lastGroup := ""
 	shown := 0
-	for i, it := range items {
+	lastItem := start - 1
+	for i := start; i < len(items); i++ {
 		if shown >= maxItems {
 			break
 		}
+		it := items[i]
 		if it.group != lastGroup && strings.TrimSpace(it.group) != "" {
 			content = append(content,
 				muted.Render(" "+letterspace(strings.ToUpper(it.group))))
@@ -552,8 +555,9 @@ func (m Model) renderPaletteBox() string {
 		}
 		content = append(content, line)
 		shown++
+		lastItem = i
 	}
-	if extra := len(items) - shown; extra > 0 && shown < maxItems+1 {
+	if extra := len(items) - (lastItem + 1); extra > 0 {
 		content = append(content, muted.Render(fmt.Sprintf("  +%d more", extra)))
 	}
 	if paletteCommandArgv(m) {
@@ -589,4 +593,43 @@ func (m *Model) openPaletteWith(text string) tea.Cmd {
 	m.paletteItems = paletteItemsFor(*m, text)
 	m.paletteSel = 0
 	return cmd
+}
+
+// paletteWindow returns the first item index to render so the selected item
+// stays visible, accounting for group-header rows consuming slots. The
+// first visible item always renders its group header.
+func paletteWindow(items []paletteItem, sel, maxItems int) int {
+	if len(items) == 0 {
+		return 0
+	}
+	if sel < 0 {
+		sel = 0
+	}
+	for start := 0; start < len(items); start++ {
+		slots := 0
+		lastGroup := ""
+		fits := false
+		for i := start; i < len(items); i++ {
+			it := items[i]
+			if it.group != lastGroup && strings.TrimSpace(it.group) != "" {
+				slots++
+				lastGroup = it.group
+				if slots > maxItems {
+					break
+				}
+			}
+			if i == sel {
+				fits = slots < maxItems
+				break
+			}
+			slots++
+			if slots > maxItems {
+				break
+			}
+		}
+		if fits {
+			return start
+		}
+	}
+	return 0
 }
