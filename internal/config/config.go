@@ -145,6 +145,11 @@ type UIConfig struct {
 	// applies where a limited palette forces it — on truecolor terminals the
 	// renderer emits 24-bit color unchanged.
 	AmbientDither string `yaml:"ambient_dither"`
+	// TrueColor: auto | on | off (default auto). auto = detect from the
+	// environment (truecolor unless there is positive evidence of a
+	// limited terminal); on/off force 24-bit color or xterm-256 output.
+	// MTM_TRUECOLOR=1|0 overrides for the run.
+	TrueColor string `yaml:"truecolor"`
 	// ReducedMotion honors NO_MOTION=1 too: no crossfades or dissolves,
 	// scenes crawl as slow low-amplitude stills (idle breathing only).
 	ReducedMotion bool `yaml:"reduced_motion"`
@@ -199,6 +204,7 @@ func Default() Config {
 			AmbientIdle:     "slow",
 			AmbientRender:   "auto",
 			AmbientDither:   "on",
+			TrueColor:       "auto",
 			ReducedMotion:   false,
 			RainLightning:   false,
 			AmbientSidebar:  true,
@@ -337,6 +343,14 @@ func Load() (Config, error) {
 		cfg.UI.AmbientDither = "on"
 	default:
 		return cfg, fmt.Errorf("config %s: ui.ambient_dither must be on|off, got %q", Path(), cfg.UI.AmbientDither)
+	}
+	switch r := strings.ToLower(strings.TrimSpace(cfg.UI.TrueColor)); r {
+	case "auto", "on", "off":
+		cfg.UI.TrueColor = r
+	case "":
+		cfg.UI.TrueColor = "auto"
+	default:
+		return cfg, fmt.Errorf("config %s: ui.truecolor must be auto|on|off, got %q", Path(), cfg.UI.TrueColor)
 	}
 	// --no-ambient disables every surface for the run.
 	if os.Getenv("MTM_NO_AMBIENT") == "1" {

@@ -89,7 +89,10 @@ type labCacheEntry struct {
 var labCache sync.Map
 
 // nearestXterm256Pair returns the two nearest palette indices to (r,g,b)
-// by CIE76 distance (first ≤ second). Cached.
+// by CIE76 distance (first ≤ second). The candidate set is the 6×6×6
+// cube plus the 24-step gray ramp (indices 16..255) — the 16 system
+// colors are excluded because terminals theme them unpredictably.
+// Cached.
 func nearestXterm256Pair(r, g, b uint8) (uint8, uint8) {
 	key := labCacheKey{r, g, b}
 	if v, ok := labCache.Load(key); ok {
@@ -103,9 +106,9 @@ func nearestXterm256Pair(r, g, b uint8) (uint8, uint8) {
 		db := l.b - xtermLab[i].b
 		return dl*dl + daa*daa + db*db
 	}
-	best1, best2 := uint8(0), uint8(255)
+	best1, best2 := uint8(16), uint8(17)
 	d1, d2 := math.Inf(1), math.Inf(1)
-	for i := 0; i < 256; i++ {
+	for i := 16; i < 256; i++ {
 		di := d(i)
 		if di < d1 {
 			d2, best2 = d1, best1

@@ -2,12 +2,15 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
+	"github.com/loharrahulofficial-crypto/mtm/internal/caps"
+	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 	"github.com/loharrahulofficial-crypto/mtm/internal/paths"
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 	"github.com/loharrahulofficial-crypto/mtm/internal/tui"
@@ -77,12 +80,23 @@ func newTuiCmd() *cobra.Command {
 				if ph == "" {
 					ph = "work"
 				}
+				// Honor ui.truecolor / MTM_TRUECOLOR so the dump shows the
+				// same color mode the TUI will use.
+				trueColorSetting := "auto"
+				ditherSetting := "on"
+				if cfg, err := config.Load(); err == nil {
+					trueColorSetting = cfg.UI.TrueColor
+					ditherSetting = cfg.UI.AmbientDither
+				}
+				trueColor, _ := caps.Effective(trueColorSetting, os.Getenv)
 				st := ambient.SceneState{
-					Progress: progress,
-					Phase:    ambient.Phase(ph),
-					Now:      tui.DumpFixedTime,
-					Seed:     42,
-					Palette:  dumpPalette(),
+					Progress:       progress,
+					Phase:          ambient.Phase(ph),
+					Now:            tui.DumpFixedTime,
+					Seed:           42,
+					Palette:        dumpPalette(),
+					PaletteLimited: !trueColor,
+					Dither:         ditherSetting != "off" && !trueColor,
 				}
 				s := ambient.New(sceneName, renderMode)
 				if ppmPath != "" {

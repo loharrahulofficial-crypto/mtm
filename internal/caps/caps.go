@@ -21,13 +21,18 @@ type Terminal struct {
 }
 
 // Detect inspects getenv (usually os.Getenv) and reports capabilities.
+// The default is truecolor: only positive evidence of a limited terminal
+// (TERM=linux, TERM=dumb, NO_COLOR set, Apple Terminal, or TERM=screen*
+// without COLORTERM) reports a limited palette. No hints at all — a
+// keybind launch with a minimal env, for example — means truecolor.
 func Detect(getenv func(string) string) Terminal {
-	t := Terminal{Program: "unknown", LimitedPalette: true}
+	t := Terminal{Program: "unknown", TrueColor: true}
 	get := func(k string) string { return strings.TrimSpace(getenv(k)) }
 	lower := func(k string) string { return strings.ToLower(get(k)) }
 
 	termProgram := lower("TERM_PROGRAM")
 	term := lower("TERM")
+	ct := lower("COLORTERM")
 
 	// Dumb terminals get nothing, no matter what else is set.
 	if term == "dumb" {
@@ -50,27 +55,57 @@ func Detect(getenv func(string) string) Terminal {
 	case term == "foot" || term == "foot-extra":
 		t = Terminal{Program: "foot", TrueColor: true, Sixel: true}
 	case term == "mlterm":
-		t = Terminal{Program: "mlterm", Sixel: true}
+		t = Terminal{Program: "mlterm", TrueColor: true, Sixel: true}
 	case strings.HasPrefix(term, "tmux"):
-		t = Terminal{Program: "tmux"}
+		t = Terminal{Program: "tmux", TrueColor: true}
 	case strings.HasPrefix(term, "screen"):
 		t = Terminal{Program: "screen"}
 	case term == "linux":
 		t = Terminal{Program: "linux"}
-	case term == "dumb":
-		t = Terminal{Program: "dumb", TrueColor: false}
 	}
 
 	// COLORTERM upgrades to truecolor when the palette was not pinned
 	// down to something smaller.
-	ct := lower("COLORTERM")
-	if ct == "truecolor" || ct == "24bit" {
+	if (ct == "truecolor" || ct == "24bit") && get("NO_COLOR") == "" {
 		t.TrueColor = true
 	}
 
-	// A 256-color xterm without truecolor hints is palette-limited.
+	// Positive evidence of a limited palette, strongest first.
+	if get("NO_COLOR") != "" ||
+		term == "linux" ||
+		termProgram == "apple_terminal" ||
+		(strings.HasPrefix(term, "screen") && ct == "") {
+		t.TrueColor = false
+	}
+
 	t.LimitedPalette = !t.TrueColor
 	return t
+}
+
+// Effective resolves the effective color mode: MTM_TRUECOLOR (1|0) wins,
+// then the ui.truecolor config value (auto|on|off), else detection. It
+// reports whether truecolor is enabled and where the decision came from.
+func Effective(uiSetting string, getenv func(string) string) (bool, string) {
+	if v := strings.TrimSpace(getenv("MTM_TRUECOLOR")); v != "" {
+		switch v {
+		case "1":
+			return true, "MTM_TRUECOLOR=1"
+		case "0":
+			return false, "MTM_TRUECOLOR=0"
+		}
+		// invalid values are ignored, not fatal
+	}
+	switch strings.ToLower(strings.TrimSpace(uiSetting)) {
+	case "on":
+		return true, "ui.truecolor=on"
+	case "off":
+		return false, "ui.truecolor=off"
+	}
+	d := Detect(getenv)
+	if d.TrueColor {
+		return true, "auto (detected " + d.Program + ")"
+	}
+	return false, "auto (detected " + d.Program + ")"
 }
 
 var (

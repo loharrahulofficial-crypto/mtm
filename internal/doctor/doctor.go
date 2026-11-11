@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
+	"github.com/loharrahulofficial-crypto/mtm/internal/caps"
 	"github.com/loharrahulofficial-crypto/mtm/internal/core"
 	"github.com/loharrahulofficial-crypto/mtm/internal/demo"
 	"github.com/loharrahulofficial-crypto/mtm/internal/marker"
@@ -62,10 +63,11 @@ type Report struct {
 // Options carries the inputs Run needs; zero values default to the
 // process environment (real clock, paths.StateDir()).
 type Options struct {
-	Root     string    // data repo
-	StateDir string    // timer state dir (defaults set by caller)
-	ThemeDir string    // omarchy state dir for the theme (defaults to theme.StateDir())
-	Now      time.Time // for staleness math
+	Root      string    // data repo
+	StateDir  string    // timer state dir (defaults set by caller)
+	ThemeDir  string    // omarchy state dir for the theme (defaults to theme.StateDir())
+	TrueColor string    // ui.truecolor config value (auto|on|off); empty = auto
+	Now       time.Time // for staleness math
 }
 
 var demoSubjectRe = regexp.MustCompile(`(?i)\bdemo\b`)
@@ -269,6 +271,15 @@ func Run(opts Options) Report {
 	if opts.StateDir != "" {
 		checkTimer(&rep, opts.StateDir, now)
 	}
+
+	// --- terminal color capability (informational) ---
+	detected := caps.Detect(os.Getenv)
+	trueColor, source := caps.Effective(opts.TrueColor, os.Getenv)
+	mode := "truecolor"
+	if !trueColor {
+		mode = "xterm-256"
+	}
+	rep.add(LevelInfo, "terminal", "", "detected terminal: %s; color mode: %s (%s)", detected.Program, mode, source)
 
 	// --- theme health: malformed roles recorded at load ---
 	// mtm's palettes fall back to the default for a malformed role; the

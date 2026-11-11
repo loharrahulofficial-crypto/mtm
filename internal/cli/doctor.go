@@ -32,6 +32,8 @@ func newDoctorCmd() *cobra.Command {
   timer        stale or corrupt timer state in the state dir
   theme        malformed role(s) in colors.toml — falling back to the
                defaults per role (neutral warning, not a failure)
+  terminal     detected terminal and color mode (truecolor | xterm-256),
+               and where the override came from (env, config or auto)
 
 Exits non-zero when any check fails. --json prints the full report.`,
 		Args: cobra.NoArgs,
@@ -41,10 +43,11 @@ Exits non-zero when any check fails. --json prints the full report.`,
 				return err
 			}
 			rep := doctor.Run(doctor.Options{
-				Root:     cfg.DataRepoPath(),
-				StateDir: paths.StateDir(),
-				ThemeDir: theme.StateDir(),
-				Now:      clock.Real().Now(),
+				Root:      cfg.DataRepoPath(),
+				StateDir:  paths.StateDir(),
+				ThemeDir:  theme.StateDir(),
+				TrueColor: cfg.UI.TrueColor,
+				Now:       clock.Real().Now(),
 			})
 			if asJSON {
 				enc := json.NewEncoder(cmd.OutOrStdout())

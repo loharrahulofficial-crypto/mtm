@@ -426,3 +426,21 @@ accent = "#d3ae78"
 		}
 	}
 }
+
+func TestTerminalCapabilityReported(t *testing.T) {
+	gitEnv(t)
+	root := t.TempDir()
+	initRepo(t, root, "a1b2c3")
+	writeMarker(t, root, "real")
+	rep := runDoctor(t, root)
+	found := false
+	for _, f := range rep.Findings {
+		if f.Check == "terminal" && f.Level == LevelInfo && strings.Contains(f.Message, "color mode:") {
+			found = true
+		}
+	}
+	if !found {
+		data, _ := json.MarshalIndent(rep.Findings, "", "  ")
+		t.Fatalf("terminal capability not reported:\n%s", data)
+	}
+}

@@ -260,15 +260,17 @@ func (m Model) sceneState() ambient.SceneState {
 	if k := 1 - m.sceneIntensity(); k > 0.004 {
 		pal = ambient.FadePalette(pal, k*0.62)
 	}
+	trueColor, _ := caps.Effective(m.cfg.UI.TrueColor, os.Getenv)
 	return ambient.SceneState{
-		Progress:      progress,
-		Phase:         ambient.Phase(v.Phase),
-		Now:           m.clock.Now(),
-		Seed:          42,
-		Palette:       pal,
-		Lightning:     m.cfg.UI.RainLightning,
-		Dither:        m.cfg.UI.AmbientDither != "off" && caps.Current().LimitedPalette,
-		ReducedMotion: m.reducedMotionActive(),
+		Progress:       progress,
+		Phase:          ambient.Phase(v.Phase),
+		Now:            m.clock.Now(),
+		Seed:           42,
+		Palette:        pal,
+		Lightning:      m.cfg.UI.RainLightning,
+		Dither:         m.cfg.UI.AmbientDither != "off" && !trueColor,
+		PaletteLimited: !trueColor,
+		ReducedMotion:  m.reducedMotionActive(),
 	}
 }
 

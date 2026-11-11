@@ -309,6 +309,16 @@ func tripack(p fpix) (key uint32, r, g, b uint8) {
 	return uint32(r)<<16 | uint32(g)<<8 | uint32(b), r, g, b
 }
 
+// appendColorSGR appends fg/bg color SGR; limited terminals get the
+// nearest xterm-256 entry. (The halfblock emitter has its own path with
+// ordered-dither support.)
+func appendColorSGR(dst []byte, fg bool, r, g, b uint8, limited bool) []byte {
+	if limited {
+		return appendXtermSGR(dst, fg, nearestXterm256(r, g, b))
+	}
+	return appendSGR(dst, fg, r, g, b)
+}
+
 // appendSGR appends "\x1b[38;2;r;g;bm" (fg=true) or "\x1b[48;2;…" —
 // byte-identical to fmt.Sprintf("\x1b[3%d;2;%d;%d;%dm", …) but with no
 // format parsing.
@@ -376,7 +386,7 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 					bbuf = append(bbuf, ' ')
 					continue
 				}
-				bbuf = appendSGR(bbuf, true, bestRGB.R, bestRGB.G, bestRGB.B)
+				bbuf = appendColorSGR(bbuf, true, bestRGB.R, bestRGB.G, bestRGB.B, b.limited)
 				bbuf = utf8.AppendRune(bbuf, rune(0x2800+bits))
 			}
 			bbuf = append(bbuf, "\x1b[0m"...)
@@ -394,7 +404,7 @@ func (b *buffer) render(p *paletteModel, w, h int) []Line {
 					continue
 				}
 				ch := asciiGlyphInk(ink[i2])
-				abuf = appendSGR(abuf, true, quantize(c.r), quantize(c.g), quantize(c.b))
+				abuf = appendColorSGR(abuf, true, quantize(c.r), quantize(c.g), quantize(c.b), b.limited)
 				abuf = utf8.AppendRune(abuf, ch)
 			}
 			abuf = append(abuf, "\x1b[0m"...)

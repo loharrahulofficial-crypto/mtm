@@ -58,8 +58,10 @@ func (b *buffer) fillGradient(x0, y0, x1, y1 int, topCI, botCI int, alpha float6
 }
 
 // dither.go — optional ordered dithering for limited-palette terminals
-// (xterm-256). Applied only when the render state asks for it
-// (ui.ambient_dither: on, or an auto-detected limited palette).
+// (xterm-256). Ordered dithering is done between the two nearest palette
+// entries only (see xterm256.go) — never per-channel. Applied when the
+// render state asks for it (ui.ambient_dither: on, or auto-detected
+// limited palette).
 
 var bayer4 = [16]float64{
 	0, 8, 2, 10,
@@ -68,52 +70,7 @@ var bayer4 = [16]float64{
 	15, 7, 13, 5,
 }
 
-// xtermCube holds the 6 color-cube levels in [0,1].
-var xtermCube = [6]float64{0, 95.0 / 255.0, 135.0 / 255.0, 175.0 / 255.0, 215.0 / 255.0, 1}
-
 // bayerThreshold returns the ordered-dither threshold in [0,1) for (x, y).
 func bayerThreshold(x, y int) float64 {
 	return (bayer4[(y%4)*4+(x%4)] + 0.5) / 16
-}
-
-// ditherChannel rounds v (0..1) to the nearest xterm-256 cube level,
-// choosing between the two adjacent levels by the Bayer threshold of (x, y).
-func ditherChannel(v float64, x, y int) float64 {
-	if v <= 0 {
-		return 0
-	}
-	if v >= 1 {
-		return 1
-	}
-	i := 1
-	for i < len(xtermCube) && xtermCube[i] < v {
-		i++
-	}
-	lo, hi := xtermCube[i-1], xtermCube[i]
-	th := bayerThreshold(x, y)
-	f := (v - lo) / (hi - lo)
-	if f > th {
-		return hi
-	}
-	return lo
-}
-
-// ditherQuantize snaps a pixel to the xterm-256 cube with ordered dithering.
-func ditherQuantize(p fpix, x, y int) fpix {
-	return fpix{
-		float32(ditherChannel(float64(p.r), x, y)),
-		float32(ditherChannel(float64(p.g), x+1, y+1)),
-		float32(ditherChannel(float64(p.b), x+2, y+2)),
-		p.a,
-	}
-}
-
-// xtermValid256 reports whether v lies exactly on a cube level.
-func xtermValid256(v float64) bool {
-	for _, L := range xtermCube {
-		if math.Abs(v-L) < 1e-6 {
-			return true
-		}
-	}
-	return false
 }

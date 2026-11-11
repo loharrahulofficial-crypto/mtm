@@ -355,6 +355,45 @@ func TestAmbientDitherValidation(t *testing.T) {
 	}
 }
 
+func TestTrueColorValidation(t *testing.T) {
+	fixedXDG(t)
+	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// default is auto
+	write("default_project: inbox\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.TrueColor != "auto" {
+		t.Fatalf("default truecolor = %q, want auto", cfg.UI.TrueColor)
+	}
+	// on/off accepted
+	for _, v := range []string{"on", "off", "auto"} {
+		write("ui:\n  truecolor: " + v + "\n")
+		cfg, err = Load()
+		if err != nil {
+			t.Fatalf("truecolor=%s rejected: %v", v, err)
+		}
+		if cfg.UI.TrueColor != v {
+			t.Fatalf("truecolor = %q, want %q", cfg.UI.TrueColor, v)
+		}
+	}
+	// bogus rejected
+	write("ui:\n  truecolor: sometimes\n")
+	if _, err := Load(); err == nil {
+		t.Fatal("truecolor: sometimes was accepted")
+	}
+}
+
 func TestUIAmbientEnumAndSidebarWindow(t *testing.T) {
 	fixedXDG(t)
 	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")
