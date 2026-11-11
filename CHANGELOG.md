@@ -70,8 +70,8 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
 - The ambient render is a little more cinematic: supersampling 3x at full
   quality (adaptive tier drops to 2, then 1), and scenes now mix colors in
   linear light instead of sRGB, so skies glow and sunsets keep hue.
-- Tab switches cross-fade out of the base color over ~220ms (all entry
-  points; skipped under `ui.reduced_motion`).
+- Tab switches cross-fade between the previous and next frame over ~150ms
+  (all entry points; skipped under `ui.reduced_motion`).
 - The ambient cap is now **60 FPS** everywhere (`ui.ambient_fps`,
   honoured up to `max 60`); adaptive quality still steps down (halved
   supersampling, then halved FPS) when frames blow the 30 ms budget

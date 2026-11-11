@@ -126,6 +126,31 @@ func rasterFromLines(lines []Line, baseHex string) Raster {
 	type cell struct{ fg, bg, glyph string }
 	rows := make([][]cell, 0, len(lines))
 	w := 0
+	// A frame holding quadrant glyphs (the ambient sidebar/panel in
+	// quadrant mode) decodes at 2x width so the 2x2 structure survives
+	// the transition instead of washing into fg ink-density.
+	sx := 1
+	for _, line := range lines {
+		rest := line
+		for len(rest) > 0 {
+			if strings.HasPrefix(rest, "\x1b[") {
+				end := strings.Index(rest, "m")
+				if end < 0 {
+					break
+				}
+				rest = rest[end+1:]
+				continue
+			}
+			r, size := decodeRune(rest)
+			if r == 0 {
+				break
+			}
+			if quadrantDistinctive[r] {
+				sx = 2
+			}
+			rest = rest[size:]
+		}
+	}
 	for _, line := range lines {
 		row := []cell{}
 		fg, bg := "", ""
@@ -152,7 +177,8 @@ func rasterFromLines(lines []Line, baseHex string) Raster {
 		}
 		rows = append(rows, row)
 	}
-	r := Raster{W: w, H: len(rows) * 2, Pix: make([]fpix, w*len(rows)*2)}
+	W := w * sx
+	r := Raster{W: W, H: len(rows) * 2, Pix: make([]fpix, W*len(rows)*2)}
 	for y, row := range rows {
 		for x := 0; x < w; x++ {
 			var c cell
@@ -170,6 +196,24 @@ func rasterFromLines(lines []Line, baseHex string) Raster {
 				botF = baseF
 			}
 			var top, bot fpix
+			if sx == 2 {
+				gr, _ := decodeRune(c.glyph)
+				if mask, ok := quadrantGlyphMask[gr]; ok {
+					// exactly quadrant renderer output: TL TR / BL BR
+					// from fg-group dots (mask bit 1 = fg).
+					pick := func(bit uint8) fpix {
+						if bit == 1 {
+							return topF
+						}
+						return botF
+					}
+					r.Pix[(2*y)*W+x*2] = pick(mask & 1)
+					r.Pix[(2*y)*W+x*2+1] = pick((mask >> 1) & 1)
+					r.Pix[(2*y+1)*W+x*2] = pick((mask >> 2) & 1)
+					r.Pix[(2*y+1)*W+x*2+1] = pick((mask >> 3) & 1)
+					continue
+				}
+			}
 			switch c.glyph {
 			case "▀":
 				top, bot = topF, botF
@@ -189,8 +233,10 @@ func rasterFromLines(lines []Line, baseHex string) Raster {
 				}
 				bot = top
 			}
-			r.Pix[(2*y)*w+x] = top
-			r.Pix[(2*y+1)*w+x] = bot
+			for dx := 0; dx < sx; dx++ {
+				r.Pix[(2*y)*W+x*sx+dx] = top
+				r.Pix[(2*y+1)*W+x*sx+dx] = bot
+			}
 		}
 	}
 	return r

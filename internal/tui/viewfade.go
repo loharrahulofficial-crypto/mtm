@@ -24,20 +24,26 @@ func viewFadeTickCmd() tea.Cmd {
 }
 
 // viewFadeAmount reports how much of the transition remains: 1 at the
-// moment of the switch, easing to 0 as the crossfade settles.
+// moment of the switch, easing to 0 linearly as the crossfade settles.
+// ambient.Crossfade applies its own ease to the pixel blend.
 func (m Model) viewFadeAmount() float64 {
 	if m.viewFadeStart.IsZero() {
 		return 0
 	}
 	d := m.clock.Now().Sub(m.viewFadeStart)
-	if d < 0 || d >= viewFadeDur {
+	if d <= 0 {
+		return 1
+	}
+	if d >= viewFadeDur {
 		return 0
 	}
-	return 1 - easeOutCubic(float64(d)/float64(viewFadeDur))
+	return 1 - float64(d)/float64(viewFadeDur)
 }
 
-// viewFadeProgress is the transition's completion: 0 at the switch, →1
-// once settled. A zero viewFadeStart means settled.
+// viewFadeProgress is the raw linear time fraction of the transition:
+// 0 at the switch, 1 once settled. ambient.Crossfade applies
+// EaseInOutCubic to this inside the blend — do not pre-ease it here.
+// A zero viewFadeStart means settled.
 func viewFadeProgress(m Model) float64 {
 	if m.viewFadeStart.IsZero() {
 		return 1
@@ -45,16 +51,16 @@ func viewFadeProgress(m Model) float64 {
 	return 1 - m.viewFadeAmount()
 }
 
-func easeOutCubic(t float64) float64 {
-	t -= 1
-	return t*t*t + 1
-}
-
-// stableFrame caches the last fully settled composite (the string at the
-// point the crossfade is applied — after joinBlocksV, before overlays).
-// View is a value-receiver render, so the package var is the right place
+// stableFrame caches the last pre-overlay composite the user actually
+// sees — refreshed on EVERY render (blended or settled), so a re-switch
+// mid-dissolve freezes from what is on screen instead of snapping back
+// to the last fully settled frame. armFrame is the frozen source for
+// the in-flight transition; armStamp pins it to one viewFadeStart.
+// View is a value-receiver render, so package vars are the right place
 // (matches the package-level panel caches); the TUI is single-threaded.
 var stableFrame string
+var armFrame string
+var armStamp time.Time
 
 // crossfadeFrames blends prev into curr by t ∈ [0,1] in raster space.
 // ambient.Crossfade eases internally (EaseInOutCubic) — t is not pre-eased

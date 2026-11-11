@@ -240,6 +240,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case viewFadeTickMsg:
+		// Crossfade repaints rely on the wrapper bumping viewStamp for
+		// every non-benign msg (viewFadeTickMsg is not benign). Nothing
+		// else to do here.
 		if m.viewFadeAmount() > 0 {
 			return m, viewFadeTickCmd()
 		}

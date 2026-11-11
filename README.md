@@ -337,8 +337,9 @@ ui:
   splash_seconds: 3.0           # startup splash length
   reward_animation: true        # 1.5s scene burst when a task is completed
                                 # (rate-limited to 3 per minute)
-                                # tab switches cross-fade out of the base over
-                                # ~220ms (skipped with reduced motion)
+                                # tab switches dissolve between the old
+                                # and new view over ~150ms (skipped with
+                                # reduced motion)
   ambient_fps: 60               # animation cap (max 60)
   ambient_render: auto          # auto | halfblock (▀▄ 2x vertical) | braille | ascii |
                                 # quadrant (2x2 subcells, square pixels)

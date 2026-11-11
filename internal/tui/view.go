@@ -134,10 +134,15 @@ func (m Model) viewInner() string {
 	footer := cachedStringPanel(footerPC, footerKey, func() string { return m.renderFooterBar(m.width) })
 	screen := joinBlocksV([]string{middle, footer})
 	if p := viewFadeProgress(m); p < 1 {
-		screen = crossfadeFrames(stableFrame, screen, p)
+		if armFrame == "" || !armStamp.Equal(m.viewFadeStart) {
+			armFrame = stableFrame
+			armStamp = m.viewFadeStart
+		}
+		screen = crossfadeFrames(armFrame, screen, p)
 	} else {
-		stableFrame = screen
+		armFrame, armStamp = "", time.Time{}
 	}
+	stableFrame = screen
 
 	switch m.mode {
 	case modeHelp:
