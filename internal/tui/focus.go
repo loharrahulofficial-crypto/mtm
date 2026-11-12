@@ -109,7 +109,7 @@ func (m Model) renderFocus() string {
 		alpha := focusScrimAlpha(m.palette.BrightText, m.scenePalette())
 		scene := m.sceneFrameWith(m.ambientT, m.width, m.height, func(p ambient.Palette) ambient.Palette {
 			return scrimPalette(p, alpha, focusScrimDir(m.palette.BrightText))
-		})
+		}, true)
 		grid := m.renderFocusBody(true)
 		for len(grid) < m.height {
 			grid = append(grid, "")

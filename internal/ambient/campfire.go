@@ -31,7 +31,7 @@ func (s *campfireScene) FramePixels(t time.Duration, w, h int, state SceneState)
 func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
-	lay := layoutForSub(W, H)
+	lay := layoutForState(state, W, H)
 	base := state.Palette.Base
 	rmp := BuildRamps(state.Palette)
 	ts := tSecF(t)

@@ -32,7 +32,7 @@ func (s *rainScene) FramePixels(t time.Duration, w, h int, state SceneState) Ras
 func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
-	lay := layoutForSub(W, H)
+	lay := layoutForState(state, W, H)
 	base := state.Palette.Base
 	text := state.Palette.Text
 	rmp := BuildRamps(state.Palette)
@@ -53,6 +53,12 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 
 	groundY := lay.Horizon
 	b.anchor("horizon", 0, lay.Horizon-0.01, W, lay.Horizon+0.01)
+
+	// --- ground: a haze-at-the-horizon gradient falling to dark depth,
+	// painted before the pines and the cabin so they stand on it
+	groundTop := rmp.ApplyHaze(state.Palette.SurfaceStrong, 0.62)
+	groundBot := blendHex(base, state.Palette.Surface, 0.28)
+	b.fillGradientHex(0, groundY, W, H, groundTop, groundBot, 1, opNormal)
 
 	// --- cabin geometry (computed here; the rain warms drops near the window)
 	cabinW := lay.MinDim * 0.36
@@ -115,7 +121,7 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 		gy := groundY + sil.At(x*0.024+3.1, 4.9)*2.2
 		treeH := H * 0.09 * (sil.At(x*0.09+9.7, 2.3) + 1.4)
 		farCol := rmp.ApplyHaze(state.Palette.SurfaceStrong, 0.68)
-		b.fillRectHexF(x, gy-treeH, x+0.7, gy+1.5, farCol, 1, opNormal)
+		b.fillGradientHex(x, gy-treeH, x+0.7, gy+1.5, farCol, blendHex(farCol, base, 0.4), 1, opNormal)
 	}
 	// --- near pine line (dark silhouette)
 	for x := 0.0; x < W; x += 1.1 {
@@ -126,7 +132,7 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 			tb := float64(i) / 3
 			width := treeH * 0.36 * (tb*0.85 + 0.3)
 			yC := gy - treeH*(1-tb) + treeH*0.18
-			b.fillRectHexF(x+0.55-width, yC, x+0.55+width, yC+treeH*0.26, nearCol, 1, opNormal)
+			b.fillGradientHex(x+0.55-width, yC, x+0.55+width, yC+treeH*0.26, nearCol, blendHex(nearCol, base, 0.4), 1, opNormal)
 		}
 	}
 	// --- mist at the base: drifting soft light
@@ -141,8 +147,8 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	// --- cabin (right third): body, roof, flickering window, chimney smoke
 	b.anchor("cabin", cx0-1.5, cabinTop-roofH, cx1+1.5, groundY+0.5)
 	b.beginLayer(layerCabin, int(cx0-5), int(cabinTop-4), int(cx1+5), sh(b))
-	// body
-	b.fillRectHexF(cx0, cabinTop, cx1, groundY+1, blendHex(base, state.Palette.Brown, 0.45), 1, opNormal)
+	// body (a soft vertical gradient — lighter sky-side, darker at the sill)
+	b.fillGradientHex(cx0, cabinTop, cx1, groundY+1, blendHex(base, state.Palette.Brown, 0.58), blendHex(base, state.Palette.Brown, 0.28), 1, opNormal)
 	// roof: stepped trapezoid
 	rowH := roofH / 4
 	for r := 0; r < 4; r++ {
@@ -182,6 +188,18 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	}
 	b.endLayer()
 
+	// --- a winding path from the door into the foreground (damp,
+	// widening toward the viewer, meanders off the cabin line)
+	pathNoise := cachedPerlin(state.Seed, 617)
+	doorX := cx0 + cabinW*0.25
+	for y := groundY + 1; y < H; y += 0.5 {
+		depth := (y - groundY) / (H - groundY)
+		wob := pathNoise.At(y*0.16, 7.7) * (1 + depth*2.3)
+		px := doorX + wob + (doorX-W*0.5)*depth*0.45
+		wid := 0.4 + depth*2.4
+		b.fillEllipseHexF(px, y, wid, 0.32, blendHex(text, base, 0.40+depth*0.14), 0.28+0.28*depth, opNormal)
+	}
+
 	// --- puddle rings on the clearing at the base
 	b.beginLayer(layerSea, 0, int(H*0.82), sw(b), sh(b))
 	ripSlot := int64(wrapT(t, 24*time.Hour)/time.Millisecond) / 750
@@ -196,6 +214,15 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 		rx := rr.rangeF(0.15, 0.9) * W
 		ry := H*0.96 + rr.rangeF(-1, 1)
 		b.strokeCircleHexF(rx, ry, 0.4+progress*2.6, 0.26, state.Palette.Cyan, 0.75*(1-progress), opNormal)
+	}
+	b.endLayer()
+
+	// --- low mist pooling at the ground line, drifting slowly
+	b.beginLayer(layerFog, 0, int(H*0.75), sw(b), sh(b))
+	for i := 0; i < 3; i++ {
+		mx := math.Mod(ts*0.9+float64(i)*W*0.34+W*0.12, W+60) - 30
+		my := H*0.86 + float64(i%2)*H*0.09
+		b.fillEllipseHexF(mx, my, W*0.17, H*0.032, blendHex(text, base, 0.62), 0.12+0.05*math.Sin(ts*0.6+float64(i)*2.1), opNormal)
 	}
 	b.endLayer()
 

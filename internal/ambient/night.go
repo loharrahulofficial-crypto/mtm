@@ -9,8 +9,11 @@ import (
 // warm horizon haze), a filled moon with limb shading, correct lit phase
 // and a soft halo, magnitude-varied stars with twinkle and cross-glow on
 // the brightest ones, occasional shooting stars, aurora ribbons as
-// additive noise curtains with slow vertical shimmer, and a silhouetted
-// horizon in two depths (far haze ridge, near pine line).
+// additive noise curtains with slow vertical shimmer, a still lake below
+// the horizon that mirrors the moon, aurora and brightest stars (flipped,
+// squashed, dimmed, rippling) with a treeline reflection along the
+// shoreline, and a silhouetted horizon in two depths (far haze ridge,
+// near pine line).
 type nightScene struct {
 	mode string
 }
@@ -74,7 +77,7 @@ func glyphFor(tw float64) rune {
 func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
-	lay := layoutForSub(float64(sw(b)), float64(sh(b)))
+	lay := layoutForState(state, float64(sw(b)), float64(sh(b)))
 	rmp := BuildRamps(state.Palette)
 	ts := float64(wrapT(t, 10*time.Minute)) / float64(time.Second)
 	base := state.Palette.Base
@@ -216,29 +219,159 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	}
 	b.endLayer()
 
-	// --- horizon: far hazy ridge, then a jagged near pine line. The near
-	// band is one continuous noise-driven silhouette — sparse spires where
-	// the tree noise crests — never individual stripy columns.
+	// --- still lake: the water below the horizon mirrors the moon, the
+	// aurora and the brightest stars — flipped, squashed (grazing-angle
+	// reflection), dimmed, and displaced by horizontal ripple. A slow
+	// shimmer and a glint path run under the moon; the treeline shows
+	// as a flipped, dim reflection along the shoreline.
+	layH := lay.Horizon
+	squash := 0.45
 	sil := cachedPerlin(state.Seed, 101)
-	farY := lay.Horizon
-	nearY := lay.Horizon + H*0.085
-	b.anchor("horizon", 0, lay.Horizon-0.01, W, lay.Horizon+0.01)
+	rippleAt := func(y float64) float64 {
+		depth := (y - layH) / H
+		if depth < 0 {
+			depth = 0
+		}
+		return (sil.At(y*0.30, ts*0.20)*0.9 + math.Sin(y*0.55-ts*0.6)*0.35) * (0.25 + depth*1.7)
+	}
+	shimmerAt := func(y float64) float64 {
+		return 0.70 + 0.30*math.Sin(y*1.6-ts*0.85+sil.At(y*0.5, 11.3)*1.4)
+	}
+	// tree heights are computed once and shared by the treeline reflection
+	// and the silhouette that stands along the shoreline
+	treeN := int(W/0.75) + 2
+	tHgt := make([]float64, treeN)
 	pine := blendHex(base, surfaceStrong, 0.08)
-	b.beginLayer(layerLand, 0, int(lay.Horizon-H*0.18), sw(b), sh(b))
-	for x := 0.0; x < W; x += 0.75 {
-		fy := farY + sil.At(x*0.016+3.1, 7.3)*H*0.055
-		ny := nearY + sil.At(x*0.021+11.7, 1.9)*H*0.045
-		fc := rmp.ApplyHaze(surfaceStrong, 0.72)
-		// far ridge fill
-		b.fillRectHexF(x, fy, x+0.75, H, fc, 1, opNormal)
-		// jagged pine silhouette: low rolling teeth with occasional spires
+	for i := range tHgt {
+		x := float64(i) * 0.75
 		tree := sil.At(x*0.09+40, 3.3)
 		hgt := H * 0.030
 		if tree > 0.30 {
 			hgt += (tree - 0.30) * (tree - 0.30) * H * 0.85
 		}
 		hgt += sil.At(x*0.35+77, 5.1) * H * 0.022
-		b.fillRectHexF(x, ny-hgt, x+0.75, H, pine, 1, opNormal)
+		tHgt[i] = hgt
+	}
+	lakeTop := blendHex(rmp.SkyHorizon, base, 0.38)
+	lakeBot := blendHex(base, state.Palette.Blue, 0.12)
+	b.beginLayer(layerSea, 0, int(layH), sw(b), sh(b))
+	b.fillGradientHex(0, layH, W, H, lakeTop, lakeBot, 1, opNormal)
+	// mirrored aurora curtains (dimmer, compressed, rippling)
+	for ribbon := 0; ribbon < 2; ribbon++ {
+		ribbonCol := cyan
+		if ribbon == 1 {
+			ribbonCol = blendHex(state.Palette.Success, state.Palette.Cyan, 0.35)
+		}
+		for x := 0.0; x < W; x += 0.5 {
+			fx := x / W
+			cen := H*0.16 + float64(ribbon)*H*0.10 + aura.At(fx*3.4+float64(ribbon)*13.7, ts*0.07+float64(ribbon)*7.3)*H*0.13
+			yDest := layH + (layH-cen)*squash
+			thick := (0.7 + aura.At(fx*5.3+float64(ribbon)*29.1, ts*0.11+3.0+float64(ribbon)*17.0)*0.85) * squash
+			intensity := 0.16 + 0.26*(0.5+0.5*aura.At(fx*2.3+float64(ribbon)*41.0, ts*0.05+float64(ribbon)*23.0))
+			for y := yDest - thick; y < yDest+thick; y += 0.5 {
+				if y <= layH+0.3 {
+					continue
+				}
+				d := math.Abs(y-yDest) / thick
+				shimmer := 0.55 + 0.45*math.Sin(ts*1.35+y*1.7+float64(ribbon)*2.1+x*0.06)
+				shimmer *= shimmerAt(y)
+				cov := (1 - d) * intensity * shimmer * 0.55 // the lake dims the curtain
+				if cov <= 0.02 {
+					continue
+				}
+				b.glowHexAt(x+rippleAt(y), y, ribbonCol, clampf(cov, 0, 0.45))
+			}
+		}
+	}
+	// mirrored bright stars
+	for _, st := range nightStars(state.Seed, sw(b), sh(b)) {
+		if st.mag < 0.62 {
+			continue
+		}
+		tw := 0.55 + 0.45*math.Sin(ts*st.speed+st.phase)
+		yDest := layH + (layH-st.y)*squash
+		if yDest <= layH+0.3 || yDest >= H {
+			continue
+		}
+		fx := 0.16 + tw*st.mag*0.28
+		col := blendHex(bright, base, 1-fx)
+		b.fillCircleHexF(st.x+rippleAt(yDest), yDest, 0.22+st.mag*0.14, col, fx, opNormal)
+	}
+	// mirrored moon: squashed, dimmed, rippling per row
+	mCols := moonColsFrom(
+		blendHex(bright, base, 0.62),
+		blendHex(bright, base, 0.32),
+		blendHex(bright, base, 0.12),
+		blendHex(state.Palette.Surface, base, 0.35),
+	)
+	yTop := layH + (layH-(mY+mR))*squash
+	yBot := layH + (layH-(mY-mR))*squash
+	ssF := float64(fSSV())
+	fb := b.fb
+	for py := int(yTop * ssF); py < int(yBot*ssF); py++ {
+		pyf := float64(py)/ssF + 0.5/ssF
+		if pyf <= layH || py >= fb.ph {
+			continue
+		}
+		dx := rippleAt(pyf)
+		srcY := layH - (pyf-layH)/squash
+		shim := shimmerAt(pyf)
+		for px := int((mX - mR - 1 + dx) * ssF); px < int((mX+mR+1+dx)*ssF); px++ {
+			if px < 0 || px >= fb.pw {
+				continue
+			}
+			pxf := float64(px)/ssF + 0.5/ssF
+			col, cov := moonShade(mX, mY, mR, phase, mCols, pxf-dx, srcY)
+			a := cov * 0.42 * shim
+			if a <= 0.02 {
+				continue
+			}
+			fb.blendPx(px, py, fpix{col[0], col[1], col[2], float32(a)}, opNormal)
+		}
+	}
+	// glint path: slow dashes drifting under the moon + a soft pool glow
+	b.fillEllipseHexF(mX, yBot+(yBot-layH)*0.5+1.0, mR*1.15, (yBot-layH)*0.45+1.2, blendHex(bright, base, 0.72), 0.16, opAdd)
+	glint := cachedPerlin(state.Seed, 921)
+	for y := layH + 1; y < H; y += 0.5 {
+		depth := (y - layH) / H
+		n := glint.At(ts*0.55, y*0.42)
+		if n < 0.42-0.25*depth {
+			continue
+		}
+		off := sil.At(y*0.8, ts*0.4) * (1.2 + depth*2.4)
+		a := 0.30 + 0.35*math.Sin(ts*1.9+y*1.35)
+		if a <= 0.10 {
+			continue
+		}
+		b.fillEllipseHexF(mX+off+rippleAt(y), y, 0.5+0.5*a, 0.16, blendHex(bright, base, 0.45+depth*0.3), a*0.75, opAdd)
+	}
+	// treeline reflection: flipped, dim, jagged — anchored to the shoreline
+	for i := 0; i < treeN; i++ {
+		x := float64(i) * 0.75
+		top := layH + 1 + tHgt[i]*0.5
+		b.fillRectHexF(x, layH+0.8, x+0.75, top, pine, 0.35, opNormal)
+	}
+	b.endLayer()
+
+	// --- horizon: far hazy ridge, then a jagged near pine line. The near
+	// band is one continuous noise-driven silhouette — sparse spires where
+	// the tree noise crests — never individual stripy columns. Both sit
+	// on the shoreline: their bases reach a hair below the horizon row
+	// and the lake begins again beneath them.
+	farY := lay.Horizon
+	nearY := lay.Horizon + H*0.045
+	b.anchor("horizon", 0, lay.Horizon-0.01, W, lay.Horizon+0.01)
+	b.beginLayer(layerLand, 0, int(lay.Horizon-H*0.18), sw(b), sh(b))
+	for x := 0.0; x < W; x += 0.75 {
+		fy := farY + sil.At(x*0.016+3.1, 7.3)*H*0.055
+		ny := nearY + sil.At(x*0.021+11.7, 1.9)*H*0.045
+		fc := rmp.ApplyHaze(surfaceStrong, 0.72)
+		// far ridge fill (base a sliver below the horizon)
+		b.fillGradientHex(x, fy, x+0.75, layH+H*0.014, fc, blendHex(fc, base, 0.4), 1, opNormal)
+		// jagged pine silhouette (thin shoreline base below the horizon)
+		i := int(x / 0.75)
+		hgt := tHgt[i]
+		b.fillGradientHex(x, ny-hgt, x+0.75, layH+H*0.028, pine, blendHex(pine, base, 0.4), 1, opNormal)
 	}
 	b.endLayer()
 }

@@ -100,6 +100,7 @@ func newTuiCmd() *cobra.Command {
 					Palette:        dumpPalette(),
 					PaletteLimited: !trueColor,
 					Dither:         ditherSetting != "off" && !trueColor,
+					FullFrame:      true,
 				}
 				s := ambient.New(sceneName, renderMode)
 				if ppmPath != "" {

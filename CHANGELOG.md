@@ -116,6 +116,21 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   the caps letterforms ("MTM", default) or the x-height lowercase-style
   ones ("mtm")
 
+- **Composition + full-frame art** (2026-11-11): full-screen surfaces
+  (splash, Focus, `--dump --scene`) land the horizon at 62–70% of the
+  height. Night gains a still lake below the horizon mirroring the
+  moon, aurora and brightest stars (flipped, squashed, dimmed, with
+  horizontal ripple displacement and a slow shimmer + glint path) and a
+  treeline reflection along the shoreline. Ocean gains deeper water
+  depth and a mirrored celestial disc under the horizon. Rain/cabin
+  gains a ground gradient, a winding path from the door, and pooling
+  base mist. Bonsai gains a lit ground plane with a soft pot shadow.
+  Snow gains foreground drifts. Ridges and treeline slabs in every
+  scene are vertical gradients, and no scene may carry one flat color
+  across more than 20% of the frame height (cell-grid test, all
+  scenes at 100x30 and 200x50). Embedded windows (sidebar, Home
+  corner, settings preview) keep the aspect-adaptive horizon.
+
 ### Fixed
 
 - **Splash text no longer sits on a plate** (2026-11-11): overlay cells

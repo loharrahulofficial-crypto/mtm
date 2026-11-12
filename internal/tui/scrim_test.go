@@ -198,10 +198,7 @@ func TestSplashScrimNeighborGradientAndPlate(t *testing.T) {
 		}
 		type span struct{ y0, y1, x0, x1 int }
 		neighborSpans := []span{{wmY0, wmY1, wmX0, wmX1}, {tagY, tagY + 1, tagX0, tagX1}, {tc.h - 2, tc.h - 1, hintX0, hintX1}}
-		// shortcut: the hint sits on the night scene's flat ground slab
-		// today — item 3 fills the lower area (lake/mist), re-add
-		// {h-2, h-1, hintX0, hintX1} to the plate check then.
-		plateSpans := []span{{wmY0, wmY1, wmX0, wmX1}, {tagY, tagY + 1, tagX0, tagX1}}
+		plateSpans := neighborSpans // the lake below the horizon varies at every row
 		for _, sp := range neighborSpans {
 			for y := sp.y0; y < sp.y1; y++ {
 				prevHex := ""

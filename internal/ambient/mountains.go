@@ -33,7 +33,7 @@ func (s *mountainsScene) FramePixels(t time.Duration, w, h int, state SceneState
 func (s *mountainsScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
-	lay := layoutForSub(W, H)
+	lay := layoutForState(state, W, H)
 	rmp := BuildRamps(state.Palette)
 	ts := float64(wrapT(t, 10*time.Minute)) / float64(time.Second)
 	base := state.Palette.Base
@@ -136,7 +136,7 @@ func (s *mountainsScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h
 		freq := 0.014 + float64(layer)*0.011
 		for x := 0.0; x < W; x += 0.75 {
 			fy := baseY + sil.At(x*freq+float64(layer)*17.3, 3.0+float64(layer)*2.1)*amp
-			b.fillRectHexF(x, fy, x+0.75, H, body, 1, opNormal)
+			b.fillGradientHex(x, fy, x+0.75, H, body, blendHex(body, base, 0.45), 1, opNormal)
 			// snow stipple on the two nearest crests above the snowline
 			if layer >= 2 {
 				snowY := baseY - amp*0.55

@@ -39,6 +39,8 @@ type frameGrid struct {
 	// SGR background as rendered ("rgb:r;g;b" / "256:n" / "ansi:n").
 	bg [][]string
 	ch [][]string
+	// fg[r][c] = "" when the cell carries the default foreground.
+	fg [][]string
 }
 
 func parseFrame(frame string) frameGrid {
@@ -46,7 +48,9 @@ func parseFrame(frame string) frameGrid {
 	grid := frameGrid{}
 	for _, line := range lines {
 		bg := ""
+		fg := ""
 		rowBG := []string{}
+		rowFG := []string{}
 		rowCH := []string{}
 		rest := line
 		for len(rest) > 0 {
@@ -63,17 +67,20 @@ func parseFrame(frame string) frameGrid {
 				rest = rest[j+1:]
 				if strings.HasSuffix(seq, "m") {
 					bg = sgrBackground(bg, seq)
+					fg = sgrForeground(fg, seq)
 				}
 				continue
 			}
 			cluster, next, w, _ := uniseg.FirstGraphemeClusterInString(rest, -1)
 			for k := 0; k < w; k++ {
 				rowBG = append(rowBG, bg)
+				rowFG = append(rowFG, fg)
 				rowCH = append(rowCH, cluster)
 			}
 			rest = next
 		}
 		grid.bg = append(grid.bg, rowBG)
+		grid.fg = append(grid.fg, rowFG)
 		grid.ch = append(grid.ch, rowCH)
 	}
 	return grid
@@ -92,6 +99,38 @@ func sgrBackground(cur, seq string) string {
 		case "38", "58":
 			i += skipColorArgs(parts, i)
 		case "48":
+			if i+1 < len(parts) {
+				switch parts[i+1] {
+				case "5":
+					if i+2 < len(parts) {
+						cur = "256:" + parts[i+2]
+					}
+					i += 2
+				case "2":
+					if i+4 < len(parts) {
+						cur = "rgb:" + strings.Join(parts[i+2:i+5], ";")
+					}
+					i += 4
+				default:
+					i++
+				}
+			}
+		}
+	}
+	return cur
+}
+
+// sgrForeground mirrors sgrBackground for the 38/58 foreground.
+func sgrForeground(cur, seq string) string {
+	params := strings.TrimSuffix(strings.TrimPrefix(seq, "\x1b["), "m")
+	parts := strings.Split(params, ";")
+	for i := 0; i < len(parts); i++ {
+		switch p := parts[i]; p {
+		case "", "0", "00", "39":
+			cur = ""
+		case "48":
+			i += skipColorArgs(parts, i)
+		case "38", "58":
 			if i+1 < len(parts) {
 				switch parts[i+1] {
 				case "5":
@@ -135,6 +174,17 @@ func (g frameGrid) cell(r, c int) (ch, bg string) {
 		return "", ""
 	}
 	return g.ch[r][c], g.bg[r][c]
+}
+
+// foreground reports the parsed foreground SGR at (r, c) ("" = default).
+func (g frameGrid) foreground(r, c int) string {
+	if r < 0 || r >= len(g.fg) {
+		return ""
+	}
+	if c < 0 || c >= len(g.fg[r]) {
+		return ""
+	}
+	return g.fg[r][c]
 }
 
 func (g frameGrid) rows() int { return len(g.ch) }

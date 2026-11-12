@@ -180,7 +180,7 @@ func revealed(segs []branchSeg, growth float64) int {
 func (s *bonsaiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
-	lay := layoutForSub(W, H)
+	lay := layoutForState(state, W, H)
 	base := state.Palette.Base
 	bright := state.Palette.BrightText
 	rmp := BuildRamps(state.Palette)
@@ -200,11 +200,21 @@ func (s *bonsaiScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h in
 		breathe = 0.55 + 0.45*math.Sin(ts*0.9) // slow breathing sway at rest
 	}
 
-	// ground shadow under the pot
+	// pot geometry (the ground plane and the tree both reference it)
 	potW := math.Min(W*0.24, 16)
 	potW = math.Min(potW, lay.MinDim*0.28)
 	potCX := W / 2
 	potCY := H - 2.6
+
+	// a low ground plane under the pot: haze-lit at the back edge, falling
+	// dark toward the viewer. The pot's soft shadow falls on it.
+	tableY := potCY + 1.1
+	back := blendHex(rmp.SkyHorizon, base, 0.52)
+	front := blendHex(base, state.Palette.Blue, 0.08)
+	b.fillGradientHex(0, tableY, W, H+1, back, front, 1, opNormal)
+	b.fillRectHexF(0, tableY, W, tableY+0.45, blendHex(rmp.SkyHorizon, base, 0.36), 1, opNormal) // lit back edge
+
+	// ground shadow under the pot
 	b.fillEllipseHexF(potCX, potCY+1.2, potW*0.78, H*0.035, blendHex(base, "#000000", 0.35), 0.55, opNormal)
 
 	// --- the tree (fitted to the raster, then swaying)

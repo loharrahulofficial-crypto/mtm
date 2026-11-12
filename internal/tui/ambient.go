@@ -302,17 +302,18 @@ func (m *Model) sceneFrame(t time.Duration, w, h int, dim bool) []string {
 	if dim {
 		return m.sceneFrameWith(t, w, h, func(ambient.Palette) ambient.Palette {
 			return m.dimScenePalette()
-		})
+		}, false)
 	}
-	return m.sceneFrameWith(t, w, h, nil)
+	return m.sceneFrameWith(t, w, h, nil, false)
 }
 
 // sceneFrameWith renders one frame through an optional palette adjustment
 // (the Focus scrim, spec 5.3). Deterministic: same t, seed and palette,
 // same frame. The frame cost is observed by View() as the end-to-end
 // budget — this is just the scene share of it.
-func (m *Model) sceneFrameWith(t time.Duration, w, h int, adjust func(ambient.Palette) ambient.Palette) []string {
+func (m *Model) sceneFrameWith(t time.Duration, w, h int, adjust func(ambient.Palette) ambient.Palette, fullFrame bool) []string {
 	st := m.sceneState()
+	st.FullFrame = fullFrame
 	if adjust != nil {
 		st.Palette = adjust(st.Palette)
 	}
@@ -581,6 +582,7 @@ func (m Model) renderSplash() string {
 			st.Palette = ambient.FadePalette(st.Palette, 1-headK)
 		}
 		st.Scrims = scrims
+		st.FullFrame = true
 		baseHex = st.Palette.Base
 		limited, dither = st.PaletteLimited, st.Dither
 		out = m.currentScene().Frame(sceneT, w, h, st)
@@ -638,6 +640,7 @@ func (m *Model) splashSceneRaster(sceneT time.Duration, tSec float64, w, h int, 
 		st.Palette = ambient.FadePalette(st.Palette, 1-headK)
 	}
 	st.Scrims = scrims
+	st.FullFrame = true
 	baseHex := st.Palette.Base
 	r := m.currentScene().FramePixels(sceneT, w, h, st)
 	prog := 0.0

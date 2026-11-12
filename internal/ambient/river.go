@@ -43,7 +43,7 @@ func riverCenter(riv *perlin, W, H, horizon, y float64) (cx, hw float64) {
 func (s *riverScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
-	lay := layoutForSub(W, H)
+	lay := layoutForState(state, W, H)
 	rmp := BuildRamps(state.Palette)
 	ts := float64(wrapT(t, 10*time.Minute)) / float64(time.Second)
 	base := state.Palette.Base
@@ -103,10 +103,11 @@ func (s *riverScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	b.beginLayer(layerLand, 0, int(horizon-H*0.14), sw(b), sh(b))
 	for x := 0.0; x < W; x += 0.75 {
 		fy := horizon + sil.At(x*0.012+7.1, 5.5)*H*0.045
-		b.fillRectHexF(x, fy, x+0.75, H, rmp.ApplyHaze(rmp.Mid, 0.8), 1, opNormal)
+		ridge := rmp.ApplyHaze(rmp.Mid, 0.8)
+		b.fillGradientHex(x, fy, x+0.75, H, ridge, blendHex(ridge, base, 0.45), 1, opNormal)
 	}
 	// land base below the ridge line
-	b.fillRectHexF(0, horizon+H*0.05, W, H, landCol, 1, opNormal)
+	b.fillGradientHex(0, horizon+H*0.05, W, H, landCol, blendHex(landCol, base, 0.45), 1, opNormal)
 
 	// --- the river: winding band widening toward the viewer
 	riv := cachedPerlin(state.Seed, 811)

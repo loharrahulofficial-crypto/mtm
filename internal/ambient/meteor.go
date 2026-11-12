@@ -51,7 +51,7 @@ func meteorStars(seed int64, w, h int) []starv {
 func (s *meteorScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
-	lay := layoutForSub(W, H)
+	lay := layoutForState(state, W, H)
 	rmp := BuildRamps(state.Palette)
 	ts := float64(wrapT(t, 10*time.Minute)) / float64(time.Second)
 	base := state.Palette.Base
@@ -222,14 +222,14 @@ func (s *meteorScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h in
 		fy := farY + sil.At(x*0.013+9.7, 4.4)*H*0.075
 		ny := nearY + sil.At(x*0.024+3.9, 8.8)*H*0.04
 		fc := rmp.ApplyHaze(state.Palette.SurfaceStrong, 0.7)
-		b.fillRectHexF(x, fy, x+0.75, H, fc, 1, opNormal)
+		b.fillGradientHex(x, fy, x+0.75, H, fc, blendHex(fc, base, 0.45), 1, opNormal)
 		tree := sil.At(x*0.085+21, 6.6)
 		hgt := H * 0.026
 		if tree > 0.28 {
 			hgt += (tree - 0.28) * (tree - 0.28) * H * 0.85
 		}
 		hgt += sil.At(x*0.33+55, 2.2) * H * 0.02
-		b.fillRectHexF(x, ny-hgt, x+0.75, H, pine, 1, opNormal)
+		b.fillGradientHex(x, ny-hgt, x+0.75, H, pine, blendHex(pine, base, 0.45), 1, opNormal)
 	}
 	b.endLayer()
 }

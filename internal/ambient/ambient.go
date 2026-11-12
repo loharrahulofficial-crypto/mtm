@@ -45,6 +45,12 @@ type SceneState struct {
 	// text reads on the scene, not on a plate. Coordinates are in
 	// terminal cells.
 	Scrims []Scrim
+	// FullFrame: the scene fills the whole terminal (splash, Focus,
+	// full-screen dumps and previews). The horizon lands at 62-70% of
+	// the height so the lower area can carry intentional content;
+	// embedded windows (sidebar, Home corner, settings preview) use the
+	// aspect-adaptive horizon instead.
+	FullFrame bool
 }
 
 // Palette carries the resolved theme roles the scenes paint with.

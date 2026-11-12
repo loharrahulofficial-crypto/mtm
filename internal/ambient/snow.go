@@ -31,7 +31,7 @@ func (s *snowScene) FramePixels(t time.Duration, w, h int, state SceneState) Ras
 func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int, state SceneState) {
 	W := float64(sw(b))
 	H := float64(sh(b))
-	lay := layoutForSub(W, H)
+	lay := layoutForState(state, W, H)
 	base := state.Palette.Base
 	rmp := BuildRamps(state.Palette)
 	ts := tSecF(t)
@@ -86,7 +86,7 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 		gy := groundY + sil.At(x*0.028+9.1, 4.2)*1.6
 		treeH := H * 0.10 * (sil.At(x*0.06+21.4, 3.3) + 1.5)
 		farCol := rmp.ApplyHaze(state.Palette.SurfaceStrong, 0.74)
-		b.fillRectHexF(x, gy-treeH, x+0.8, gy+1.2, farCol, 1, opNormal)
+		b.fillGradientHex(x, gy-treeH, x+0.8, gy+1.2, farCol, blendHex(farCol, base, 0.4), 1, opNormal)
 	}
 	// near pines: taller, darker
 	for x := 0.0; x < W; x += 1.0 {
@@ -97,7 +97,7 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 			tb := float64(i) / 4
 			width := treeH * 0.34 * (tb*0.9 + 0.24)
 			yC := gy - treeH*(1-tb) + treeH*0.15
-			b.fillRectHexF(x+0.5-width, yC, x+0.5+width, yC+treeH*0.22, nearCol, 1, opNormal)
+			b.fillGradientHex(x+0.5-width, yC, x+0.5+width, yC+treeH*0.22, nearCol, blendHex(nearCol, base, 0.4), 1, opNormal)
 		}
 	}
 	b.endLayer()
@@ -119,6 +119,20 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	}
 	// ground glow: moonlight pooling on the snow
 	b.fillEllipseHexF(moonX, H-0.8, W*0.42, H*0.09, state.Palette.BrightText, 0.10, opAdd)
+	// foreground drifts: two soft banks silhouetted against the deep snow,
+	// catching light on their crests
+	driftSil := cachedPerlin(state.Seed, 733)
+	for d := 0; d < 2; d++ {
+		y0 := H * (0.84 + float64(d)*0.09)
+		amp := H * (0.030 + float64(d)*0.012)
+		crest := blendHex(state.Palette.BrightText, base, 0.22-float64(d)*0.07)
+		body := blendHex(state.Palette.BrightText, base, 0.36-float64(d)*0.10)
+		for x := 0.0; x <= W; x += 0.75 {
+			yA := y0 + driftSil.At(x*0.085+float64(d)*31.7, 3.3)*amp
+			b.fillRectHexF(x, yA, x+0.75, H+1, body, 1, opNormal)
+			b.strokeHexF(x, yA, x+0.75, yA, 0.30, crest, 0.85, opNormal)
+		}
+	}
 	b.endLayer()
 
 	// --- flakes: three parallax layers on a slow wind

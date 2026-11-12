@@ -68,3 +68,56 @@ func sunAltitude(date time.Time) float64 {
 
 // isNight reports whether it is dark enough to see stars at `date`.
 func isNight(date time.Time) bool { return sunAltitude(date) <= -0.05 }
+
+// moonCols bundles the precomputed float channels of the moon's layered
+// tones (the current three-disc look) for per-pixel evaluation.
+type moonCols struct{ deep, mid, high, shadow [3]float32 }
+
+// MoonCols builds the moon's layered tones from theme colors: the outer
+// limb tone, the mid disc, the bright core, and the shadow side. Colors
+// arrive as hex and are float channels in 0..1.
+func moonColsFrom(deep, mid, high, shadow string) moonCols {
+	pick := func(hex string) [3]float32 {
+		r, g, b, ok := hexF(hex)
+		if !ok {
+			// invalid theme role: stay on a neutral light gray rather than drop the body
+			return [3]float32{0.8, 0.8, 0.8}
+		}
+		return [3]float32{r, g, b}
+	}
+	return moonCols{pick(deep), pick(mid), pick(high), pick(shadow)}
+}
+
+// moonShade evaluates the moon's layered shading at (x, y) in sub-cell
+// coordinates. Returns the layer color, per-channel, plus an anti-aliased
+// coverage 0..1 (0 outside the disc). The terminator is the sliding
+// shadow disc of the current painter; item-phase realism (Lambert
+// sphere, earthshine, maria) replaces these layers in-place later — the
+// callers (direct draw, lake reflection) stay unchanged.
+func moonShade(mX, mY, mR, phase float64, cols moonCols, x, y float64) ([3]float32, float64) {
+	var zero [3]float32
+	d := math.Hypot(x-mX, y-mY)
+	if d > mR+0.8 {
+		return zero, 0
+	}
+	col := cols.deep
+	switch {
+	case d <= mR*0.45:
+		col = cols.high
+	case d <= mR*0.78:
+		col = cols.mid
+	}
+	// terminator: the shadow disc slides across with the phase
+	term := math.Cos(2*math.Pi*phase) * mR * 1.12
+	scx := mX - term
+	if !moonWaxing(phase) {
+		scx = mX + term
+	}
+	if sd := math.Hypot(x-scx, y-mY); sd <= mR {
+		mix := func(a, b float32) float32 { return a*0.03 + b*0.97 }
+		col = [3]float32{mix(col[0], cols.shadow[0]), mix(col[1], cols.shadow[1]), mix(col[2], cols.shadow[2])}
+	}
+	// anti-aliased limb (≈1 sub-pixel)
+	cov := clampf(mR-d+0.7, 0, 1)
+	return col, cov
+}

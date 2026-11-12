@@ -32,7 +32,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	W := float64(sw(b))
 	H := float64(sh(b))
 	W_ := int(W)
-	lay := layoutForSub(W, H)
+	lay := layoutForState(state, W, H)
 	base := state.Palette.Base
 	cyan := state.Palette.Cyan
 	blue := state.Palette.Blue
@@ -161,11 +161,12 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		hex    string
 		height float64
 	}{
-		{0.00, blendHex(horizCol, cyan, 0.30), 0.16},
-		{0.22, blendHex(cyan, blue, 0.35), 0.22},
-		{0.45, blendHex(blue, cyan, 0.30), 0.22},
-		{0.70, blendHex(blue, base, 0.42), 0.20},
-		{0.90, blendHex(blue, base, 0.62), 0.20},
+		{0.00, blendHex(horizCol, cyan, 0.30), 0.13},
+		{0.18, blendHex(cyan, blue, 0.35), 0.17},
+		{0.38, blendHex(blue, cyan, 0.30), 0.20},
+		{0.60, blendHex(blue, base, 0.42), 0.18},
+		{0.78, blendHex(blue, base, 0.62), 0.16},
+		{0.90, blendHex(blue, base, 0.80), 0.16},
 	}
 	bandY := float64(seaY)
 	for _, band := range bands {
@@ -189,6 +190,70 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		{0.84, 2.8, 0.05, 0.17, blendHex(base, blue, 0.28), false},
 	}
 	sil := cachedPerlin(state.Seed, 311)
+	// the celestial disc's mirror image sinks into the water (squashed at
+	// grazing angle, clipped by the horizon band) — drawn before the crest
+	// strokes so the waves break it up.
+	{
+		rwink := cachedPerlin(state.Seed, 977)
+		squash := 0.5
+		refCY := float64(seaY) + (float64(seaY)-celestialY)*squash
+		rr := celestialR * squash
+		var mCols moonCols
+		if !isSun {
+			mCols = moonColsFrom(
+				blendHex(bright, base, 0.55),
+				blendHex(bright, base, 0.30),
+				blendHex(bright, base, 0.10),
+				blendHex(state.Palette.Surface, base, 0.35),
+			)
+		}
+		phaseV := moonPhase(state.Now)
+		fb := b.fb
+		ssF := float64(fSSV())
+		yFrom := float64(seaY) + 1
+		yTo := math.Min(float64(sh(b)), refCY+rr+1)
+		for py := int(yFrom * ssF); py < int(yTo*ssF); py++ {
+			pyf := float64(py)/ssF + 0.5/ssF
+			depth := (pyf - float64(seaY)) / float64(waterRows)
+			if depth <= 0 {
+				continue
+			}
+			srcY := float64(seaY) - (pyf-float64(seaY))/squash
+			dx := rwink.At(pyf*0.35, ts*0.22) * (0.3 + depth*1.6)
+			for px := int((celestialX - rr - 1 + dx) * ssF); px < int((celestialX+rr+1+dx)*ssF); px++ {
+				if px < 0 || px >= fb.pw {
+					continue
+				}
+				pxf := float64(px)/ssF + 0.5/ssF
+				srcX := pxf - dx
+				var cov float64
+				var cr, cg, cb float32
+				if isSun {
+					// hot core → warm edge falloff
+					d := math.Hypot(srcX-celestialX, srcY-celestialY) / celestialR
+					if d >= 1 {
+						continue
+					}
+					cov = clampf(1-d, 0, 1)
+					cov *= cov
+					r0, g0, b0, _ := hexF(blendHex(bright, yellow, clampf(d*1.4, 0, 1)))
+					cr, cg, cb = r0, g0, b0
+				} else {
+					col, a := moonShade(celestialX, celestialY, celestialR, phaseV, mCols, srcX, srcY)
+					if a <= 0.02 {
+						continue
+					}
+					cov = a
+					cr, cg, cb = col[0], col[1], col[2]
+				}
+				alpha := cov * 0.5 * (1 - depth*0.45)
+				if alpha <= 0.02 {
+					continue
+				}
+				fb.blendPx(px, py, fpix{cr, cg, cb, float32(alpha)}, opNormal)
+			}
+		}
+	}
 	for li, cl := range crestLayers {
 		crestY := float64(seaY) + cl.yOff*float64(waterRows)
 		for x := 0.0; x < W; x += 0.6 {
@@ -206,7 +271,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		glint := cachedPerlin(state.Seed, 919)
 		for y := seaY + 1; y < sh(b); y++ {
 			depth := float64(y-seaY) / float64(waterRows)
-			halfW := 2.0 + 6.5*depth
+			halfW := 2.5 + 8.0*depth
 			for k := 0; k < 2; k++ {
 				n := glint.At(float64(k)*7.7+ts*1.4, float64(y)*0.55+depth*2.2)
 				if n <= 0.18 {
