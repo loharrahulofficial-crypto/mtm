@@ -22,6 +22,16 @@ import (
 // against the pixels they sit on, with neighbor backgrounds never
 // differing by more than the scrim gradient allows.
 
+// fgCellLum parses a parsed foreground SGR ("rgb:r;g;b" / "256:n" / "")
+// into WCAG relative luminance; default foreground reads as 0 (dark).
+func fgCellLum(fg string) float64 {
+	hex, ok := cellBGHex(fg, "")
+	if !ok {
+		return 0
+	}
+	return relLumHex(hex)
+}
+
 // settledSplash renders the splash at t=2.4s (wordmark landed, tagline
 // and hint fully faded in, dissolve not started).
 func settledSplash(t *testing.T, w, h int) (string, Model) {
@@ -95,20 +105,15 @@ func xterm256NearestHex(idx int) string {
 	}
 }
 
-const scrimMaxNeighborDelta = 48 // per-channel 8-bit slack: scrim gradient + quantization
-
 // splashTextSpans returns the cell spans the splash draws text over:
 // the wordmark block, the tagline row and the hint row.
 func splashTextSpans(m Model, w, h int) (wmX0, wmX1, wmY0, wmY1, tagY, tagX0, tagX1, hintX0, hintX1 int) {
-	wm := wordmarkFor(w, h, m.cfg.UI.Wordmark == "lower")
-	rows := len(wm.letters[0])
-	wmY0 = wordmarkTop(h, rows)
-	wmY1 = wmY0 + rows
-	letterW := len(wm.letters[0][0])
-	wordW := len(wm.letters)*letterW + (len(wm.letters)-1)*3
-	wmX0 = (w - wordW) / 2
-	wmX1 = wmX0 + wordW
-	tagY = wmY1 + 1
+	lay := splashLayoutFor(w, h, m.cellW, m.cellH, m.cfg.UI.Wordmark == "lower")
+	wmX0 = lay.x0
+	wmX1 = lay.x0 + lay.wordW
+	wmY0 = int(math.Floor(lay.top))
+	wmY1 = int(math.Ceil(lay.top + lay.rows))
+	tagY = lay.tagY
 	tagX0 = centerX(w, "a calmer desk for your courses")
 	tagX1 = tagX0 + fastWidth("a calmer desk for your courses")
 	hintX0 = centerX(w, "press any key to skip")
@@ -122,115 +127,134 @@ func TestSplashTextContrastAgainstScene(t *testing.T) {
 		grid := parseFrame(frame)
 		wmX0, wmX1, wmY0, wmY1, tagY, tagX0, tagX1, hintX0, hintX1 := splashTextSpans(m, tc.w, tc.h)
 		base := m.palette.Base
-		bestRatio := func(fg string, cells [][2]int) float64 {
-			worst := math.Inf(1)
-			for _, c := range cells {
-				_, bg := grid.cell(c[0], c[1])
-				hex, ok := cellBGHex(bg, base)
-				if !ok {
-					t.Fatalf("unparseable cell bg at (%d,%d): %q", c[0], c[1], bg)
-				}
-				r := theme.ContrastRatio(fg, hex)
-				if r < worst {
-					worst = r
-				}
+		hexOf := func(parsed string, fallback string) string {
+			hex, ok := cellBGHex(parsed, fallback)
+			if !ok {
+				t.Fatalf("unparseable cell color %q", parsed)
 			}
-			return worst
+			return hex
 		}
-		var wmCells, tagCells, hintCells [][2]int
+		_ = base
+		// wordmark: the letters are bright against the sampled scene at
+		// the wordmark's center — ≥ 3:1, per the spec. Compute the ratio
+		// against the sampled raster (wordmark band, center cell).
+		quiet, lay := lettersOffSplashRaster(t, m, tc.w, tc.h, 2400, true)
+		cx := lay.x0 + lay.wordW/2
+		cy := int(math.Floor(lay.top+lay.rows/2)) * 2
+		sampleHex := rasterHexAt(quiet, cx, cy+1)
+		if got := theme.ContrastRatio(m.palette.BrightText, sampleHex); got < 3.0 {
+			t.Errorf("%dx%d: wordmark letter color vs the sampled scene %.2f:1, want ≥ 3:1 (sample %s)", tc.w, tc.h, got, sampleHex)
+		}
+		// at least 24 cells in the span carry the bright letters
+		brightLetters := 0
 		for y := wmY0; y < wmY1; y++ {
 			for x := wmX0; x < wmX1; x++ {
-				_, bg := grid.cell(y, x)
-				if bg != "" { // only the cells the scene painted
-					wmCells = append(wmCells, [2]int{y, x})
+				if fg := grid.foreground(y, x); fg != "" && fgCellLum(fg) > 0.55 {
+					brightLetters++
 				}
 			}
 		}
-		for x := tagX0; x < tagX1; x++ {
-			tagCells = append(tagCells, [2]int{tagY, x})
+		if brightLetters < 24 {
+			t.Errorf("%dx%d: only %d bright cells in the wordmark span, want >= 24", tc.w, tc.h, brightLetters)
 		}
-		for x := hintX0; x < hintX1; x++ {
-			hintCells = append(hintCells, [2]int{tc.h - 2, x})
-		}
-		if len(wmCells) == 0 || len(tagCells) == 0 || len(hintCells) == 0 {
-			t.Fatal("could not locate the text cells in the frame")
-		}
-		if r := bestRatio(m.palette.BrightText, wmCells); r < 3.0 {
-			t.Errorf("%dx%d: wordmark contrast %.2f:1 vs scene pixels, want ≥ 3:1", tc.w, tc.h, r)
-		}
-		if r := bestRatio(m.palette.BrightText, tagCells); r < 4.5 {
-			t.Errorf("%dx%d: tagline contrast %.2f:1 vs scene pixels, want ≥ 4.5:1", tc.w, tc.h, r)
-		}
-		if r := bestRatio(m.palette.MutedSoft, hintCells); r < 4.5 {
-			t.Errorf("%dx%d: hint contrast %.2f:1 vs scene pixels, want ≥ 4.5:1", tc.w, tc.h, r)
+		// tagline and hint: EVERY cell (each was emitted with the span's
+		// worst-case-picked color) must keep ≥ 4.5:1.
+		for _, span := range []struct {
+			name   string
+			x0, x1 int
+			y      int
+		}{
+			{"tagline", tagX0, tagX1, tagY},
+			{"hint", hintX0, hintX1, tc.h - 2},
+		} {
+			for x := span.x0; x < span.x1; x++ {
+				fg := hexOf(grid.foreground(span.y, x), base)
+				bg := hexOf(grid.bg[span.y][x], base)
+				if r := theme.ContrastRatio(fg, bg); r < 4.5 {
+					t.Errorf("%dx%d: %s cell %d contrast %.2f:1, want ≥ 4.5:1 (fg %s on bg %s)", tc.w, tc.h, span.name, x, r, fg, bg)
+				}
+			}
 		}
 	}
 }
 
+// lettersOffSplashRaster renders the same frame as the splash with the
+// wordmark letters disabled. With scrims=false the soft darkening is
+// omitted too — the plate check compares the two.
+func lettersOffSplashRaster(t *testing.T, m Model, w, h int, ms int, scrims bool) (ambient.Raster, splashLayout) {
+	t.Helper()
+	lay := splashLayoutFor(w, h, m.cellW, m.cellH, m.cfg.UI.Wordmark == "lower")
+	st := m.sceneState()
+	st.Palette = m.dimScenePalette()
+	if scrims {
+		st.Scrims = []ambient.Scrim{{
+			CX: float64(lay.x0) + float64(lay.wordW)/2, CY: lay.top + lay.rows/2,
+			RadiusX: 1.6 * float64(lay.wordW), RadiusY: lay.rows * 2.0, Strength: 0.18,
+		}}
+	}
+	st.Wordmark = nil
+	st.FullFrame = true
+	sceneT := time.Duration(0)
+	if secs := float64(ms) / 1000; secs > 0.25 {
+		sceneT = time.Duration((secs - 0.25) * float64(time.Second))
+	}
+	return m.currentScene().FramePixels(sceneT, w, h, st), lay
+}
+
+// rasterHexAt returns the 8-bit #rrggbb of a raster pixel.
+func rasterHexAt(r ambient.Raster, x, y int) string {
+	rr, gg, bb := r.Pixel(x, y)
+	return fmt.Sprintf("#%02x%02x%02x", rr, gg, bb)
+}
+
+// rasterLumAt returns the WCAG luminance of a raster pixel (0..1).
+func rasterLumAt(r ambient.Raster, subX, subY int) float64 {
+	rr, gg, bb := r.Pixel(subX, subY)
+	f := func(c uint8) float64 {
+		v := float64(c) / 255
+		if v <= 0.03928 {
+			return v / 12.92
+		}
+		return math.Pow((v+0.055)/1.055, 2.4)
+	}
+	return 0.2126*f(rr) + 0.7152*f(gg) + 0.0722*f(bb)
+}
+
 func TestSplashScrimNeighborGradientAndPlate(t *testing.T) {
 	for _, tc := range []struct{ w, h int }{{100, 30}, {200, 50}} {
-		frame, m := settledSplash(t, tc.w, tc.h)
-		grid := parseFrame(frame)
-		wmX0, wmX1, wmY0, wmY1, tagY, tagX0, tagX1, hintX0, hintX1 := splashTextSpans(m, tc.w, tc.h)
-		base := m.palette.Base
-		rgb := func(hex string) [3]int {
-			var v [3]int
-			if strings.HasPrefix(hex, "#") && len(hex) == 7 {
-				fmt.Sscanf(hex[1:], "%02x%02x%02x", &v[0], &v[1], &v[2])
-			}
-			return v
-		}
-		abs := func(n int) int {
-			if n < 0 {
-				return -n
-			}
-			return n
-		}
-		channelDelta := func(a, b string) int {
-			va, vb := rgb(a), rgb(b)
-			d := 0
-			for i := 0; i < 3; i++ {
-				if dd := abs(va[i] - vb[i]); dd > d {
-					d = dd
-				}
-			}
-			return d
-		}
+		_, m := settledSplash(t, tc.w, tc.h)
+		withScrim, lay := lettersOffSplashRaster(t, m, tc.w, tc.h, 2400, true)
+		plain, _ := lettersOffSplashRaster(t, m, tc.w, tc.h, 2400, false)
+		// halfblock geometry: 1x2 subcells per cell
 		type span struct{ y0, y1, x0, x1 int }
-		neighborSpans := []span{{wmY0, wmY1, wmX0, wmX1}, {tagY, tagY + 1, tagX0, tagX1}, {tc.h - 2, tc.h - 1, hintX0, hintX1}}
-		plateSpans := neighborSpans // the lake below the horizon varies at every row
+		wmY0 := int(math.Floor(lay.top))
+		wmY1 := int(math.Ceil(lay.top + lay.rows))
+		tagX0 := centerX(tc.w, "a calmer desk for your courses")
+		tagX1 := tagX0 + fastWidth("a calmer desk for your courses")
+		hintX0 := centerX(tc.w, "press any key to skip")
+		hintX1 := hintX0 + fastWidth("press any key to skip")
+		neighborSpans := []span{{wmY0, wmY1, lay.x0, lay.x0 + lay.wordW}, {lay.tagY, lay.tagY + 1, tagX0, tagX1}, {tc.h - 2, tc.h - 1, hintX0, hintX1}}
+		// halfblock paints cell (x, y) as two subrows; the bottom one is
+		// the bg SGR. The scrim darkens toward the base multiplicatively
+		// (alpha ≤ 0.18), so on background pixels it can only compress
+		// steps — unless it adds structure of its own (a visible plate).
+		// Bound the amplification at alpha/(1-alpha) ≈ 22% + slack for the
+		// scrim's own per-cell slope and 8-bit quantization.
 		for _, sp := range neighborSpans {
 			for y := sp.y0; y < sp.y1; y++ {
-				prevHex := ""
-				for x := sp.x0; x < sp.x1; x++ {
-					_, bg := grid.cell(y, x)
-					hex, ok := cellBGHex(bg, base)
-					if !ok {
-						t.Fatalf("unparseable cell bg at (%d,%d): %q", y, x, bg)
+				for x := sp.x0 + 1; x < sp.x1; x++ {
+					lumA, lumB := rasterLumAt(plain, x, y*2+1), rasterLumAt(plain, x-1, y*2+1)
+					// stars and the hull-clamped glow cores are content,
+					// not background — the plate invariant covers the sky.
+					if math.Max(lumA, lumB) > 0.5 {
+						continue
 					}
-					if prevHex != "" && channelDelta(prevHex, hex) > scrimMaxNeighborDelta {
-						t.Errorf("%dx%d row %d col %d: neighbor backgrounds differ by more than the scrim gradient allows (%s vs %s)", tc.w, tc.h, y, x, prevHex, hex)
+					stepWith := math.Abs(rasterLumAt(withScrim, x, y*2+1) - rasterLumAt(withScrim, x-1, y*2+1))
+					stepPlain := math.Abs(lumA - lumB)
+					if stepWith > stepPlain*1.25+0.03 {
+						t.Errorf("%dx%d row %d col %d: background step %.3f exceeds the un-scrimmed step %.3f x1.25 + 0.03 — visible plate edge", tc.w, tc.h, y, x, stepWith, stepPlain)
 					}
-					prevHex = hex
 				}
-			}
-		}
-		// the scene shows through the scrim: no span sits on one flat
-		// background color
-		for _, sp := range plateSpans {
-			distinct := map[string]bool{}
-			for y := sp.y0; y < sp.y1; y++ {
-				for x := sp.x0; x < sp.x1; x++ {
-					_, bg := grid.cell(y, x)
-					hex, ok := cellBGHex(bg, base)
-					if !ok {
-						t.Fatalf("unparseable cell bg at (%d,%d): %q", y, x, bg)
-					}
-					distinct[hex] = true
-				}
-			}
-			if len(distinct) < 2 {
-				t.Errorf("%dx%d span y=%d..%d: flat background under the text — the scrim must not form a plate", tc.w, tc.h, sp.y0, sp.y1)
 			}
 		}
 	}

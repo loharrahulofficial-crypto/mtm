@@ -3,11 +3,10 @@ package ambient
 import "math"
 
 // scrim.go — soft radial scrims painted into the scene after the paint
-// pass (before downsample/emission). The splash sets them behind the
-// wordmark, tagline and hint so the overlaid text stays legible with no
-// hard backing plate: the scrim is a darkening toward the theme Base
-// with a smooth quartic falloff to exactly zero at the rim, so cell
-// backgrounds flow seamlessly into the surrounding scene.
+// pass (before downsample/emission). The splash sets one behind the
+// wordmark so the letters read on the scene, not on a plate: the scrim
+// is a darkening toward the theme Base with a Gaussian falloff, reaching
+// e^-6.2 (≈0.2%) at the declared radius — no visible edge.
 
 // Scrim is one soft radial darkening region. Coordinates and radii are
 // in terminal CELLS; the engine scales them per render mode (halfblock
@@ -20,19 +19,14 @@ type Scrim struct {
 }
 
 // alpha computes the darkening at normalized squared distance q ∈ [0,1).
-// Plateau-biased: almost full strength through the middle band, easing to
-// exactly zero at the rim — text on bright scenes stays legible while
-// the fade itself stays perfectly smooth (zero slope at the center,
-// monotonic decrease).
+// Gaussian falloff: zero slope at the center, monotonically decreasing,
+// e^-6.2 ≈ 0.2% of strength at the rim — under any perceptible step, so
+// the cut at q = 1 is invisible ("no visible edge").
 func (sc Scrim) alpha(q float64) float64 {
 	if q >= 1 || sc.Strength <= 0 {
 		return 0
 	}
-	t := 1 - q*q*q*q
-	if t <= 0 {
-		return 0
-	}
-	return sc.Strength * t
+	return sc.Strength * math.Exp(-6.2*q)
 }
 
 // applyScrims paints the scrims into the supersampled pixel raster. Cell

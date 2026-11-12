@@ -45,6 +45,10 @@ type SceneState struct {
 	// text reads on the scene, not on a plate. Coordinates are in
 	// terminal cells.
 	Scrims []Scrim
+	// Wordmark paints the splash letters through the raster (nil
+	// everywhere else) — see wordmark.go. Cell coords; letters inherit
+	// the aspect-corrected geometry like every other shape.
+	Wordmark *WordmarkPaint
 	// FullFrame: the scene fills the whole terminal (splash, Focus,
 	// full-screen dumps and previews). The horizon lands at 62-70% of
 	// the height so the lower area can carry intentional content;

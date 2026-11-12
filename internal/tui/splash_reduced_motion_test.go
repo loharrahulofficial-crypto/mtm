@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -44,9 +43,16 @@ func TestSplashReducedMotionShowsWordmarkImmediately(t *testing.T) {
 	up, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = up.(Model)
 	m.ambientT = time.Duration(10) * time.Millisecond
-	plain := StripANSI(m.View())
-	// the wordmark is present from the first frame
-	if !strings.Contains(plain, "██   ██") && !strings.Contains(plain, "█▀") {
-		t.Fatal("reduced motion splash did not show the wordmark immediately")
+	grid := parseFrame(m.View())
+	n := 0
+	for y := 3; y < 20; y++ {
+		for x := 15; x < 85; x++ {
+			if fg := grid.foreground(y, x); fg != "" && fgCellLum(fg) > 0.55 {
+				n++
+			}
+		}
+	}
+	if n < 40 {
+		t.Fatalf("reduced motion splash shows %d bright cells in the wordmark band, want >= 40 (fully-lit letters from the first frame)", n)
 	}
 }

@@ -94,11 +94,16 @@ func newFrameBuffer(s paintable, mode string, t time.Duration, w, h int, state S
 	return b
 }
 
-// postPaint runs the shared post-paint hooks (scrims, today) after the
-// scene paint and before emission/downsample. Both render paths call it.
+// postPaint runs the shared post-paint hooks (scrims, wordmark, today)
+// after the scene paint and before emission/downsample. Both render
+// paths call it.
 func postPaint(b *buffer, state SceneState, w, h int) {
+	sxr, syr := float64(b.sw)/float64(w), float64(b.sh)/float64(h)
 	if len(state.Scrims) > 0 {
-		applyScrims(b, state.Scrims, float64(b.sw)/float64(w), float64(b.sh)/float64(h))
+		applyScrims(b, state.Scrims, sxr, syr)
+	}
+	if state.Wordmark != nil {
+		applyWordmark(b, state.Wordmark, int(sxr+0.5), int(syr+0.5))
 	}
 }
 

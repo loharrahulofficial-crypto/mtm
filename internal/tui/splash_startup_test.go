@@ -183,13 +183,30 @@ func TestRenderSplashDump(t *testing.T) {
 		}
 	}
 
-	// t=1.2 shows the wordmark rising
+	// t=0 shows no bright letter cells in the wordmark band; t=1.2 and
+	// later do (the letters are painted through the raster now, so the
+	// check counts bright foreground cells, not a specific glyph).
+	brightLetterCells := func(frame string) int {
+		grid := parseFrame(frame)
+		n := 0
+		for y := 3; y < 14; y++ {
+			for x := 20; x < 75; x++ {
+				if fg := grid.foreground(y, x); fg != "" && fgCellLum(fg) > 0.55 {
+					n++
+				}
+			}
+		}
+		return n
+	}
+	if got := brightLetterCells(frame); got != 0 {
+		t.Fatalf("t=0 shows %d bright cells in the wordmark band, want 0", got)
+	}
 	frame, err = RenderSplashDump(cfg, s, sync.New(s.Root), 100, 30, 1.2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(frame, "█") {
-		t.Fatal("t=1.2 dump shows no wordmark letter strokes")
+	if got := brightLetterCells(frame); got < 24 {
+		t.Fatalf("t=1.2 shows %d bright cells in the wordmark band, want >= 24 (the rising letters)", got)
 	}
 
 	// every reviewed time stays free of the old magenta sentinel
