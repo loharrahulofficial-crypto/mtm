@@ -59,13 +59,13 @@ const minLayerContrast = 1.15
 func BuildRamps(p Palette) Ramps {
 	r := Ramps{
 		SkyTop:     blendHex(blendHex(p.Base, "#000000", 0.40), p.Accent, 0.06),
-		SkyHorizon: blendHex(p.Base, p.Accent, 0.52),
+		SkyHorizon: warmHorizon(p),
 		Mid:        blendHex(p.Base, p.SurfaceStrong, 0.85),
 		Highlight:  blendHex(p.Base, p.BrightText, 0.52),
 		Glow:       p.BrightText,
 	}
 	// haze sits between horizon and highlight — distant layers read through it
-	r.Haze = blendHex(r.SkyHorizon, p.BrightText, 0.28)
+	r.Haze = oklchMix(r.SkyHorizon, p.BrightText, 0.28)
 	// enforce adjacency bounds: SkyTop < SkyHorizon < Mid?? no — layers are
 	// ordered zenith → horizon → land; each pair below must separate.
 	r.SkyTop, r.SkyHorizon = enforceContrast(r.SkyTop, r.SkyHorizon, p, minLayerContrast)

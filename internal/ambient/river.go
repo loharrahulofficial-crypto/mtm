@@ -51,8 +51,8 @@ func (s *riverScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	warn := state.Palette.Warning
 	horizon := lay.Horizon
 
-	// --- sky: warm golden-hour gradient
-	b.fillGradientHex(0, 0, W, H, rmp.SkyTop, rmp.SkyHorizon, 1, opNormal)
+	// --- sky: OKLCH-interpolated dusk gradient, cool zenith to warm horizon
+	fillSkyOKLCH(b, 0, 0, W, H, warmSkyStops(state.Palette), opNormal)
 
 	// --- sun: low and soft, sinking a little along the work arc
 	prog := clampf(state.Progress, 0, 1)

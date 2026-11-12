@@ -40,8 +40,8 @@ func (s *mountainsScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h
 	bright := state.Palette.BrightText
 	warn := state.Palette.Warning
 
-	// --- sky: one bold dusk gradient, zenith to warm horizon
-	b.fillGradientHex(0, 0, W, H, rmp.SkyTop, rmp.SkyHorizon, 1, opNormal)
+	// --- sky: OKLCH-interpolated dusk gradient, cool zenith to warm horizon
+	fillSkyOKLCH(b, 0, 0, W, H, warmSkyStops(state.Palette), opNormal)
 
 	// --- sun: warm disc with a breathing Gaussian halo, sinking with the
 	// timer arc (work) or holding high (break). Always fully in frame.
