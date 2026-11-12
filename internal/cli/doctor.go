@@ -37,7 +37,7 @@ func newDoctorCmd() *cobra.Command {
   render       ui.ambient_render setting (auto | halfblock | braille |
                ascii | quadrant | sextant) and the resolution the ambient
                animations run at; ambient numbers are measured with it
-               (set sextant for 2×3 subcells)
+               (auto resolves to halfblock; sextant only when set)
 
 Exits non-zero when any check fails. --json prints the full report.`,
 		Args: cobra.NoArgs,

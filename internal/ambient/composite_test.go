@@ -7,7 +7,7 @@ import (
 func TestAdditiveGlowBoosts(t *testing.T) {
 	m := testPalette()
 	mk := func() *fbuf {
-		fb := newFBuffer(2, 2)
+		fb := newFBuffer(2, 2, 1)
 		r, g, b := m.rgbF(m.base)
 		fb.baseFill(r, g, b)
 		return fb
@@ -31,7 +31,7 @@ func TestAdditiveGlowBoosts(t *testing.T) {
 
 func TestNormalBlendHalfCoverage(t *testing.T) {
 	m := testPalette()
-	fb := newFBuffer(1, 1)
+	fb := newFBuffer(1, 1, 1)
 	br, bg, bb := m.rgbF(m.base)
 	fb.baseFill(br, bg, bb)
 	r, g, bl := m.rgbF3(m.lookup["#dfc181"])

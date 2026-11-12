@@ -104,16 +104,19 @@ var mariaNoise = cachedPerlin(42, 777)
 // coordinates. Physical model: a lit sphere — Lambert diffuse from the
 // real phase (n·l over the visible hemisphere), faint noise-based seas,
 // and earthshine on the dark side lifted a hair above the sky.
-// Anti-aliased limb via coverage. Returns (color, coverage) —
+// Anti-aliased limb via coverage. asp is the subpixel aspect (height /
+// width) so the disc is round on screen. Returns (color, coverage) —
 // coverage 0 outside the disc.
-func moonShade(mX, mY, mR, phase float64, cols moonCols, x, y float64) ([3]float32, float64) {
+func moonShade(mX, mY, mR, phase float64, cols moonCols, x, y, asp float64) ([3]float32, float64) {
 	var zero [3]float32
-	d := math.Hypot(x-mX, y-mY)
+	dx := x - mX
+	dy := (y - mY) * asp
+	d := math.Hypot(dx, dy)
 	cov := clampf(mR-d+0.6, 0, 1)
 	if cov <= 0 {
 		return zero, 0
 	}
-	nx, ny := (x-mX)/mR, (y-mY)/mR
+	nx, ny := dx/mR, dy/mR
 	z := math.Sqrt(math.Max(0, 1-nx*nx-ny*ny))
 	// light: psi is the phase angle from full; at full the sun is
 	// face-on (L=+z), at new it is behind the moon (L=-z). Waxing phases
@@ -150,6 +153,7 @@ func MoonGlowAlpha(d, sigma, amp float64) float64 {
 func paintMoonSphere(b *buffer, mX, mY, mR, phase, ts float64, cols moonCols, haloCol [3]float32) {
 	ss := float64(fSSV())
 	fb := b.fb
+	asp := fb.aspectCorr()
 	pulse := 0.62 + 0.38*math.Sin(ts*0.42) // breathes with the scene clock; reduced motion crawls it
 	sigma := mR * 0.95
 	rOut := mR + sigma*2.7
@@ -157,11 +161,11 @@ func paintMoonSphere(b *buffer, mX, mY, mR, phase, ts float64, cols moonCols, ha
 	// halo: gaussian falloff, added under the disc
 	x0 := maxInt(0, int((mX-rOut)*ss))
 	x1 := minInt(fb.pw, int((mX+rOut)*ss)+1)
-	y0 := maxInt(0, int((mY-rOut)*ss))
-	y1 := minInt(fb.ph, int((mY+rOut)*ss)+1)
+	y0 := maxInt(0, int((mY-rOut/asp)*ss))
+	y1 := minInt(fb.ph, int((mY+rOut/asp)*ss)+1)
 	for py := y0; py < y1; py++ {
 		pyf := float64(py)/ss + 0.5/ss
-		dy := pyf - mY
+		dy := (pyf - mY) * asp
 		for px := x0; px < x1; px++ {
 			pxf := float64(px)/ss + 0.5/ss
 			d2 := (pxf-mX)*(pxf-mX) + dy*dy
@@ -183,13 +187,13 @@ func paintMoonSphere(b *buffer, mX, mY, mR, phase, ts float64, cols moonCols, ha
 	// sphere
 	x0 = maxInt(0, int((mX-mR-1)*ss))
 	x1 = minInt(fb.pw, int((mX+mR+1)*ss)+1)
-	y0 = maxInt(0, int((mY-mR-1)*ss))
-	y1 = minInt(fb.ph, int((mY+mR+1)*ss)+1)
+	y0 = maxInt(0, int((mY-(mR+1)/asp)*ss))
+	y1 = minInt(fb.ph, int((mY+(mR+1)/asp)*ss)+1)
 	for py := y0; py < y1; py++ {
 		pyf := float64(py)/ss + 0.5/ss
 		for px := x0; px < x1; px++ {
 			pxf := float64(px)/ss + 0.5/ss
-			col, cov := moonShade(mX, mY, mR, phase, cols, pxf, pyf)
+			col, cov := moonShade(mX, mY, mR, phase, cols, pxf, pyf, asp)
 			if cov <= 0.004 {
 				continue
 			}

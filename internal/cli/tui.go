@@ -92,6 +92,7 @@ func newTuiCmd() *cobra.Command {
 					ditherSetting = cfg.UI.AmbientDither
 				}
 				trueColor, _ := caps.Effective(trueColorSetting, os.Getenv)
+				cell := ambient.DetectCellPixels(os.Stdout)
 				st := ambient.SceneState{
 					Progress:       progress,
 					Phase:          ambient.Phase(ph),
@@ -101,13 +102,16 @@ func newTuiCmd() *cobra.Command {
 					PaletteLimited: !trueColor,
 					Dither:         ditherSetting != "off" && !trueColor,
 					FullFrame:      true,
+					CellW:          cell.W,
+					CellH:          cell.H,
 				}
 				s := ambient.New(sceneName, renderMode)
 				if ppmPath != "" {
 					if ppmScale < 1 || ppmScale > 20 {
 						return fmt.Errorf("--ppm-scale %d out of range (1..20)", ppmScale)
 					}
-					if err := ambient.WritePPM(ppmPath, s.Frame(frameT, w, h, st), ppmScale); err != nil {
+					aspect := ambient.SubpixelAspect(ambient.ResolveMode(renderMode), cell)
+					if err := ambient.WritePPM(ppmPath, s.Frame(frameT, w, h, st), ppmScale, aspect); err != nil {
 						return err
 					}
 					fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", ppmPath)
@@ -146,7 +150,9 @@ func newTuiCmd() *cobra.Command {
 					return err
 				}
 				if ppmPath != "" {
-					if err := ambient.WritePPM(ppmPath, strings.Split(strings.TrimSuffix(frame, "\n"), "\n"), ppmScale); err != nil {
+					cell := ambient.DetectCellPixels(os.Stdout)
+					aspect := ambient.SubpixelAspect(ambient.ResolveMode(cfg.UI.AmbientRender), cell)
+					if err := ambient.WritePPM(ppmPath, strings.Split(strings.TrimSuffix(frame, "\n"), "\n"), ppmScale, aspect); err != nil {
 						return err
 					}
 					fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", ppmPath)

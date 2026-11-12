@@ -455,17 +455,13 @@ func TestRenderFindingsAndAmbientModeDefault(t *testing.T) {
 		t.Fatalf("AmbientRender = %q, want halfblock (auto default)", rep.AmbientRender)
 	}
 	renders := findingsOf(rep, LevelInfo, "render")
-	if len(renders) < 2 {
-		t.Fatalf("want a render finding plus a sextant hint, got %d: %+v", len(renders), renders)
+	if len(renders) != 1 {
+		t.Fatalf("want exactly the render finding, got %d: %+v", len(renders), renders)
 	}
-	hint := false
 	for _, f := range renders {
 		if strings.Contains(f.Message, "sextant") {
-			hint = true
+			t.Fatalf("default auto path must not push sextant: %q", f.Message)
 		}
-	}
-	if !hint {
-		t.Fatal("halfblock measurement did not suggest sextant")
 	}
 }
 

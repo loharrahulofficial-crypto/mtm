@@ -25,7 +25,7 @@ func absF32(v float32) float32 {
 
 func TestAntiAliasEdgeCoverage(t *testing.T) {
 	m := testPalette()
-	fb := newFBuffer(8, 8)
+	fb := newFBuffer(8, 8, 1)
 	r, g, bl := m.rgbF(m.lookup["#d3ae78"]) // accent
 	baseR, baseG, baseB := m.rgbF(m.base)
 	fb.baseFill(baseR, baseG, baseB)
@@ -61,7 +61,7 @@ func TestAntiAliasEdgeCoverage(t *testing.T) {
 func TestDownsampleBoxAverage(t *testing.T) {
 	m := testPalette()
 	fss := fSSV()
-	fb := newFBuffer(2, 2) // (2·fSS)² pixels
+	fb := newFBuffer(2, 2, 1) // (2·fSS)² pixels
 	baseR, baseG, baseB := m.rgbF(m.base)
 	fb.baseFill(baseR, baseG, baseB)
 	// one full fSS² supersampled block of accent at subcell (0,0)

@@ -280,6 +280,8 @@ func (m Model) sceneState() ambient.SceneState {
 		Dither:         m.cfg.UI.AmbientDither != "off" && !trueColor,
 		PaletteLimited: !trueColor,
 		ReducedMotion:  m.reducedMotionActive(),
+		CellW:          m.cellW,
+		CellH:          m.cellH,
 	}
 }
 

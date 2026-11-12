@@ -9,15 +9,18 @@ import "math"
 // fillGradientF fills the rect with a vertical interpolation between the
 // two palette colors. Edges are feathered like fillRectF.
 func (b *fbuf) fillGradientF(x0, y0, x1, y1 float64, r0, g0, b0, r1, g1, b1 float32, alpha float64, o blendOp) {
-	fx0, fy0 := x0*float64(fSSV()), y0*float64(fSSV())
-	fx1, fy1 := x1*float64(fSSV()), y1*float64(fSSV())
+	fss := float64(fSSV())
+	asp := b.aspectCorr()
+	fx0, fy0 := x0*fss, y0*fss
+	fx1, fy1 := x1*fss, y1*fss
 	span := fy1 - fy0
 	if span <= 0 {
 		span = 1
 	}
-	feather := float64(fSSV()) * 0.75
+	feather := fss * 0.75
+	// feather in screen space maps to feather/asp in y subpixels
 	px0, px1 := int(math.Floor(fx0-feather)), int(math.Ceil(fx1+feather))
-	py0, py1 := int(math.Floor(fy0-feather)), int(math.Ceil(fy1+feather))
+	py0, py1 := int(math.Floor(fy0-feather/asp)), int(math.Ceil(fy1+feather/asp))
 	for py := py0; py < py1; py++ {
 		fy := float64(py) + 0.5 - fy0
 		t := clampf(fy/span, 0, 1)
@@ -39,7 +42,7 @@ func (b *fbuf) fillGradientF(x0, y0, x1, y1 float64, r0, g0, b0, r1, g1, b1 floa
 				continue
 			}
 			ddx := math.Max(math.Max(fx0-cx, cx-fx1), 0)
-			ddy := math.Max(math.Max(fy0-cy, cy-fy1), 0)
+			ddy := math.Max(math.Max(fy0-cy, cy-fy1), 0) * asp
 			d2 := ddx*ddx + ddy*ddy
 			if d2 >= feather*feather {
 				continue

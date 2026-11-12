@@ -51,7 +51,7 @@ func renderRaster(s paintable, t time.Duration, w, h int, state SceneState) Rast
 		}
 	}
 	p := paletteFor(state.Palette)
-	b := newBuffer(ModeHalfblock, w, h, p)
+	b := newBuffer(ModeHalfblock, w, h, p, state.subpixelAspect(ModeHalfblock))
 	s.paint(b, p, t, w, h, state)
 	postPaint(b, state, w, h)
 	b.palette = p
@@ -85,7 +85,7 @@ func newFrameBuffer(s paintable, mode string, t time.Duration, w, h int, state S
 		}
 	}
 	p := paletteFor(state.Palette)
-	b := newBuffer(mode, w, h, p)
+	b := newBuffer(mode, w, h, p, state.subpixelAspect(mode))
 	b.dither = state.Dither
 	b.limited = state.PaletteLimited
 	s.paint(b, p, t, w, h, state)

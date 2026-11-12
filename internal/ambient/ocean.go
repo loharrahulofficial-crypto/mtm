@@ -196,6 +196,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		phaseV := moonPhase(state.Now)
 		fb := b.fb
 		ssF := float64(fSSV())
+		aspF := fb.aspectCorr()
 		yFrom := float64(seaY) + 1
 		yTo := math.Min(float64(sh(b)), refCY+rr+1)
 		for py := int(yFrom * ssF); py < int(yTo*ssF); py++ {
@@ -216,7 +217,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 				var cr, cg, cb float32
 				if isSun {
 					// hot core → warm edge falloff
-					d := math.Hypot(srcX-celestialX, srcY-celestialY) / celestialR
+					d := math.Hypot(srcX-celestialX, (srcY-celestialY)*aspF) / celestialR
 					if d >= 1 {
 						continue
 					}
@@ -225,7 +226,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 					r0, g0, b0, _ := hexF(blendHex(bright, yellow, clampf(d*1.4, 0, 1)))
 					cr, cg, cb = r0, g0, b0
 				} else {
-					col, a := moonShade(celestialX, celestialY, celestialR, phaseV, mCols, srcX, srcY)
+					col, a := moonShade(celestialX, celestialY, celestialR, phaseV, mCols, srcX, srcY, aspF)
 					if a <= 0.02 {
 						continue
 					}

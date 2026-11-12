@@ -41,7 +41,7 @@ type goldenCase struct {
 func goldenCases() []goldenCase {
 	out := []goldenCase{}
 	for _, scene := range Registered() {
-		for _, mode := range []string{ModeHalfblock, ModeASCII, ModeBraille} {
+		for _, mode := range []string{ModeHalfblock, ModeASCII, ModeBraille, ModeQuadrant, ModeSextant} {
 			states := []struct {
 				name string
 				p    float64
@@ -85,7 +85,7 @@ func goldenCases() []goldenCase {
 func sizeCases() []goldenCase {
 	out := []goldenCase{}
 	for _, scene := range Registered() {
-		for _, mode := range []string{ModeHalfblock, ModeBraille} {
+		for _, mode := range []string{ModeHalfblock, ModeBraille, ModeSextant} {
 			for _, size := range [][2]int{{40, 14}, {100, 30}, {200, 50}} {
 				out = append(out, goldenCase{
 					name:     fmt.Sprintf("%s-work_p05-%dx%d-%s", scene, size[0], size[1], mode),
@@ -194,7 +194,7 @@ func TestLayerRegionsRespected(t *testing.T) {
 func TestFrameExactDimensions(t *testing.T) {
 	sizes := [][2]int{{1, 1}, {2, 2}, {5, 3}, {10, 6}, {40, 12}, {40, 14}, {60, 18}, {100, 30}, {200, 50}}
 	for _, scene := range Registered() {
-		for _, mode := range []string{ModeHalfblock, ModeASCII, ModeBraille} {
+		for _, mode := range []string{ModeHalfblock, ModeASCII, ModeBraille, ModeQuadrant, ModeSextant} {
 			for _, size := range sizes {
 				func() {
 					defer func() {
@@ -267,7 +267,7 @@ var hexRe = regexp.MustCompile(`#[0-9a-fA-F]{6}`)
 
 func TestThemeRolesOnly(t *testing.T) {
 	for _, scene := range Registered() {
-		for _, mode := range []string{ModeHalfblock, ModeASCII, ModeBraille} {
+		for _, mode := range []string{ModeHalfblock, ModeASCII, ModeBraille, ModeQuadrant, ModeSextant} {
 			s := New(scene, mode)
 			frame := s.Frame(12*time.Second, 60, 18, stateFor(0.5, PhaseWork))
 			joined := strings.Join(frame, "\n")

@@ -16,7 +16,7 @@ SCENES = ["night", "bonsai", "ocean", "rain", "koi", "snow", "campfire", "mounta
 SIZES = ["24x10", "40x14", "100x30", "200x50"]
 TIMES = [0, 3, 8, 15]
 SCALE = {"24x10": 10, "40x14": 6, "100x30": 3, "200x50": 2}
-SPLASH_TIMES = [0.3, 1.2, 2.8]
+SPLASH_TIMES = [1.2, 2.0, 2.8]
 SPLASH_SIZES = ["100x30", "200x50"]
 
 repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

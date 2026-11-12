@@ -127,9 +127,6 @@ func Run(opts Options) Report {
 		renderCfg = "auto"
 	}
 	rep.add(LevelInfo, "render", "", "ui.ambient_render: %s (measuring %s frames)", renderCfg, resolvedRender)
-	if resolvedRender != ambient.ModeSextant {
-		rep.add(LevelInfo, "render", "", "animations render at %s resolution — set ui.ambient_render: sextant (2×3 subcells, Unicode 15 mosaics) for the full ambient detail", resolvedRender)
-	}
 
 	// --- git repo ---
 	repo := sync.New(opts.Root)

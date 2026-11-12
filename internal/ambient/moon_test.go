@@ -20,7 +20,7 @@ type sphereSample struct {
 func sphereSamples(t *testing.T, phase float64) []sphereSample {
 	t.Helper()
 	p := paletteFor(DefaultPalette())
-	b := newBuffer(ModeHalfblock, 48, 24, p)
+	b := newBuffer(ModeHalfblock, 48, 24, p, SubpixelAspect(ModeHalfblock, DefaultCellPixels()))
 	cols := sphereCols(DefaultPalette().BrightText, DefaultPalette().Base, DefaultPalette().Base)
 	mX, mY, mR := 24.0, 12.0, 9.0
 	paintMoonSphere(b, mX, mY, mR, phase, 0, cols, [3]float32{1, 1, 1})
@@ -138,10 +138,10 @@ func fpixLum(c fpix) float64 {
 
 func TestMoonEarthshineAboveSky(t *testing.T) {
 	p := paletteFor(DefaultPalette())
-	skyBuf := newBuffer(ModeHalfblock, 48, 24, p) // nothing painted: pure base fill
+	skyBuf := newBuffer(ModeHalfblock, 48, 24, p, SubpixelAspect(ModeHalfblock, DefaultCellPixels())) // nothing painted: pure base fill
 	skyLum := fpixLum(skyBuf.fb.px[0])
 	// near-new: almost entirely the dark side
-	b2 := newBuffer(ModeHalfblock, 48, 24, paletteFor(DefaultPalette()))
+	b2 := newBuffer(ModeHalfblock, 48, 24, paletteFor(DefaultPalette()), SubpixelAspect(ModeHalfblock, DefaultCellPixels()))
 	paintMoonSphere(b2, 24, 12, 9, 0.05, 0, sphereCols(DefaultPalette().BrightText, DefaultPalette().Base, DefaultPalette().Base), [3]float32{1, 1, 1})
 	minLum := math.Inf(1)
 	for y := 0; y < b2.sh; y++ {
@@ -179,7 +179,7 @@ func TestMoonGlowFalloff(t *testing.T) {
 	}
 	// frame level: ring luminance decreases monotonically outward
 	p := paletteFor(DefaultPalette())
-	b := newBuffer(ModeHalfblock, 48, 24, p)
+	b := newBuffer(ModeHalfblock, 48, 24, p, SubpixelAspect(ModeHalfblock, DefaultCellPixels()))
 	cols := sphereCols(DefaultPalette().BrightText, DefaultPalette().Base, DefaultPalette().Base)
 	paintMoonSphere(b, 24, 12, 7, 0.5, 0, cols, haloCol(DefaultPalette().BrightText, DefaultPalette().Accent))
 	lumAt := func(x, y int) float64 {

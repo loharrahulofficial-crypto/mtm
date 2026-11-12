@@ -1,8 +1,12 @@
 package tui
 
 import (
+	"os"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 )
 
 // dispatch arms the ambient ticker around every message so the corner/
@@ -46,6 +50,12 @@ func (m Model) dispatchRaw(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		// Re-read the cell pixel size on resize (SIGWINCH usually also
+		// changes the pixel geometry). ioctl only — no XTWINOPS round
+		// trip mid-TUI; keep the last known size when it reports none.
+		if cp, ok := ambient.WinsizeCellPixels(os.Stdout); ok {
+			m.cellW, m.cellH = cp.W, cp.H
+		}
 		m.clampDetailAndSidebar()
 		return m, m.armAmbient()
 	case spinner.TickMsg:

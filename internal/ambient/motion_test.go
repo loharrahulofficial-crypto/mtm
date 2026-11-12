@@ -11,7 +11,7 @@ func TestSubpixelMotionIsContinuous(t *testing.T) {
 	hues := []float64{}
 	alphas := []float64{}
 	for _, fx := range []float64{2.0, 2.25, 2.5, 2.75, 3.0} {
-		fb := newFBuffer(6, 3)
+		fb := newFBuffer(6, 3, 1)
 		br, bg, bb := m.rgbF(m.base)
 		fb.baseFill(br, bg, bb)
 		fb.fillCircleF(fx, 1.5, 0.9, r, g, bl, 1, opNormal)

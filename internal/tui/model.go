@@ -5,6 +5,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -163,6 +164,11 @@ type Model struct {
 
 	width  int
 	height int
+	// cellW/cellH are the real terminal cell size in pixels (detected at
+	// startup and refreshed on SIGWINCH via WindowSizeMsg). Zero means
+	// unknown — the ambient scenes fall back to the 9:17 default cell.
+	cellW float64
+	cellH float64
 
 	mode  modeID
 	view  viewID
@@ -365,12 +371,15 @@ func New(cfg config.Config, s *store.Store, repo sync.Repo) Model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 
+	cell := ambient.DetectCellPixels(os.Stdout)
 	m := Model{
 		cfg:             cfg,
 		store:           s,
 		repo:            repo,
 		root:            s.Root,
 		clock:           clk,
+		cellW:           cell.W,
+		cellH:           cell.H,
 		mode:            modeNormal,
 		view:            viewHome,
 		focus:           focusMain,

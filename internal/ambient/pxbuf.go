@@ -44,8 +44,18 @@ func maxFloat32(a, b float32) float32 {
 type fbuf struct {
 	sw, sh int
 	pw, ph int
+	aspect float64 // subpixel height / width
 	px     []fpix
 	ink    []float32 // per-pixel ink coverage (non-background paint)
+}
+
+// aspectCorr returns the on-screen subpixel aspect (height / width),
+// defaulting to 1 for uninitialized rasters.
+func (b *fbuf) aspectCorr() float64 {
+	if b.aspect <= 0 {
+		return 1
+	}
+	return b.aspect
 }
 
 // fSSV() is the supersampling factor per axis. Adaptive quality (§4.7) may
@@ -62,17 +72,20 @@ func fSSV() int { return int(fSS.Load()) }
 // churn per frame).
 var fbPool sync.Pool
 
-func newFBuffer(sw, sh int) *fbuf {
+func newFBuffer(sw, sh int, aspect float64) *fbuf {
 	if sw < 1 {
 		sw = 1
 	}
 	if sh < 1 {
 		sh = 1
 	}
+	if aspect <= 0 {
+		aspect = SubpixelAspect(ModeHalfblock, DefaultCellPixels())
+	}
 	pw, ph := sw*fSSV(), sh*fSSV()
 	need := pw * ph
 	if v, ok := fbPool.Get().(*fbuf); ok && cap(v.px) >= need {
-		fb := &fbuf{sw: sw, sh: sh, pw: pw, ph: ph, px: v.px[:need]}
+		fb := &fbuf{sw: sw, sh: sh, pw: pw, ph: ph, aspect: aspect, px: v.px[:need]}
 		for i := range fb.px {
 			fb.px[i] = fpix{}
 		}
@@ -86,7 +99,7 @@ func newFBuffer(sw, sh int) *fbuf {
 		}
 		return fb
 	}
-	return &fbuf{sw: sw, sh: sh, pw: pw, ph: ph, px: make([]fpix, need), ink: make([]float32, need)}
+	return &fbuf{sw: sw, sh: sh, pw: pw, ph: ph, aspect: aspect, px: make([]fpix, need), ink: make([]float32, need)}
 }
 
 // release returns the raster to the pool.
@@ -164,21 +177,21 @@ func (b *fbuf) blendPx(x, y int, src fpix, o blendOp) {
 
 // fillRectF fills a rect in sub-cell coordinates with soft edges.
 func (b *fbuf) fillRectF(x0, y0, x1, y1 float64, r, g, bl float32, alpha float64, o blendOp) {
-	fx0, fy0 := x0*float64(fSSV()), y0*float64(fSSV())
-	fx1, fy1 := x1*float64(fSSV()), y1*float64(fSSV())
-	feather := float64(fSSV()) * 0.75
+	fss := float64(fSSV())
+	asp := b.aspectCorr()
+	fx0, fy0 := x0*fss, y0*fss
+	fx1, fy1 := x1*fss, y1*fss
+	feather := fss * 0.75
 	px0 := int(math.Floor(fx0 - feather))
 	px1 := int(math.Ceil(fx1 + feather))
-	py0 := int(math.Floor(fy0 - feather))
-	py1 := int(math.Ceil(fy1 + feather))
+	// feather in screen space maps to feather/asp in y subpixels
+	py0 := int(math.Floor(fy0 - feather/asp))
+	py1 := int(math.Ceil(fy1 + feather/asp))
 	for py := py0; py < py1; py++ {
 		cy := float64(py) + 0.5
 		innerRow := cy >= fy0 && cy <= fy1
 		for px := px0; px < px1; px++ {
 			cx := float64(px) + 0.5
-			// Interior pixels are fully covered: skip the SDF math.
-			// px must be inside the raster: py*b.pw + px can be a valid
-			// index yet land in the wrong row.
 			if innerRow && cx >= fx0 && cx <= fx1 && alpha == 1 && o == opNormal {
 				if px >= 0 && px < b.pw && py >= 0 && py < b.ph {
 					b.px[py*b.pw+px] = fpix{r, g, bl, 1}
@@ -188,7 +201,7 @@ func (b *fbuf) fillRectF(x0, y0, x1, y1 float64, r, g, bl float32, alpha float64
 			}
 
 			ddx := math.Max(math.Max(fx0-cx, cx-fx1), 0)
-			ddy := math.Max(math.Max(fy0-cy, cy-fy1), 0)
+			ddy := math.Max(math.Max(fy0-cy, cy-fy1), 0) * asp
 			d2 := ddx*ddx + ddy*ddy
 			if d2 >= feather*feather {
 				continue
@@ -207,17 +220,20 @@ func (b *fbuf) fillRect(x0, y0, x1, y1 int, r, g, bl float32, alpha float64, o b
 
 // fillCircleF fills a circle in sub-cell coordinates with soft edges.
 func (b *fbuf) fillCircleF(cx, cy, radius float64, r, g, bl float32, alpha float64, o blendOp) {
-	px0 := int(math.Floor((cx - radius - 1) * float64(fSSV())))
-	px1 := int(math.Ceil((cx + radius + 1) * float64(fSSV())))
-	py0 := int(math.Floor((cy - radius - 1) * float64(fSSV())))
-	py1 := int(math.Ceil((cy + radius + 1) * float64(fSSV())))
-	fcx, fcy := cx*float64(fSSV()), cy*float64(fSSV())
-	fr := radius * float64(fSSV())
-	feather := float64(fSSV()) * 0.7
+	fss := float64(fSSV())
+	asp := b.aspectCorr()
+	// radius in screen-space x-units; y extent in subcells is radius/asp.
+	px0 := int(math.Floor((cx - radius - 1) * fss))
+	px1 := int(math.Ceil((cx + radius + 1) * fss))
+	py0 := int(math.Floor((cy - radius/asp - 1) * fss))
+	py1 := int(math.Ceil((cy + radius/asp + 1) * fss))
+	fcx, fcy := cx*fss, cy*fss
+	fr := radius * fss
+	feather := fss * 0.7
 	for py := py0; py < py1; py++ {
 		for px := px0; px < px1; px++ {
 			dx := float64(px) + 0.5 - fcx
-			dy := float64(py) + 0.5 - fcy
+			dy := (float64(py) + 0.5 - fcy) * asp
 			d2 := dx*dx + dy*dy
 			cov := clampf((feather-(math.Sqrt(d2)-fr))/feather, 0, 1)
 			if cov <= 0 {
@@ -231,18 +247,21 @@ func (b *fbuf) fillCircleF(cx, cy, radius float64, r, g, bl float32, alpha float
 
 // fillEllipseF fills an axis-aligned ellipse in sub-cell coordinates.
 func (b *fbuf) fillEllipseF(cx, cy, rx, ry float64, r, g, bl float32, alpha float64, o blendOp) {
-	fxcx, fxcy := cx*float64(fSSV()), cy*float64(fSSV())
-	frx, fry := math.Max(rx*float64(fSSV()), 0.5), math.Max(ry*float64(fSSV()), 0.5)
+	fss := float64(fSSV())
+	asp := b.aspectCorr()
+	fxcx, fxcy := cx*fss, cy*fss
+	frx := math.Max(rx*fss, 0.5)
+	fry := math.Max(ry*fss, 0.5) // screen-space y radius in x-units
 	px0 := int(math.Floor(fxcx - frx - 2))
 	px1 := int(math.Ceil(fxcx + frx + 2))
-	py0 := int(math.Floor(fxcy - fry - 2))
-	py1 := int(math.Ceil(fxcy + fry + 2))
-	feather := float64(fSSV()) * 0.75
+	py0 := int(math.Floor(fxcy - fry/asp - 2))
+	py1 := int(math.Ceil(fxcy + fry/asp + 2))
+	feather := fss * 0.75
 	scale := math.Min(frx, fry)
 	for py := py0; py < py1; py++ {
 		for px := px0; px < px1; px++ {
 			dx := (float64(px) + 0.5 - fxcx) / frx
-			dy := (float64(py) + 0.5 - fxcy) / fry
+			dy := ((float64(py) + 0.5 - fxcy) * asp) / fry
 			d := (math.Sqrt(dx*dx+dy*dy) - 1) * scale
 			if d >= feather {
 				continue
@@ -256,17 +275,20 @@ func (b *fbuf) fillEllipseF(cx, cy, rx, ry float64, r, g, bl float32, alpha floa
 
 // strokeCircleF strokes a ring (ripples, halos): an annulus SDF stroke.
 func (b *fbuf) strokeCircleF(cx, cy, radius, width float64, r, g, bl float32, alpha float64, o blendOp) {
-	fcx, fcy := cx*float64(fSSV()), cy*float64(fSSV())
-	fr := radius * float64(fSSV())
-	fw := math.Max(width*float64(fSSV()), 0.5)
-	feather := float64(fSSV()) * 0.75
+	fss := float64(fSSV())
+	asp := b.aspectCorr()
+	fcx, fcy := cx*fss, cy*fss
+	fr := radius * fss
+	fw := math.Max(width*fss, 0.5)
+	feather := fss * 0.75
 	px0 := int(math.Floor(fcx - fr - fw/2 - feather))
 	px1 := int(math.Ceil(fcx + fr + fw/2 + feather))
-	py0 := int(math.Floor(fcy - fr - fw/2 - feather))
-	py1 := int(math.Ceil(fcy + fr + fw/2 + feather))
+	py0 := int(math.Floor(fcy - (fr+fw/2+feather)/asp))
+	py1 := int(math.Ceil(fcy + (fr+fw/2+feather)/asp))
 	for py := py0; py < py1; py++ {
 		for px := px0; px < px1; px++ {
-			dx, dy := float64(px)+0.5-fcx, float64(py)+0.5-fcy
+			dx := float64(px) + 0.5 - fcx
+			dy := (float64(py) + 0.5 - fcy) * asp
 			dd := math.Abs(math.Sqrt(dx*dx+dy*dy)-fr) - fw/2
 			if dd >= feather {
 				continue
@@ -280,14 +302,17 @@ func (b *fbuf) strokeCircleF(cx, cy, radius, width float64, r, g, bl float32, al
 
 // strokeLineF strokes a line with the given width (sub-cell units).
 func (b *fbuf) strokeLineF(x0, y0, x1, y1, width float64, r, g, bl float32, alpha float64, o blendOp) {
-	fx0, fy0, fx1, fy1 := x0*float64(fSSV()), y0*float64(fSSV()), x1*float64(fSSV()), y1*float64(fSSV())
-	fw := width * float64(fSSV())
-	minX := int(math.Floor(math.Min(fx0, fx1) - fw - 1))
-	maxX := int(math.Ceil(math.Max(fx0, fx1) + fw + 1))
-	minY := int(math.Floor(math.Min(fy0, fy1) - fw - 1))
-	maxY := int(math.Ceil(math.Max(fy0, fy1) + fw + 1))
-	feather := float64(fSSV()) * 0.75
-	dx, dy := fx1-fx0, fy1-fy0
+	fss := float64(fSSV())
+	asp := b.aspectCorr()
+	fx0, fy0s := x0*fss, y0*fss*asp
+	fx1, fy1s := x1*fss, y1*fss*asp
+	fw := width * fss
+	feather := fss * 0.75
+	minX := int(math.Floor(math.Min(x0, x1)*fss - fw - 1))
+	maxX := int(math.Ceil(math.Max(x0, x1)*fss + fw + 1))
+	minY := int(math.Floor(math.Min(y0, y1)*fss - (fw+1)/asp))
+	maxY := int(math.Ceil(math.Max(y0, y1)*fss + (fw+1)/asp))
+	dx, dy := fx1-fx0, fy1s-fy0s
 	len2 := dx*dx + dy*dy
 	if len2 == 0 {
 		b.fillCircleF(x0, y0, width/2, r, g, bl, alpha, o)
@@ -295,8 +320,10 @@ func (b *fbuf) strokeLineF(x0, y0, x1, y1, width float64, r, g, bl float32, alph
 	}
 	for py := minY; py < maxY; py++ {
 		for px := minX; px < maxX; px++ {
-			t := clampf(((float64(px)+0.5-fx0)*dx+(float64(py)+0.5-fy0)*dy)/len2, 0, 1)
-			d := math.Hypot(float64(px)+0.5-(fx0+t*dx), float64(py)+0.5-(fy0+t*dy)) - fw/2
+			pxs := float64(px) + 0.5
+			pys := (float64(py) + 0.5) * asp
+			t := clampf(((pxs-fx0)*dx+(pys-fy0s)*dy)/len2, 0, 1)
+			d := math.Hypot(pxs-(fx0+t*dx), pys-(fy0s+t*dy)) - fw/2
 			cov := clampf((feather-d)/feather, 0, 1)
 			if cov <= 0 {
 				continue

@@ -37,6 +37,7 @@ type buffer struct {
 	mode     string
 	sw       int
 	sh       int
+	aspect   float64 // subpixel height / width in screen space
 	fb       *fbuf
 	cells    []subcell
 	layer    []uint8
@@ -68,7 +69,7 @@ const (
 	layerFog
 )
 
-func newBuffer(mode string, w, h int, p *paletteModel) *buffer {
+func newBuffer(mode string, w, h int, p *paletteModel, aspect float64) *buffer {
 	sw, sh := w, h
 	switch mode {
 	case ModeHalfblock:
@@ -86,15 +87,23 @@ func newBuffer(mode string, w, h int, p *paletteModel) *buffer {
 	if sh < 1 {
 		sh = 1
 	}
-	fb := newFBuffer(sw, sh)
+	if aspect <= 0 {
+		aspect = SubpixelAspect(mode, DefaultCellPixels())
+	}
+	fb := newFBuffer(sw, sh, aspect)
 	if p != nil {
 		r, g, b := p.rgbF(p.base)
 		fb.baseFill(r, g, b)
 	}
 	return &buffer{
-		mode: mode, sw: sw, sh: sh, fb: fb,
+		mode:    mode,
+		sw:      sw,
+		sh:      sh,
+		aspect:  aspect,
+		fb:      fb,
 		cells:   make([]subcell, sw*sh),
 		layer:   make([]uint8, sw*sh),
+		regions: make([]layerRegion, 0, 4),
 		palette: p,
 	}
 }

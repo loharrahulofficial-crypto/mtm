@@ -9,7 +9,7 @@ import (
 
 func TestGradientVerticalNoBanding(t *testing.T) {
 	m := testPalette()
-	fb := newFBuffer(4, 24) // tall raster, same gradient stretched vertically
+	fb := newFBuffer(4, 24, 1) // tall raster, same gradient stretched vertically
 	baseR, baseG, baseB := m.rgbF(m.base)
 	fb.baseFill(baseR, baseG, baseB)
 	top := m.lookup["#14282d"]

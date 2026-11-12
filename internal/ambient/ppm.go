@@ -2,6 +2,7 @@ package ambient
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 )
@@ -289,23 +290,32 @@ func decodeRune(s string) (rune, int) {
 	return 0, 0
 }
 
-// WritePPM renders the frame to a binary PPM (P6). Each grid pixel
-// becomes scale x scale pixels.
-func WritePPM(path string, lines []Line, scale int) error {
+// WritePPM renders the frame to a binary PPM (P6). Each subpixel cell
+// becomes scale pixels wide and scale*aspect pixels tall (the on-screen
+// aspect of a subpixel), so review images show what the terminal shows.
+// A non-positive aspect falls back to square subpixels.
+func WritePPM(path string, lines []Line, scale int, aspect float64) error {
 	if scale < 1 {
 		scale = 4
+	}
+	if aspect <= 0 {
+		aspect = 1
+	}
+	subPixH := int(math.Round(float64(scale) * aspect))
+	if subPixH < 1 {
+		subPixH = 1
 	}
 	w, h, px := DecodeFrame(lines)
 	if w == 0 || h == 0 {
 		return fmt.Errorf("empty frame")
 	}
-	pw, ph := w*scale, h*scale
+	pw, ph := w*scale, h*subPixH
 	header := fmt.Sprintf("P6\n%d %d\n255\n", pw, ph)
 	pixCount := pw * ph * 3
 	buf := make([]byte, 0, len(header)+pixCount)
 	buf = append(buf, []byte(header)...)
 	for y := 0; y < ph; y++ {
-		sy := y / scale
+		sy := y / subPixH
 		for x := 0; x < pw; x++ {
 			sx := x / scale
 			c := px[sy*w+sx]

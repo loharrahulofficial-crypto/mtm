@@ -51,6 +51,16 @@ type SceneState struct {
 	// embedded windows (sidebar, Home corner, settings preview) use the
 	// aspect-adaptive horizon instead.
 	FullFrame bool
+	// CellW/CellH are the real terminal cell size in pixels. When zero,
+	// the 9:17 fallback is used. Primitives render in aspect-corrected
+	// scene space so shapes are correct on screen.
+	CellW float64
+	CellH float64
+}
+
+// subpixelAspect returns the subpixel height/width ratio for mode.
+func (s SceneState) subpixelAspect(mode string) float64 {
+	return SubpixelAspect(mode, CellPixels{W: s.CellW, H: s.CellH})
 }
 
 // Palette carries the resolved theme roles the scenes paint with.

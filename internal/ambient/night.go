@@ -229,6 +229,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	yBot := layH + (layH-(mY-mR))*squash
 	ssF := float64(fSSV())
 	fb := b.fb
+	aspF := fb.aspectCorr()
 	for py := int(yTop * ssF); py < int(yBot*ssF); py++ {
 		pyf := float64(py)/ssF + 0.5/ssF
 		if pyf <= layH || py >= fb.ph {
@@ -242,7 +243,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 				continue
 			}
 			pxf := float64(px)/ssF + 0.5/ssF
-			col, cov := moonShade(mX, mY, mR, phase, mCols, pxf-dx, srcY)
+			col, cov := moonShade(mX, mY, mR, phase, mCols, pxf-dx, srcY, aspF)
 			a := cov * 0.42 * shim
 			if a <= 0.02 {
 				continue

@@ -61,7 +61,7 @@ func TestScrimDarkensCenterAndFadesToScene(t *testing.T) {
 
 func TestScrimGradientOnUniformBackdrop(t *testing.T) {
 	p := paletteFor(DefaultPalette())
-	b := newBuffer(ModeHalfblock, 40, 10, p)
+	b := newBuffer(ModeHalfblock, 40, 10, p, SubpixelAspect(ModeHalfblock, DefaultCellPixels()))
 	b.fillRectHexF(0, 0, 40, 20, "#ffffff", 1, opNormal)
 	scrim := Scrim{CX: 20, CY: 5, RadiusX: 8, RadiusY: 2, Strength: 0.55}
 	applyScrims(b, []Scrim{scrim}, 1, 2)
