@@ -85,8 +85,12 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	cyan := state.Palette.Cyan
 	bright := state.Palette.BrightText
 
-	// --- sky: deep zenith fading to a warm haze at the horizon
-	b.fillGradientHex(0, 0, W, H, rmp.SkyTop, rmp.SkyHorizon, 1, opNormal)
+	// --- sky: deep zenith to a lifted cool teal at the horizon,
+	// interpolated in OKLab (Base → Blue → Cyan), never through the old
+	// brown. The far ridge rides on top at the horizon line.
+	fillSkyOKLab(b, 0, 0, W, H, nightSkyStops(state.Palette), opNormal)
+	// a whisper of warm haze right at the horizon — the one warm note allowed
+	b.fillRectHexF(0, lay.Horizon-H*0.018, W, lay.Horizon+0.4, state.Palette.AccentSoft, 0.10, opNormal)
 
 	// --- aurora ribbons: two additive noise curtains, slow vertical shimmer
 	b.beginLayer(layerSky, 0, 0, sw(b), minInt(sh(b), sh(b)/2+2))

@@ -131,6 +131,19 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   scenes at 100x30 and 200x50). Embedded windows (sidebar, Home
   corner, settings preview) keep the aspect-adaptive horizon.
 
+- **Night sky in OKLab** (2026-11-12): the sky is a multi-stop vertical
+  gradient interpolated in OKLab from the theme `Base` at the zenith
+  through `Blue` into a lifted cool teal at the horizon (a whisper of
+  `BrightText` lift so the horizon reads as air, not a flat band). The
+  muddy brown — `Base` blended toward the warm accent — is gone.
+  `AccentSoft` survives only as a faint warm haze at the horizon line
+  (10% alpha). The renderer writes the gradient per-pixel in OKLab; the
+  stops are shared with the test. `TestNightSkyStaysCool` pins every
+  gradient point and every rendered row (median hue of chromatic pixels)
+  to the 170–260° cool band for the default theme and for derived
+  light and warm themes (roles derived via `theme.Derive`, chroma floor
+  0.045 — below it hue is undefined by the eye).
+
 - **The moon is a lit sphere** (2026-11-12): every scene draws the moon
   from a per-pixel physical model — Lambert diffuse from the real local
   phase (n·l over the visible hemisphere, so waxing phases light the
