@@ -133,12 +133,19 @@ func (s *mountainsScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h
 		body = rmp.ApplyHaze(body, clampf(depth, 0, 1))
 		baseY := lay.Horizon - H*0.055 + float64(layer)*H*0.055
 		amp := H * (0.085 - float64(layer)*0.014)
-		freq := 0.014 + float64(layer)*0.011
-		for x := 0.0; x < W; x += 0.75 {
-			fy := baseY + sil.At(x*freq+float64(layer)*17.3, 3.0+float64(layer)*2.1)*amp
-			b.fillGradientHex(x, fy, x+0.75, H, body, blendHex(body, base, 0.45), 1, opNormal)
-			// snow stipple on the two nearest crests above the snowline
-			if layer >= 2 {
+		freq := 0.030 + float64(layer)*0.014
+		spAmp := 0.0
+		spFreq := 0.05
+		if layer >= 2 {
+			spAmp = H * (0.015 + float64(layer-2)*0.012)
+			spFreq = 0.05 + float64(layer-2)*0.012
+		}
+		p := ridgeParams{swellAmp: amp, swellFreq: freq, spireAmp: spAmp, spireFreq: spFreq, phase: 3.0 + float64(layer)*2.1}
+		paintRidgeLayer(b, sil, W, treelineLayer{baseY: baseY, yBot: H, params: p, crest: body, base: blendHex(body, base, 0.45)})
+		// snow stipple on the two nearest crests above the snowline
+		if layer >= 2 {
+			for x := 0.0; x < W; x += 0.75 {
+				fy := ridgeHeightAt(sil, x, baseY, p)
 				snowY := baseY - amp*0.55
 				if fy < snowY {
 					edge := snowY + sil.At(x*0.16+float64(layer)*7.7, 9.1)*amp*0.16

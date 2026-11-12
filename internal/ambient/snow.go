@@ -76,28 +76,25 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 		b.fillCircleHexF(moonX+term, moonY, moonR, shadowCol, 0.95, opNormal)
 	}
 
-	// --- treeline: far hazy, near darker
+	// --- treeline: three depth layers — a hazier far line and the near
+	// pines, continuous serrated ridgelines with a vertical absolute-y
+	// gradient; a touch of mist sits at the base.
 	sil := cachedPerlin(state.Seed, 641)
 	groundY := lay.Horizon
 	b.anchor("horizon", 0, lay.Horizon-0.01, W, lay.Horizon+0.01)
 	b.beginLayer(layerLand, 0, int(lay.Horizon-H*0.28), sw(b), sh(b))
-	// far pines: sparse, faint, atmospheric haze
-	for x := 0.0; x < W; x += 0.8 {
-		gy := groundY + sil.At(x*0.028+9.1, 4.2)*1.6
-		treeH := H * 0.10 * (sil.At(x*0.06+21.4, 3.3) + 1.5)
-		farCol := rmp.ApplyHaze(state.Palette.SurfaceStrong, 0.74)
-		b.fillGradientHex(x, gy-treeH, x+0.8, gy+1.2, farCol, blendHex(farCol, base, 0.4), 1, opNormal)
+	nearCol := blendHex(base, state.Palette.SurfaceStrong, 0.18)
+	farCrest := rmp.ApplyHaze(state.Palette.SurfaceStrong, 0.74)
+	snowMidCrest := blendHex(blendHex(base, state.Palette.SurfaceStrong, 0.24), farCrest, 0.4)
+	layers := []treelineLayer{
+		{baseY: groundY + H*0.006, yBot: groundY + H*0.014, params: ridgeParams{swellAmp: H * 0.034, swellFreq: 0.028, spireAmp: H * 0.075, spireFreq: 0.150, phase: 21.4}, crest: farCrest, base: blendHex(farCrest, base, 0.42)},
+		{baseY: groundY + H*0.010, yBot: groundY + H*0.020, params: ridgeParams{swellAmp: H * 0.024, swellFreq: 0.032, spireAmp: H * 0.090, spireFreq: 0.250, phase: 15.0}, crest: snowMidCrest, base: blendHex(snowMidCrest, base, 0.42)},
+		{baseY: groundY + H*0.016, yBot: groundY + H*0.030, params: ridgeParams{swellAmp: H * 0.020, swellFreq: 0.035, spireAmp: H * 0.115, spireFreq: 0.340, phase: 31.3}, crest: nearCol, base: blendHex(nearCol, base, 0.42)},
 	}
-	// near pines: taller, darker
-	for x := 0.0; x < W; x += 1.0 {
-		gy := groundY + sil.At(x*0.035+13.7, 7.9)*1.9 + 2.5
-		treeH := H * 0.17 * (sil.At(x*0.08+31.3, 5.1) + 1.45)
-		nearCol := blendHex(base, state.Palette.SurfaceStrong, 0.18)
-		for i := 0; i < 4; i++ {
-			tb := float64(i) / 4
-			width := treeH * 0.34 * (tb*0.9 + 0.24)
-			yC := gy - treeH*(1-tb) + treeH*0.15
-			b.fillGradientHex(x+0.5-width, yC, x+0.5+width, yC+treeH*0.22, nearCol, blendHex(nearCol, base, 0.4), 1, opNormal)
+	for _, layer := range layers {
+		paintRidgeLayer(b, sil, W, layer)
+		if layer.baseY == layers[1].baseY {
+			paintMistBase(b, cachedPerlin(state.Seed, 661), ts, W, H, groundY+H*0.012, blendHex(rmp.Haze, base, 0.3), 5.1)
 		}
 	}
 	b.endLayer()

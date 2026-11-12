@@ -114,28 +114,28 @@ func (s *rainScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 		}
 	}
 
-	// --- far pine line (hazy, atmospheric perspective)
+	// --- treeline: three depth layers — far haze, a mid line, near
+	// pines — continuous serrated ridgelines with a vertical absolute-y
+	// gradient; mist sits at the base.
 	sil := cachedPerlin(state.Seed, 311)
 	b.beginLayer(layerLand, 0, int(H*0.55), sw(b), sh(b))
-	for x := 0.0; x < W; x += 0.7 {
-		gy := groundY + sil.At(x*0.024+3.1, 4.9)*2.2
-		treeH := H * 0.09 * (sil.At(x*0.09+9.7, 2.3) + 1.4)
-		farCol := rmp.ApplyHaze(state.Palette.SurfaceStrong, 0.68)
-		b.fillGradientHex(x, gy-treeH, x+0.7, gy+1.5, farCol, blendHex(farCol, base, 0.4), 1, opNormal)
+	nearCol := blendHex(base, state.Palette.SurfaceStrong, 0.14)
+	farCrest := rmp.ApplyHaze(state.Palette.SurfaceStrong, 0.68)
+	rainMidCrest := blendHex(blendHex(base, state.Palette.SurfaceStrong, 0.20), farCrest, 0.4)
+	layers := []treelineLayer{
+		{baseY: groundY + H*0.006, yBot: groundY + H*0.014, params: ridgeParams{swellAmp: H * 0.040, swellFreq: 0.024, spireAmp: H * 0.075, spireFreq: 0.150, phase: 4.9}, crest: farCrest, base: blendHex(farCrest, base, 0.42)},
+		{baseY: groundY + H*0.010, yBot: groundY + H*0.020, params: ridgeParams{swellAmp: H * 0.028, swellFreq: 0.028, spireAmp: H * 0.090, spireFreq: 0.240, phase: 12.7}, crest: rainMidCrest, base: blendHex(rainMidCrest, base, 0.42)},
+		{baseY: groundY + H*0.016, yBot: groundY + H*0.028, params: ridgeParams{swellAmp: H * 0.024, swellFreq: 0.030, spireAmp: H * 0.125, spireFreq: 0.340, phase: 27.9}, crest: nearCol, base: blendHex(nearCol, base, 0.42)},
 	}
-	// --- near pine line (dark silhouette)
-	for x := 0.0; x < W; x += 1.1 {
-		gy := groundY + sil.At(x*0.03+17.3, 8.1)*2.4 + 3
-		treeH := H * 0.13 * (sil.At(x*0.07+27.9, 6.7) + 1.5)
-		nearCol := blendHex(base, state.Palette.SurfaceStrong, 0.14)
-		for i := 0; i < 3; i++ {
-			tb := float64(i) / 3
-			width := treeH * 0.36 * (tb*0.85 + 0.3)
-			yC := gy - treeH*(1-tb) + treeH*0.18
-			b.fillGradientHex(x+0.55-width, yC, x+0.55+width, yC+treeH*0.26, nearCol, blendHex(nearCol, base, 0.4), 1, opNormal)
+	for _, layer := range layers {
+		paintRidgeLayer(b, sil, W, layer)
+		if layer.baseY == layers[1].baseY {
+			paintMistBase(b, cachedPerlin(state.Seed, 401), ts, W, H, groundY+H*0.012, blendHex(rmp.Haze, base, 0.3), 9.7)
 		}
 	}
-	// --- mist at the base: drifting soft light
+	b.endLayer()
+
+	// --- high mist drifting above the ridge line
 	b.beginLayer(layerFog, 0, int(H*0.62), sw(b), sh(b))
 	for i := 0; i < 5; i++ {
 		mx := math.Mod(ts*1.7+float64(i)*W*0.27, W+50) - 25

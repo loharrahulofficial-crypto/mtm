@@ -237,21 +237,11 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	shimmerAt := func(y float64) float64 {
 		return 0.70 + 0.30*math.Sin(y*1.6-ts*0.85+sil.At(y*0.5, 11.3)*1.4)
 	}
-	// tree heights are computed once and shared by the treeline reflection
-	// and the silhouette that stands along the shoreline
-	treeN := int(W/0.75) + 2
-	tHgt := make([]float64, treeN)
+	// treeline depth layers: the far haze ridge, a mid line, and the
+	// near pines (farther = lighter and hazier). The near layer also
+	// drives the lake's treeline reflection.
 	pine := blendHex(base, surfaceStrong, 0.08)
-	for i := range tHgt {
-		x := float64(i) * 0.75
-		tree := sil.At(x*0.09+40, 3.3)
-		hgt := H * 0.030
-		if tree > 0.30 {
-			hgt += (tree - 0.30) * (tree - 0.30) * H * 0.85
-		}
-		hgt += sil.At(x*0.35+77, 5.1) * H * 0.022
-		tHgt[i] = hgt
-	}
+	layers := nightTreelineLayers(H, layH, surfaceStrong, base, rmp)
 	lakeTop := blendHex(rmp.SkyHorizon, base, 0.38)
 	lakeBot := blendHex(base, state.Palette.Blue, 0.12)
 	b.beginLayer(layerSea, 0, int(layH), sw(b), sh(b))
@@ -346,34 +336,62 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		b.fillEllipseHexF(mX+off+rippleAt(y), y, 0.5+0.5*a, 0.16, blendHex(bright, base, 0.45+depth*0.3), a*0.75, opAdd)
 	}
 	// treeline reflection: flipped, dim, jagged — anchored to the shoreline
-	for i := 0; i < treeN; i++ {
-		x := float64(i) * 0.75
-		top := layH + 1 + tHgt[i]*0.5
-		b.fillRectHexF(x, layH+0.8, x+0.75, top, pine, 0.35, opNormal)
+	nearYBot := layers[2].yBot
+	for i := 0; float64(i)*0.25 < W; i++ {
+		x := float64(i) * 0.25
+		relH := nearYBot - ridgeHeightAt(sil, x, layers[2].baseY, layers[2].params)
+		top := layH + 1 + relH*0.5
+		b.fillRectHexF(x, layH+0.8, x+0.25, top, pine, 0.35, opNormal)
 	}
 	b.endLayer()
 
-	// --- horizon: far hazy ridge, then a jagged near pine line. The near
-	// band is one continuous noise-driven silhouette — sparse spires where
-	// the tree noise crests — never individual stripy columns. Both sit
-	// on the shoreline: their bases reach a hair below the horizon row
-	// and the lake begins again beneath them.
-	farY := lay.Horizon
-	nearY := lay.Horizon + H*0.045
+	// --- horizon: the treeline in three depth layers — a far haze ridge,
+	// a hazier mid line, and the near pines — continuous serrated
+	// ridgelines, each filled with a vertical absolute-y gradient (no
+	// striping). The bases reach a hair below the horizon row; the lake
+	// begins again beneath them.
 	b.anchor("horizon", 0, lay.Horizon-0.01, W, lay.Horizon+0.01)
-	b.beginLayer(layerLand, 0, int(lay.Horizon-H*0.18), sw(b), sh(b))
-	for x := 0.0; x < W; x += 0.75 {
-		fy := farY + sil.At(x*0.016+3.1, 7.3)*H*0.055
-		ny := nearY + sil.At(x*0.021+11.7, 1.9)*H*0.045
-		fc := rmp.ApplyHaze(surfaceStrong, 0.72)
-		// far ridge fill (base a sliver below the horizon)
-		b.fillGradientHex(x, fy, x+0.75, layH+H*0.014, fc, blendHex(fc, base, 0.4), 1, opNormal)
-		// jagged pine silhouette (thin shoreline base below the horizon)
-		i := int(x / 0.75)
-		hgt := tHgt[i]
-		b.fillGradientHex(x, ny-hgt, x+0.75, layH+H*0.028, pine, blendHex(pine, base, 0.4), 1, opNormal)
+	b.beginLayer(layerLand, 0, int(lay.Horizon-H*0.22), sw(b), sh(b))
+	for i, layer := range layers {
+		paintRidgeLayer(b, sil, W, layer)
+		if i == 1 {
+			paintMistBase(b, cachedPerlin(state.Seed, 311), ts, W, H, layH+H*0.012, blendHex(rmp.Haze, base, 0.3), 3.3)
+		}
 	}
 	b.endLayer()
+}
+
+// nightTreelineLayers defines the three shoreline layers of the night
+// treeline: the far haze ridge, a mid depth line, and the near pines —
+// farther layers lighter and hazier. Single source for the painter and
+// the banding test.
+func nightTreelineLayers(H, layH float64, surfStrong, base string, rmp Ramps) []treelineLayer {
+	farCrest := rmp.ApplyHaze(surfStrong, 0.72)
+	midCrest := blendHex(blendHex(base, surfStrong, 0.22), farCrest, 0.35)
+	pine := blendHex(base, surfStrong, 0.08)
+	return []treelineLayer{
+		{
+			baseY:  layH + H*0.008,
+			yBot:   layH + H*0.012,
+			params: ridgeParams{swellAmp: H * 0.050, swellFreq: 0.016, spireAmp: H * 0.075, spireFreq: 0.150, phase: 7.3},
+			crest:  farCrest,
+			base:   blendHex(farCrest, base, 0.42),
+		},
+		{
+			baseY:  layH + H*0.010,
+			yBot:   layH + H*0.020,
+			params: ridgeParams{swellAmp: H * 0.032, swellFreq: 0.023, spireAmp: H * 0.105, spireFreq: 0.260, phase: 21.7},
+			crest:  midCrest,
+			base:   blendHex(midCrest, base, 0.42),
+		},
+		{
+			baseY:  layH + H*0.016,
+			yBot:   layH + H*0.028,
+			params: ridgeParams{swellAmp: H * 0.020, swellFreq: 0.031, spireAmp: H * 0.125, spireFreq: 0.340, phase: 40.2},
+			crest:  pine,
+			base:   blendHex(pine, base, 0.45),
+		},
+	}
 }
 
 // glowHexAt adds a small additive glow dab at float position.

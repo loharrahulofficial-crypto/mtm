@@ -211,25 +211,26 @@ func (s *meteorScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h in
 	}
 	b.endLayer()
 
-	// --- horizon: rugged far ridge and a jagged pine line, silhouetted
+	// --- horizon: three depth layers — a hazier far ridge, a mid line,
+	// and the near pines — continuous serrated ridgelines with a vertical
+	// absolute-y gradient; mist sits at the base.
 	sil := cachedPerlin(state.Seed, 511)
 	farY := lay.Horizon
-	nearY := lay.Horizon + H*0.10
 	b.anchor("horizon", 0, lay.Horizon-0.01, W, lay.Horizon+0.01)
 	b.beginLayer(layerLand, 0, int(lay.Horizon-H*0.20), sw(b), sh(b))
 	pine := blendHex(base, state.Palette.SurfaceStrong, 0.06)
-	for x := 0.0; x < W; x += 0.75 {
-		fy := farY + sil.At(x*0.013+9.7, 4.4)*H*0.075
-		ny := nearY + sil.At(x*0.024+3.9, 8.8)*H*0.04
-		fc := rmp.ApplyHaze(state.Palette.SurfaceStrong, 0.7)
-		b.fillGradientHex(x, fy, x+0.75, H, fc, blendHex(fc, base, 0.45), 1, opNormal)
-		tree := sil.At(x*0.085+21, 6.6)
-		hgt := H * 0.026
-		if tree > 0.28 {
-			hgt += (tree - 0.28) * (tree - 0.28) * H * 0.85
+	fc := rmp.ApplyHaze(state.Palette.SurfaceStrong, 0.7)
+	midCrest := blendHex(blendHex(base, state.Palette.SurfaceStrong, 0.18), fc, 0.45)
+	layers := []treelineLayer{
+		{baseY: farY + H*0.008, yBot: farY + H*0.012, params: ridgeParams{swellAmp: H * 0.052, swellFreq: 0.013, spireAmp: H * 0.075, spireFreq: 0.150, phase: 4.4}, crest: fc, base: blendHex(fc, base, 0.42)},
+		{baseY: farY + H*0.010, yBot: farY + H*0.020, params: ridgeParams{swellAmp: H * 0.032, swellFreq: 0.020, spireAmp: H * 0.105, spireFreq: 0.260, phase: 8.8}, crest: midCrest, base: blendHex(midCrest, base, 0.42)},
+		{baseY: farY + H*0.016, yBot: farY + H*0.028, params: ridgeParams{swellAmp: H * 0.020, swellFreq: 0.031, spireAmp: H * 0.125, spireFreq: 0.340, phase: 21.0}, crest: pine, base: blendHex(pine, base, 0.42)},
+	}
+	for _, layer := range layers {
+		paintRidgeLayer(b, sil, W, layer)
+		if layer.baseY == layers[1].baseY {
+			paintMistBase(b, cachedPerlin(state.Seed, 521), ts, W, H, farY+H*0.012, blendHex(rmp.Haze, base, 0.3), 13.7)
 		}
-		hgt += sil.At(x*0.33+55, 2.2) * H * 0.02
-		b.fillGradientHex(x, ny-hgt, x+0.75, H, pine, blendHex(pine, base, 0.45), 1, opNormal)
 	}
 	b.endLayer()
 }

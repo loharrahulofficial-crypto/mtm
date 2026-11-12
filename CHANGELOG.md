@@ -131,6 +131,17 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   scenes at 100x30 and 200x50). Embedded windows (sidebar, Home
   corner, settings preview) keep the aspect-adaptive horizon.
 
+- **Treeline, rebuilt** (2026-11-12): the treeline in every scene is now
+  a continuous noise-driven jagged silhouette in 2–3 depth layers
+  (far haze ridge, hazier mid line, near pines — farther layers
+  lighter), filled with a vertical absolute-y gradient so every column
+  agrees on the color of every row (the old per-column gradient fills
+  produced the faint vertical striping), with a touch of drifting mist
+  at the base. The banding test pins it: deep inside a layer's fill,
+  adjacent sub-cells must match exactly; below the silhouette the
+  background must stay smooth (only bright features may carry sharp
+  edges). Test: `TestTreelineAndLakeNoVerticalStripes`.
+
 ### Fixed
 
 - **Splash text no longer sits on a plate** (2026-11-11): overlay cells
