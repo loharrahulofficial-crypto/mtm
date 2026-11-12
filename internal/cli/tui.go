@@ -145,6 +145,13 @@ func newTuiCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				if ppmPath != "" {
+					if err := ambient.WritePPM(ppmPath, strings.Split(strings.TrimSuffix(frame, "\n"), "\n"), ppmScale); err != nil {
+						return err
+					}
+					fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", ppmPath)
+					return nil
+				}
 				out := cmd.OutOrStdout()
 				fmt.Fprint(out, frame)
 				if !strings.HasSuffix(frame, "\n") {

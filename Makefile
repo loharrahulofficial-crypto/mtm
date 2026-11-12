@@ -6,7 +6,7 @@ COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X $(MODULE)/internal/cli.version=$(VERSION) -X $(MODULE)/internal/cli.commit=$(COMMIT) -X $(MODULE)/internal/cli.buildDate=$(DATE)
 
-.PHONY: build install uninstall test vet fmt man demo smoke check clean scenes-gallery perf
+.PHONY: build install uninstall test vet fmt man demo smoke check clean scenes-gallery scenes-contact-sheet perf
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/mtm
@@ -66,6 +66,15 @@ uninstall:
 
 clean:
 	rm -rf bin man
+
+# Contact sheets for review: one PNG per scene with a 2x2 grid of frames
+# (t = 0, 3, 8, 15 s) at 100x30, plus the same sheet at 24x10, 40x14 and
+# 200x50, plus the splash at t = 0.3, 1.2, 2.8 s at 100x30 and 200x50.
+# Tile order in every grid: TL = t0, TR = t3, BL = t8, BR = t15.
+# Writes into a fresh temp dir and prints every path it writes.
+OUT_CS := $(shell mktemp -d /tmp/mtm-contact-sheet-XXXXXX)
+scenes-contact-sheet: build
+	@python3 contrib/scenes-contact-sheet.py "$(OUT_CS)"
 
 # Write one PPM and one PNG per scene x size into $(OUT) (default: a
 # sandbox temp dir). Sizes: 24x10 30x16 40x14 64x16 100x30 200x50.

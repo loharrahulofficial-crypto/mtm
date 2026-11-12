@@ -106,6 +106,18 @@ func TestNightSkyStaysCool(t *testing.T) {
 			r := sc.FramePixels(3*time.Second, 100, 30, st)
 			lay := layoutForState(st, float64(r.W), float64(r.H))
 			hazTop := lay.Horizon - float64(r.H)*0.018 - 1
+			// sweep only rows ABOVE the aurora — the aurora ribbons
+			// (Cyan/Success/Magenta) are content, not sky
+			ribMin := math.Inf(1)
+			for _, rib := range auroraRibbons(st) {
+				top := rib.baseY*float64(r.H) - rib.thick*float64(r.H)
+				if top < ribMin {
+					ribMin = top
+				}
+			}
+			if int(hazTop) > int(ribMin)-1 {
+				hazTop = float64(int(ribMin) - 1)
+			}
 			for y := 0; y < int(hazTop); y++ {
 				hues := []float64{}
 				for x := 0; x < r.W; x++ {

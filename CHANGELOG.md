@@ -184,6 +184,12 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   background must stay smooth (only bright features may carry sharp
   edges). Test: `TestTreelineAndLakeNoVerticalStripes`.
 
+- **Review tooling** (2026-11-12): `make scenes-contact-sheet` renders
+  every scene to one PNG per size (24x10, 40x14, 100x30, 200x50) with a
+  2x2 grid of frames at t = 0, 3, 8, 15 s under a temp dir, plus splash
+  dumps at t = 0.3, 1.2 and 2.8 s at 100x30 and 200x50. `--ppm` now
+  works for `--splash-t` too.
+
 ### Fixed
 
 - **Splash text no longer sits on a plate** (2026-11-11): overlay cells
