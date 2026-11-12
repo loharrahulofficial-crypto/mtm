@@ -189,6 +189,12 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   2x2 grid of frames at t = 0, 3, 8, 15 s under a temp dir, plus splash
   dumps at t = 0.3, 1.2 and 2.8 s at 100x30 and 200x50. `--ppm` now
   works for `--splash-t` too.
+- **Campfire sky and moon** (2026-11-12): the campfire scene now uses the
+  same cool OKLab night gradient (Base → Blue → Cyan, the fire stays the
+  only warm light in the frame) with the faint `AccentSoft` horizon haze,
+  and its moon is the shared per-pixel Lambert sphere (`paintMoonSphere` —
+  real phase, earthshine, maria, gaussian halo) instead of the old
+  disc-stack. Campfire goldens regenerated (sphere moon + cool OKLab sky).
 
 ### Fixed
 

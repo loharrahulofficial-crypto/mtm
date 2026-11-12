@@ -33,11 +33,13 @@ func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h 
 	H := float64(sh(b))
 	lay := layoutForState(state, W, H)
 	base := state.Palette.Base
-	rmp := BuildRamps(state.Palette)
 	ts := tSecF(t)
 
-	// --- sky: a dark ramp gradient with a dim moon and stars
-	b.fillGradientHex(0, 0, W, H, blendHex(rmp.SkyTop, base, 0.2), blendHex(rmp.SkyHorizon, base, 0.45), 1, opNormal)
+	// --- sky: the same cool OKLab night gradient as the other night
+	// scenes — the fire is the only warm light in the frame
+	nightStops := nightSkyStops(state.Palette)
+	fillSkyOKLab(b, 0, 0, W, H, nightStops, opNormal)
+	b.fillRectHexF(0, lay.Horizon-H*0.018, W, lay.Horizon+0.4, state.Palette.AccentSoft, 0.10, opNormal)
 
 	moonR := lay.MinDim * 0.085
 	if moonR < 1.6 {
@@ -48,17 +50,13 @@ func (s *campfireScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h 
 	if moonY < moonR+0.5 {
 		moonY = moonR + 0.5
 	}
+	skyAtCampfire := blendHex(nightStops[2].hex, nightStops[3].hex, clampf(moonY/(H*0.75), 0, 1))
+	campfireCols := sphereCols(state.Palette.BrightText, base, skyAtCampfire)
 	b.anchor("moon", moonX-moonR, moonY-moonR, moonX+moonR, moonY+moonR)
 	phase := moonPhase(state.Now)
-	b.fillCircleHexF(moonX, moonY, moonR*1.6, blendHex(state.Palette.BrightText, base, 0.8), 0.4, opAdd)
-	b.fillCircleHexF(moonX, moonY, moonR, blendHex(state.Palette.BrightText, base, 0.62), 1, opNormal)
-	shadowCol := blendHex(state.Palette.Surface, base, 0.35)
-	term := math.Cos(2*math.Pi*phase) * moonR
-	if moonWaxing(phase) {
-		b.fillCircleHexF(moonX-term, moonY, moonR, shadowCol, 0.9, opNormal)
-	} else {
-		b.fillCircleHexF(moonX+term, moonY, moonR, shadowCol, 0.9, opNormal)
-	}
+	b.beginLayer(layerCelestial, int(moonX-moonR-2), int(moonY-moonR-2), int(moonX+moonR+3), int(moonY+moonR+3))
+	paintMoonSphere(b, moonX, moonY, moonR, phase, ts, campfireCols, haloCol(state.Palette.BrightText, state.Palette.Accent))
+	b.endLayer()
 	for _, st := range nightStars(state.Seed, sw(b), sh(b)) {
 		if st.mag < 0.55 {
 			continue
