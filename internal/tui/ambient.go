@@ -561,7 +561,7 @@ func (m Model) renderSplash() string {
 	const taglineText = "a calmer desk for your courses"
 	const hintText = "press any key to skip"
 	scrims := []ambient.Scrim{
-		{CX: float64(wmX) + float64(wordW)/2, CY: float64(wmTop) + float64(wmRows)/2, RadiusX: float64(wordW)/2 + 4, RadiusY: float64(wmRows)/2 + 2.6, Strength: 0.55},
+		{CX: float64(wmX) + float64(wordW)/2, CY: float64(wmTop) + float64(wmRows)/2, RadiusX: float64(wordW)/2 + 12, RadiusY: float64(wmRows)/2 + 3.4, Strength: 0.75},
 		{CX: float64(w) / 2, CY: float64(tagY) + 0.5, RadiusX: float64(fastWidth(taglineText))/2 + 4, RadiusY: 2.1, Strength: 0.55},
 		{CX: float64(w) / 2, CY: float64(h-2) + 0.5, RadiusX: float64(fastWidth(hintText))/2 + 4, RadiusY: 1.8, Strength: 0.55},
 	}

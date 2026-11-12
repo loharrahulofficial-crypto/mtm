@@ -42,9 +42,12 @@ type starv struct {
 
 func nightStars(seed int64, w, h int) []starv {
 	r := newRNG(seed, 17)
-	n := clampf(float64(w*h)/11, 25, 130)
-	out := make([]starv, 0, int(n))
-	for i := 0; i < int(n); i++ {
+	n := int(float64(w*h) / 11)
+	if n < 25 {
+		n = 25
+	}
+	out := make([]starv, 0, n)
+	for i := 0; i < n; i++ {
 		mag := r.float64()
 		mag = mag * mag // bias toward dim stars
 		out = append(out, starv{
@@ -82,7 +85,6 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	ts := float64(wrapT(t, 10*time.Minute)) / float64(time.Second)
 	base := state.Palette.Base
 	surfaceStrong := state.Palette.SurfaceStrong
-	cyan := state.Palette.Cyan
 	bright := state.Palette.BrightText
 
 	// --- sky: deep zenith to a lifted cool teal at the horizon,
@@ -92,37 +94,11 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	// a whisper of warm haze right at the horizon — the one warm note allowed
 	b.fillRectHexF(0, lay.Horizon-H*0.018, W, lay.Horizon+0.4, state.Palette.AccentSoft, 0.10, opNormal)
 
-	// --- aurora ribbons: two additive noise curtains, slow vertical shimmer
+	// --- aurora: three curtains (bright foot, fading upward), plus a
+	// whisper of Milky Way arcing behind them
 	b.beginLayer(layerSky, 0, 0, sw(b), minInt(sh(b), sh(b)/2+2))
-	aura := cachedPerlin(state.Seed, 71)
-	for ribbon := 0; ribbon < 2; ribbon++ {
-		ribbonCol := cyan
-		if ribbon == 1 {
-			// second ribbon leans emerald by blending toward success
-			ribbonCol = blendHex(state.Palette.Success, state.Palette.Cyan, 0.35)
-		}
-		for x := 0.0; x < W; x += 0.5 {
-			fx := x / W
-			cen := H*0.16 + float64(ribbon)*H*0.10 +
-				aura.At(fx*3.4+float64(ribbon)*13.7, ts*0.07+float64(ribbon)*7.3)*H*0.13
-			thick := 0.7 + aura.At(fx*5.3+float64(ribbon)*29.1, ts*0.11+3.0+float64(ribbon)*17.0)*0.85
-			intensity := 0.16 + 0.26*(0.5+0.5*aura.At(fx*2.3+float64(ribbon)*41.0, ts*0.05+float64(ribbon)*23.0))
-			for y := cen - thick; y < cen+thick; y += 0.5 {
-				d := math.Abs(y-cen) / thick
-				// vertical shimmer: the curtain breathes edge-to-edge
-				shimmer := 0.55 + 0.45*math.Sin(ts*1.35+y*1.7+float64(ribbon)*2.1+x*0.06)
-				if shimmer <= 0.05 {
-					continue
-				}
-				cov := (1 - d) * intensity * shimmer
-				if cov <= 0.02 {
-					continue
-				}
-				covPx := clampf(cov, 0, 0.75)
-				b.glowHexAt(x, y, ribbonCol, covPx)
-			}
-		}
-	}
+	paintMilkyWay(b, state, ts)
+	paintAuroraCurtains(b, state, ts, 1.0, 1.0, nil)
 	b.endLayer()
 
 	// --- stars: varied magnitudes, twinkle, and cross-glow on the brightest
@@ -232,32 +208,7 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	b.beginLayer(layerSea, 0, int(layH), sw(b), sh(b))
 	b.fillGradientHex(0, layH, W, H, lakeTop, lakeBot, 1, opNormal)
 	// mirrored aurora curtains (dimmer, compressed, rippling)
-	for ribbon := 0; ribbon < 2; ribbon++ {
-		ribbonCol := cyan
-		if ribbon == 1 {
-			ribbonCol = blendHex(state.Palette.Success, state.Palette.Cyan, 0.35)
-		}
-		for x := 0.0; x < W; x += 0.5 {
-			fx := x / W
-			cen := H*0.16 + float64(ribbon)*H*0.10 + aura.At(fx*3.4+float64(ribbon)*13.7, ts*0.07+float64(ribbon)*7.3)*H*0.13
-			yDest := layH + (layH-cen)*squash
-			thick := (0.7 + aura.At(fx*5.3+float64(ribbon)*29.1, ts*0.11+3.0+float64(ribbon)*17.0)*0.85) * squash
-			intensity := 0.16 + 0.26*(0.5+0.5*aura.At(fx*2.3+float64(ribbon)*41.0, ts*0.05+float64(ribbon)*23.0))
-			for y := yDest - thick; y < yDest+thick; y += 0.5 {
-				if y <= layH+0.3 {
-					continue
-				}
-				d := math.Abs(y-yDest) / thick
-				shimmer := 0.55 + 0.45*math.Sin(ts*1.35+y*1.7+float64(ribbon)*2.1+x*0.06)
-				shimmer *= shimmerAt(y)
-				cov := (1 - d) * intensity * shimmer * 0.55 // the lake dims the curtain
-				if cov <= 0.02 {
-					continue
-				}
-				b.glowHexAt(x+rippleAt(y), y, ribbonCol, clampf(cov, 0, 0.45))
-			}
-		}
-	}
+	paintAuroraCurtains(b, state, ts, squash, 0.55, rippleAt)
 	// mirrored bright stars
 	for _, st := range nightStars(state.Seed, sw(b), sh(b)) {
 		if st.mag < 0.62 {

@@ -131,6 +131,20 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   scenes at 100x30 and 200x50). Embedded windows (sidebar, Home
   corner, settings preview) keep the aspect-adaptive horizon.
 
+- **Aurora as curtains** (2026-11-12): three additive ribbons (Cyan,
+  Success, soft Magenta), each a vertical gradient with a bright foot at
+  its lower edge fading upward — real curtain shape, not a horizontal
+  band — modulated by noise with slow vertical ray shimmer, and
+  mirrored (dimmed) in the still lake. Sparse Milky Way dust arc behind
+  the ribbons. Star density is now area-proportional (no upper clamp),
+  and everything stays sane at tiny terminal sizes (floor of 25).
+  `TestAuroraCurtainFadesUpward`, `TestNightStarCountScalesWithArea`,
+  `TestNightFramesDifferOverTime`. Also fixed along the way:
+  `"non-positive pow base" → NaN` in the curtain profile
+  (math.Pow of a negative base with a fractional exponent produced NaN
+  ink and blew up the ASCII emitter — the curtain profile is now clamped
+  and the pow base is max(0)).
+
 - **Night sky in OKLab** (2026-11-12): the sky is a multi-stop vertical
   gradient interpolated in OKLab from the theme `Base` at the zenith
   through `Blue` into a lifted cool teal at the horizon (a whisper of

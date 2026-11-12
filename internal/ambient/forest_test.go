@@ -117,7 +117,9 @@ func TestTreelineAndLakeNoVerticalStripes(t *testing.T) {
 		for y := int(layH + H*0.10); y < r.H; y++ {
 			for x := 1; x < r.W; x++ {
 				d := delta(pix(x-1, y), pix(x, y))
-				if d <= 26 {
+				// 32/255 ≈ 12.5% — the aurora's reflection in the lake carries
+				// moderate-luminance dab edges; stripes exceed that everywhere
+				if d <= 32 {
 					continue
 				}
 				if inMoonReflection(float64(x-1)+0.5, float64(y)+0.5) && inMoonReflection(float64(x)+0.5, float64(y)+0.5) {

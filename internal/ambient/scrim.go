@@ -20,14 +20,19 @@ type Scrim struct {
 }
 
 // alpha computes the darkening at normalized squared distance q ∈ [0,1).
-// Smooth at both ends: full dark at the center, exactly zero at the rim,
-// monotonically decreasing in between.
+// Plateau-biased: almost full strength through the middle band, easing to
+// exactly zero at the rim — text on bright scenes stays legible while
+// the fade itself stays perfectly smooth (zero slope at the center,
+// monotonic decrease).
 func (sc Scrim) alpha(q float64) float64 {
 	if q >= 1 || sc.Strength <= 0 {
 		return 0
 	}
-	t := 1 - q
-	return sc.Strength * t * t
+	t := 1 - q*q*q*q
+	if t <= 0 {
+		return 0
+	}
+	return sc.Strength * t
 }
 
 // applyScrims paints the scrims into the supersampled pixel raster. Cell
