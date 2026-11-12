@@ -43,8 +43,8 @@ func (s *mountainsScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h
 	// --- sky: one bold dusk gradient, zenith to warm horizon
 	b.fillGradientHex(0, 0, W, H, rmp.SkyTop, rmp.SkyHorizon, 1, opNormal)
 
-	// --- sun: warm disc with a breathing halo, sinking with the timer
-	// arc (work) or holding high (break). Always fully in frame.
+	// --- sun: warm disc with a breathing Gaussian halo, sinking with the
+	// timer arc (work) or holding high (break). Always fully in frame.
 	prog := clampf(state.Progress, 0, 1)
 	if state.Phase == PhaseBreak {
 		prog *= 0.3
@@ -60,8 +60,7 @@ func (s *mountainsScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h
 	b.beginLayer(layerCelestial, maxInt(0, int(sunX-sunR*3)), maxInt(0, int(sunY-sunR*3)), minInt(sw(b), int(sunX+sunR*3)+2), minInt(sh(b), int(sunY+sunR*3)+2))
 	haloPulse := 0.5 + reducedAmp(state, 0.14)*math.Sin(ts*0.42)
 	sunCol := blendHex(warn, bright, 0.35)
-	b.fillCircleHexF(sunX, sunY, sunR*2.4, blendHex(sunCol, rmp.SkyHorizon, 0.55), 0.30*haloPulse+0.15, opAdd)
-	b.fillCircleHexF(sunX, sunY, sunR*1.5, blendHex(sunCol, rmp.SkyHorizon, 0.35), 0.35*haloPulse+0.2, opAdd)
+	b.fillGlowHexF(sunX, sunY, sunR*1.15, 0.32*haloPulse+0.18, blendHex(sunCol, rmp.SkyHorizon, 0.45), opAdd)
 	b.fillCircleHexF(sunX, sunY, sunR, sunCol, 1, opNormal)
 	b.fillCircleHexF(sunX-sunR*0.2, sunY-sunR*0.22, sunR*0.62, blendHex(sunCol, bright, 0.45), 1, opNormal)
 	b.endLayer()
@@ -71,6 +70,8 @@ func (s *mountainsScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h
 	cloud := cachedPerlin(state.Seed, 211)
 	b.beginLayer(layerSky, 0, 0, sw(b), int(lay.Horizon)+1)
 	cloudCol := blendHex(rmp.Haze, rmp.Highlight, 0.22)
+	cloudLight := blendHex(cloudCol, bright, 0.30)
+	cloudDark := blendHex(cloudCol, base, 0.40)
 	for i := 0; i < 4; i++ {
 		cr := newRNG(state.Seed, uint64(910+i*7))
 		cy := H * cr.rangeF(0.05, 0.16)
@@ -83,16 +84,10 @@ func (s *mountainsScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h
 		if cx < -cw {
 			cx += W + cw*2
 		}
-		bumps := 3 + cr.intn(2)
-		for k := 0; k < bumps; k++ {
-			br := newRNG(state.Seed, uint64(930+i*11+k*3))
-			dx := (float64(k)/float64(bumps) - 0.5) * cw
-			dy := cloud.At(float64(i)*3.7+float64(k)*1.3, ts*0.03) * lay.MinDim * 0.02
-			rx := cw * br.rangeF(0.22, 0.34)
-			ry := rx * br.rangeF(0.28, 0.4)
-			a := 0.16 + 0.10*br.float64()
-			b.fillEllipseHexF(cx+dx, cy+dy, rx, ry, cloudCol, a, opNormal)
-		}
+		ch := cw * cr.rangeF(0.14, 0.20)
+		peak := 0.55 + 0.2*cr.float64()
+		phase := float64(i) * 3.7
+		paintCloudMass(b, cx, cy, cw*0.5, ch, phase, cloud, cloudLight, cloudDark, peak)
 	}
 	b.endLayer()
 

@@ -118,6 +118,7 @@ func moonShade(mX, mY, mR, phase float64, cols moonCols, x, y, asp float64) ([3]
 	}
 	nx, ny := dx/mR, dy/mR
 	z := math.Sqrt(math.Max(0, 1-nx*nx-ny*ny))
+	limb := limbDarken(z)
 	// light: psi is the phase angle from full; at full the sun is
 	// face-on (L=+z), at new it is behind the moon (L=-z). Waxing phases
 	// carry the light from the right (northern hemisphere).
@@ -132,10 +133,11 @@ func moonShade(mX, mY, mR, phase float64, cols moonCols, x, y, asp float64) ([3]
 	mv := mariaNoise.At(nx*2.1+3.1, ny*2.1+7.7)
 	mariaDim := 1 - 0.34*clampf((mv-0.12)/0.6, 0, 1)
 	if ndotl > 0 {
-		l := math.Pow(ndotl, 0.55) * mariaDim
+		l := math.Pow(ndotl, 0.55) * mariaDim * limb
 		return [3]float32{cols.lit[0] * float32(l), cols.lit[1] * float32(l), cols.lit[2] * float32(l)}, cov
 	}
-	return [3]float32{cols.earth[0] * float32(mariaDim), cols.earth[1] * float32(mariaDim), cols.earth[2] * float32(mariaDim)}, cov
+	l := mariaDim * limb
+	return [3]float32{cols.earth[0] * float32(l), cols.earth[1] * float32(l), cols.earth[2] * float32(l)}, cov
 }
 
 // MoonGlowAlpha is the halo's radial falloff: Gaussian-like, smooth to
@@ -158,40 +160,36 @@ func paintMoonSphere(b *buffer, mX, mY, mR, phase, ts float64, cols moonCols, ha
 	sigma := mR * 0.95
 	rOut := mR + sigma*2.7
 	amp := 0.40 * pulse
-	// halo: gaussian falloff, added under the disc
-	x0 := maxInt(0, int((mX-rOut)*ss))
-	x1 := minInt(fb.pw, int((mX+rOut)*ss)+1)
-	y0 := maxInt(0, int((mY-rOut/asp)*ss))
-	y1 := minInt(fb.ph, int((mY+rOut/asp)*ss)+1)
-	for py := y0; py < y1; py++ {
-		pyf := float64(py)/ss + 0.5/ss
-		dy := (pyf - mY) * asp
-		for px := x0; px < x1; px++ {
-			pxf := float64(px)/ss + 0.5/ss
-			d2 := (pxf-mX)*(pxf-mX) + dy*dy
-			if d2 >= rOut*rOut {
-				continue
-			}
-			a := MoonGlowAlpha(math.Sqrt(d2), sigma, amp)
-			if a <= 0.004 {
-				continue
-			}
-			// halo also feeds the ink raster a hair so ASCII mode shows a
-			// soft blob instead of a hard disc
-			if b.mode == ModeASCII {
+	paintMoonHalo(b, mX, mY, sigma, amp, [3]float32{haloCol[0], haloCol[1], haloCol[2]})
+	if b.mode == ModeASCII {
+		// halo also feeds the ink raster a hair so ASCII mode shows a
+		// soft blob instead of a hard disc
+		x0 := maxInt(0, int((mX-rOut)*ss))
+		x1 := minInt(fb.pw, int((mX+rOut)*ss)+1)
+		y0 := maxInt(0, int((mY-rOut/asp)*ss))
+		y1 := minInt(fb.ph, int((mY+rOut/asp)*ss)+1)
+		for py := y0; py < y1; py++ {
+			pyf := float64(py)/ss + 0.5/ss
+			dy := (pyf - mY) * asp
+			for px := x0; px < x1; px++ {
+				pxf := float64(px)/ss + 0.5/ss
+				d := math.Hypot(pxf-mX, dy)
+				a := MoonGlowAlpha(d, sigma, amp)
+				if a <= 0.004 {
+					continue
+				}
 				fb.inkAt(px, py, float32(a*0.5))
 			}
-			fb.blendPx(px, py, fpix{haloCol[0], haloCol[1], haloCol[2], float32(a)}, opAdd)
 		}
 	}
 	// sphere
-	x0 = maxInt(0, int((mX-mR-1)*ss))
-	x1 = minInt(fb.pw, int((mX+mR+1)*ss)+1)
-	y0 = maxInt(0, int((mY-(mR+1)/asp)*ss))
-	y1 = minInt(fb.ph, int((mY+(mR+1)/asp)*ss)+1)
-	for py := y0; py < y1; py++ {
+	sx0 := maxInt(0, int((mX-mR-1)*ss))
+	sx1 := minInt(fb.pw, int((mX+mR+1)*ss)+1)
+	sy0 := maxInt(0, int((mY-(mR+1)/asp)*ss))
+	sy1 := minInt(fb.ph, int((mY+(mR+1)/asp)*ss)+1)
+	for py := sy0; py < sy1; py++ {
 		pyf := float64(py)/ss + 0.5/ss
-		for px := x0; px < x1; px++ {
+		for px := sx0; px < sx1; px++ {
 			pxf := float64(px)/ss + 0.5/ss
 			col, cov := moonShade(mX, mY, mR, phase, cols, pxf, pyf, asp)
 			if cov <= 0.004 {

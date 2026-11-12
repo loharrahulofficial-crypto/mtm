@@ -89,12 +89,11 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		celestialX = clampf(W*(0.10+0.80*frac), celestialR+0.5, W-celestialR-0.5)
 		celestialY = clampf(seaYF*(0.78-0.66*math.Sin(math.Pi*frac)), celestialR+0.5, seaYF)
 		celestialR = lay.MinDim * 0.155
-		// warm body with a hot core
-		b.fillCircleHexF(celestialX, celestialY, celestialR, blendHex(yellow, base, 0.45), 1, opNormal)
-		b.fillCircleHexF(celestialX-celestialR*0.18, celestialY-celestialR*0.18, celestialR*0.62, yellow, 1, opNormal)
-		b.fillCircleHexF(celestialX-celestialR*0.3, celestialY-celestialR*0.3, celestialR*0.3, bright, 1, opNormal)
-		// halo
-		b.fillCircleHexF(celestialX, celestialY, celestialR*1.9, blendHex(yellow, base, 0.55), 0.55, opAdd)
+		// limb-darkened sphere with a Gaussian bloom like the night moon
+		paintSunSphere(b, celestialX, celestialY, celestialR, ts,
+			blendHex(yellow, base, 0.55),   // rim
+			blendHex(bright, yellow, 0.55), // hot core
+			haloCol(bright, yellow), 0.5)
 	} else {
 		hour := float64(state.Now.Hour()) + float64(state.Now.Minute())/60
 		mfrac := 0.0
@@ -135,16 +134,14 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		{0.52, 0.09, 0.22, 0.016, 0.7},
 		{0.78, 0.30, 0.13, 0.008, 0.45},
 	}
+	cloudLight := blendHex(cloudTint, bright, 0.35)
+	cloudDark := blendHex(cloudTint, base, 0.40)
+	cloud := cachedPerlin(state.Seed, 231)
 	for i, c := range cloudSeeds {
 		cx := math.Mod(c.x*W+ts*c.speed*W*3.5+float64(i)*7, W+60) - 30
 		cw := c.w * W
 		cy := c.y * seaYF
-		puffs := 5
-		for j := 0; j < puffs; j++ {
-			off := (float64(j) - float64(puffs-1)/2) * cw * 0.32
-			pr := cw * (0.24 + 0.13*math.Sin(float64(j)*2.1+float64(i)*1.3))
-			b.fillEllipseHexF(cx+off, cy+math.Sin(float64(j)*1.7+float64(i))*1.2, pr, pr*0.52, cloudTint, c.alpha, opNormal)
-		}
+		paintCloudMass(b, cx, cy, cw*0.5, cw*0.34, float64(i)*2.3+0.5, cloud, cloudLight, cloudDark, c.alpha*0.85)
 	}
 	b.endLayer()
 

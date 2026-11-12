@@ -67,7 +67,7 @@ func (s *riverScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	b.beginLayer(layerCelestial, maxInt(0, int(sunX-sunR*3)), maxInt(0, int(sunY-sunR*3)), minInt(sw(b), int(sunX+sunR*3)+2), minInt(sh(b), int(sunY+sunR*3)+2))
 	haloPulse := 0.5 + reducedAmp(state, 0.14)*math.Sin(ts*0.42)
 	sunCol := blendHex(warn, bright, 0.4)
-	b.fillCircleHexF(sunX, sunY, sunR*2.4, blendHex(sunCol, rmp.SkyHorizon, 0.55), 0.30*haloPulse+0.15, opAdd)
+	b.fillGlowHexF(sunX, sunY, sunR*1.15, 0.32*haloPulse+0.18, blendHex(sunCol, rmp.SkyHorizon, 0.45), opAdd)
 	b.fillCircleHexF(sunX, sunY, sunR, sunCol, 1, opNormal)
 	b.fillCircleHexF(sunX-sunR*0.2, sunY-sunR*0.22, sunR*0.62, blendHex(sunCol, bright, 0.45), 1, opNormal)
 	b.endLayer()
@@ -76,6 +76,8 @@ func (s *riverScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	cloud := cachedPerlin(state.Seed, 611)
 	b.beginLayer(layerSky, 0, 0, sw(b), int(horizon)+1)
 	cloudCol := blendHex(rmp.Haze, rmp.Highlight, 0.22)
+	cloudLight := blendHex(cloudCol, bright, 0.30)
+	cloudDark := blendHex(cloudCol, base, 0.40)
 	for i := 0; i < 2; i++ {
 		cr := newRNG(state.Seed, uint64(1600+i*7))
 		cy := H * cr.rangeF(0.06, 0.14)
@@ -85,14 +87,9 @@ func (s *riverScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		if cx < -cw {
 			cx += W + cw*2
 		}
-		for k := 0; k < 3; k++ {
-			br := newRNG(state.Seed, uint64(1630+i*9+k*3))
-			dx := (float64(k)/3.0 - 0.5) * cw
-			dy := cloud.At(float64(i)*2.9+float64(k)*1.1, ts*0.03) * lay.MinDim * 0.018
-			rx := cw * br.rangeF(0.2, 0.32)
-			ry := rx * br.rangeF(0.28, 0.4)
-			b.fillEllipseHexF(cx+dx, cy+dy, rx, ry, cloudCol, 0.13+0.09*br.float64(), opNormal)
-		}
+		ch := cw * cr.rangeF(0.13, 0.19)
+		peak := 0.5 + 0.2*cr.float64()
+		paintCloudMass(b, cx, cy, cw*0.5, ch, float64(i)*2.9+0.5, cloud, cloudLight, cloudDark, peak)
 	}
 	b.endLayer()
 
