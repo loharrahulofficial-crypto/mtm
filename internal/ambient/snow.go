@@ -65,16 +65,11 @@ func (s *snowScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int,
 	}
 	b.anchor("moon", moonX-moonR, moonY-moonR, moonX+moonR, moonY+moonR)
 	phase := moonPhase(state.Now)
-	b.fillCircleHexF(moonX, moonY, moonR*1.7, blendHex(state.Palette.BrightText, base, 0.78), 0.45, opAdd)
-	b.fillCircleHexF(moonX, moonY, moonR, blendHex(state.Palette.BrightText, base, 0.5), 1, opNormal)
-	b.fillCircleHexF(moonX, moonY-moonR*0.15, moonR*0.72, blendHex(state.Palette.BrightText, base, 0.26), 1, opNormal)
-	term := math.Cos(2*math.Pi*phase) * moonR * 1.05
-	shadowCol := blendHex(state.Palette.Surface, base, 0.3)
-	if moonWaxing(phase) {
-		b.fillCircleHexF(moonX-term, moonY, moonR, shadowCol, 0.95, opNormal)
-	} else {
-		b.fillCircleHexF(moonX+term, moonY, moonR, shadowCol, 0.95, opNormal)
-	}
+	skyAtSnow := blendHex(rmp.SkyTop, rmp.SkyHorizon, clampf(moonY/H, 0, 1))
+	snowCols := sphereCols(state.Palette.BrightText, base, skyAtSnow)
+	b.beginLayer(layerCelestial, int(moonX-moonR-2), int(moonY-moonR-2), int(moonX+moonR+3), int(moonY+moonR+3))
+	paintMoonSphere(b, moonX, moonY, moonR, phase, ts, snowCols, haloCol(state.Palette.BrightText, state.Palette.Accent))
+	b.endLayer()
 
 	// --- treeline: three depth layers — a hazier far line and the near
 	// pines, continuous serrated ridgelines with a vertical absolute-y

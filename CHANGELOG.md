@@ -131,8 +131,23 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   scenes at 100x30 and 200x50). Embedded windows (sidebar, Home
   corner, settings preview) keep the aspect-adaptive horizon.
 
-- **Treeline, rebuilt** (2026-11-12): the treeline in every scene is now
-  a continuous noise-driven jagged silhouette in 2–3 depth layers
+- **The moon is a lit sphere** (2026-11-12): every scene draws the moon
+  from a per-pixel physical model — Lambert diffuse from the real local
+  phase (n·l over the visible hemisphere, so waxing phases light the
+  right limb and waning the left, as in the northern hemisphere), a
+  faint noise-based maria texture, and earthshine on the dark side
+  rendered a hair above the sky's own luminance so the night face never
+  reads as a black sticker. The flat halo disc is gone: the glow is a
+  Gaussian-like radial falloff that fades smoothly to zero. Lambert
+  curve is pow(n·l, 0.55) so the lit face holds up at small sizes.
+  Shared painter (`paintMoonSphere`) used by night, ocean (night-time
+  celestial body) and snow; reflections mirror the same shading.
+  `TestMoonPhaseLitFractions` pins the lit fraction at phases
+  0/0.25/0.5/0.75/1 within 5% of the expected illuminated area,
+  `TestMoonPhasesAreDistinct`, `TestMoonEarthshineAboveSky`,
+  `TestMoonGlowFalloff` (unit + frame-level), `TestMoonNotClipped`.
+
+- **Treeline, rebuilt** (2026-11-12): the treeline in every scene is now  a continuous noise-driven jagged silhouette in 2–3 depth layers
   (far haze ridge, hazier mid line, near pines — farther layers
   lighter), filled with a vertical absolute-y gradient so every column
   agrees on the color of every row (the old per-column gradient fills

@@ -69,55 +69,132 @@ func sunAltitude(date time.Time) float64 {
 // isNight reports whether it is dark enough to see stars at `date`.
 func isNight(date time.Time) bool { return sunAltitude(date) <= -0.05 }
 
-// moonCols bundles the precomputed float channels of the moon's layered
-// tones (the current three-disc look) for per-pixel evaluation.
-type moonCols struct{ deep, mid, high, shadow [3]float32 }
+// moonCols bundles the precomputed float channels of the moon's tones.
+type moonCols struct{ lit, earth [3]float32 }
 
-// MoonCols builds the moon's layered tones from theme colors: the outer
-// limb tone, the mid disc, the bright core, and the shadow side. Colors
-// arrive as hex and are float channels in 0..1.
-func moonColsFrom(deep, mid, high, shadow string) moonCols {
-	pick := func(hex string) [3]float32 {
-		r, g, b, ok := hexF(hex)
-		if !ok {
-			// invalid theme role: stay on a neutral light gray rather than drop the body
-			return [3]float32{0.8, 0.8, 0.8}
-		}
-		return [3]float32{r, g, b}
+// sphereCols builds the moon's tones from theme colors: the lit base
+// (BrightText toward Base), and the earthshine — the dark side rendered
+// a whisper ABOVE the sky's own luminance so it never reads as a black
+// sticker on the sky. skyAt is the sky color at the moon's altitude.
+func sphereCols(bright, base, skyAt string) moonCols {
+	return moonCols{
+		lit:   hexToFloat(blendHex(bright, base, 0.42)),
+		earth: hexToFloat(blendHex(skyAt, bright, 0.14)),
 	}
-	return moonCols{pick(deep), pick(mid), pick(high), pick(shadow)}
 }
 
-// moonShade evaluates the moon's layered shading at (x, y) in sub-cell
-// coordinates. Returns the layer color, per-channel, plus an anti-aliased
-// coverage 0..1 (0 outside the disc). The terminator is the sliding
-// shadow disc of the current painter; item-phase realism (Lambert
-// sphere, earthshine, maria) replaces these layers in-place later — the
-// callers (direct draw, lake reflection) stay unchanged.
+// haloCol builds the warm-white halo tone shared by everyone.
+func haloCol(bright, accent string) [3]float32 {
+	return hexToFloat(blendHex(bright, accent, 0.30))
+}
+
+func hexToFloat(hex string) [3]float32 {
+	r, g, b, ok := hexF(hex)
+	if !ok {
+		// invalid theme role: stay on a neutral light gray rather than drop the body
+		return [3]float32{0.8, 0.8, 0.8}
+	}
+	return [3]float32{r, g, b}
+}
+
+// mariaNoise is the faint fixed noise field for the moon's seas.
+var mariaNoise = cachedPerlin(42, 777)
+
+// moonShade evaluates the moon's shading at (x, y) in sub-cell
+// coordinates. Physical model: a lit sphere — Lambert diffuse from the
+// real phase (n·l over the visible hemisphere), faint noise-based seas,
+// and earthshine on the dark side lifted a hair above the sky.
+// Anti-aliased limb via coverage. Returns (color, coverage) —
+// coverage 0 outside the disc.
 func moonShade(mX, mY, mR, phase float64, cols moonCols, x, y float64) ([3]float32, float64) {
 	var zero [3]float32
 	d := math.Hypot(x-mX, y-mY)
-	if d > mR+0.8 {
+	cov := clampf(mR-d+0.6, 0, 1)
+	if cov <= 0 {
 		return zero, 0
 	}
-	col := cols.deep
-	switch {
-	case d <= mR*0.45:
-		col = cols.high
-	case d <= mR*0.78:
-		col = cols.mid
-	}
-	// terminator: the shadow disc slides across with the phase
-	term := math.Cos(2*math.Pi*phase) * mR * 1.12
-	scx := mX - term
+	nx, ny := (x-mX)/mR, (y-mY)/mR
+	z := math.Sqrt(math.Max(0, 1-nx*nx-ny*ny))
+	// light: psi is the phase angle from full; at full the sun is
+	// face-on (L=+z), at new it is behind the moon (L=-z). Waxing phases
+	// carry the light from the right (northern hemisphere).
+	illum := moonIllumination(phase)
+	psi := math.Pi * (1 - illum)
+	s := 1.0
 	if !moonWaxing(phase) {
-		scx = mX + term
+		s = -1.0
 	}
-	if sd := math.Hypot(x-scx, y-mY); sd <= mR {
-		mix := func(a, b float32) float32 { return a*0.03 + b*0.97 }
-		col = [3]float32{mix(col[0], cols.shadow[0]), mix(col[1], cols.shadow[1]), mix(col[2], cols.shadow[2])}
+	ndotl := nx*math.Sin(psi)*s + z*math.Cos(psi)
+	// maria: faint fixed seas, dimming the lit and earthlit sides alike
+	mv := mariaNoise.At(nx*2.1+3.1, ny*2.1+7.7)
+	mariaDim := 1 - 0.34*clampf((mv-0.12)/0.6, 0, 1)
+	if ndotl > 0 {
+		l := math.Pow(ndotl, 0.55) * mariaDim
+		return [3]float32{cols.lit[0] * float32(l), cols.lit[1] * float32(l), cols.lit[2] * float32(l)}, cov
 	}
-	// anti-aliased limb (≈1 sub-pixel)
-	cov := clampf(mR-d+0.7, 0, 1)
-	return col, cov
+	return [3]float32{cols.earth[0] * float32(mariaDim), cols.earth[1] * float32(mariaDim), cols.earth[2] * float32(mariaDim)}, cov
+}
+
+// MoonGlowAlpha is the halo's radial falloff: Gaussian-like, smooth to
+// zero at the rim. Exported so the falloff can be pinned by tests.
+func MoonGlowAlpha(d, sigma, amp float64) float64 {
+	if d < 0 || sigma <= 0 {
+		return 0
+	}
+	return amp * math.Exp(-(d*d)/(2*sigma*sigma))
+}
+
+// paintMoonSphere paints the halo and then the sphere into the
+// supersampled raster, directly, pixel by pixel. The halo breathes with
+// the scene clock, so reduced motion crawls it automatically.
+func paintMoonSphere(b *buffer, mX, mY, mR, phase, ts float64, cols moonCols, haloCol [3]float32) {
+	ss := float64(fSSV())
+	fb := b.fb
+	pulse := 0.62 + 0.38*math.Sin(ts*0.42) // breathes with the scene clock; reduced motion crawls it
+	sigma := mR * 0.95
+	rOut := mR + sigma*2.7
+	amp := 0.40 * pulse
+	// halo: gaussian falloff, added under the disc
+	x0 := maxInt(0, int((mX-rOut)*ss))
+	x1 := minInt(fb.pw, int((mX+rOut)*ss)+1)
+	y0 := maxInt(0, int((mY-rOut)*ss))
+	y1 := minInt(fb.ph, int((mY+rOut)*ss)+1)
+	for py := y0; py < y1; py++ {
+		pyf := float64(py)/ss + 0.5/ss
+		dy := pyf - mY
+		for px := x0; px < x1; px++ {
+			pxf := float64(px)/ss + 0.5/ss
+			d2 := (pxf-mX)*(pxf-mX) + dy*dy
+			if d2 >= rOut*rOut {
+				continue
+			}
+			a := MoonGlowAlpha(math.Sqrt(d2), sigma, amp)
+			if a <= 0.004 {
+				continue
+			}
+			// halo also feeds the ink raster a hair so ASCII mode shows a
+			// soft blob instead of a hard disc
+			if b.mode == ModeASCII {
+				fb.inkAt(px, py, float32(a*0.5))
+			}
+			fb.blendPx(px, py, fpix{haloCol[0], haloCol[1], haloCol[2], float32(a)}, opAdd)
+		}
+	}
+	// sphere
+	x0 = maxInt(0, int((mX-mR-1)*ss))
+	x1 = minInt(fb.pw, int((mX+mR+1)*ss)+1)
+	y0 = maxInt(0, int((mY-mR-1)*ss))
+	y1 = minInt(fb.ph, int((mY+mR+1)*ss)+1)
+	for py := y0; py < y1; py++ {
+		pyf := float64(py)/ss + 0.5/ss
+		for px := x0; px < x1; px++ {
+			pxf := float64(px)/ss + 0.5/ss
+			col, cov := moonShade(mX, mY, mR, phase, cols, pxf, pyf)
+			if cov <= 0.004 {
+				continue
+			}
+			fb.inkAt(px, py, float32(cov))
+			fb.blendPx(px, py, fpix{col[0], col[1], col[2], float32(cov)}, opNormal)
+		}
+	}
 }

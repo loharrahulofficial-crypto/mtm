@@ -81,6 +81,7 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	celestialY := 0.0
 	celestialR := lay.MinDim * 0.145
 	isSun := dayness > 0
+	var mCols moonCols
 	if isSun {
 		rise, set := sunTimes(state.Now)
 		hour := float64(state.Now.Hour()) + float64(state.Now.Minute())/60
@@ -107,17 +108,11 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		celestialY = clampf(seaYF*(0.74-0.6*math.Sin(math.Pi*mfrac)), celestialR+0.5, seaYF)
 		celestialR = lay.MinDim * 0.135
 		phase := moonPhase(state.Now)
-		b.fillCircleHexF(celestialX, celestialY, celestialR*1.8, blendHex(bright, base, 0.8), 0.5, opAdd)
-		b.fillCircleHexF(celestialX, celestialY, celestialR, blendHex(bright, base, 0.55), 1, opNormal)
-		b.fillCircleHexF(celestialX, celestialY-celestialR*0.15, celestialR*0.75, blendHex(bright, base, 0.3), 1, opNormal)
-		b.fillCircleHexF(celestialX, celestialY-celestialR*0.3, celestialR*0.42, blendHex(bright, base, 0.1), 1, opNormal)
-		term := math.Cos(2*math.Pi*phase) * celestialR * 1.1
-		shadowCol := blendHex(state.Palette.Surface, base, 0.35)
-		if moonWaxing(phase) {
-			b.fillCircleHexF(celestialX-term, celestialY, celestialR, shadowCol, 0.97, opNormal)
-		} else {
-			b.fillCircleHexF(celestialX+term, celestialY, celestialR, shadowCol, 0.97, opNormal)
-		}
+		skyAt := blendHex(rmp.SkyTop, rmp.SkyHorizon, clampf(celestialY/seaYF, 0, 1))
+		mCols = sphereCols(bright, base, skyAt)
+		b.beginLayer(layerCelestial, int(celestialX-celestialR-2), int(celestialY-celestialR-2), int(celestialX+celestialR+3), int(celestialY+celestialR+3))
+		paintMoonSphere(b, celestialX, celestialY, celestialR, phase, ts, mCols, haloCol(bright, state.Palette.Accent))
+		b.endLayer()
 	}
 
 	// --- soft noise clouds at two parallax speeds
@@ -198,15 +193,6 @@ func (s *oceanScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		squash := 0.5
 		refCY := float64(seaY) + (float64(seaY)-celestialY)*squash
 		rr := celestialR * squash
-		var mCols moonCols
-		if !isSun {
-			mCols = moonColsFrom(
-				blendHex(bright, base, 0.55),
-				blendHex(bright, base, 0.30),
-				blendHex(bright, base, 0.10),
-				blendHex(state.Palette.Surface, base, 0.35),
-			)
-		}
 		phaseV := moonPhase(state.Now)
 		fb := b.fb
 		ssF := float64(fSSV())

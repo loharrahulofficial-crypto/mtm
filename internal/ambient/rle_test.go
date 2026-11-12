@@ -15,7 +15,10 @@ func TestRunLengthOutputMergesRuns(t *testing.T) {
 	for _, l := range frame {
 		flips += strings.Count(l, "38;2;")
 	}
-	if flips > 100*30*5/12 { // ~1.25 flips per cell pair is fine; broken RLE is one per cell
+	// ~1.4 flips per cell pair is fine; broken RLE is one per cell. The
+	// mirrored celestial disc in the water (item 3) is per-pixel content
+	// that RLE cannot merge — a handful of flips per line.
+	if flips > 100*30*7/12 {
 		t.Fatalf("%d color flips in %d cells — run-length merging is not working", flips, 100*30)
 	}
 }

@@ -161,30 +161,11 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 	mY := lay.Horizon*0.88 - math.Sin(math.Pi*prog)*lay.Horizon*0.62
 	mY = clampf(mY, mR+0.5, lay.Horizon-mR*0.4)
 	b.anchor("moon", mX-mR, mY-mR, mX+mR, mY+mR)
+	skyAt := blendHex(rmp.SkyTop, rmp.SkyHorizon, clampf(mY/H, 0, 1))
+	cols := sphereCols(bright, base, skyAt)
+	mCols := cols // the lake reflection mirrors the same tones
 	b.beginLayer(layerCelestial, int(mX-mR-2), int(mY-mR-2), int(mX+mR+3), int(mY+mR+3))
-	// halo: slow glow pulse (idle breathing)
-	haloPulse := 0.5 + reducedAmp(state, 0.14)*math.Sin(ts*0.42)
-	b.fillCircleHexF(mX, mY, mR*1.9, blendHex(bright, base, 0.82), haloPulse, opAdd) // halo
-	// disc: limb shading in three tones
-	b.fillCircleHexF(mX, mY, mR, blendHex(bright, base, 0.62), 1, opNormal)
-	b.fillCircleHexF(mX, mY-mR*0.18, mR*0.78, blendHex(bright, base, 0.32), 1, opNormal)
-	b.fillCircleHexF(mX, mY-mR*0.3, mR*0.45, blendHex(bright, base, 0.12), 1, opNormal)
-	// terminator: the shadow disc slides across with the phase
-	term := math.Cos(2*math.Pi*phase) * mR * 1.12
-	shadowCol := blendHex(state.Palette.Surface, base, 0.35)
-	if moonWaxing(phase) {
-		b.fillCircleHexF(mX-term, mY, mR, shadowCol, 0.97, opNormal)
-	} else {
-		b.fillCircleHexF(mX+term, mY, mR, shadowCol, 0.97, opNormal)
-	}
-	// craters: fixed fractional dimples on the lit side
-	lit := 1.0
-	if !moonWaxing(phase) {
-		lit = -1.0
-	}
-	b.fillCircleHexF(mX+lit*mR*0.35, mY-mR*0.22, mR*0.16, blendHex(bright, base, 0.55), 0.8, opNormal)
-	b.fillCircleHexF(mX+lit*mR*0.05, mY+mR*0.28, mR*0.11, blendHex(bright, base, 0.5), 0.8, opNormal)
-	b.fillCircleHexF(mX-lit*mR*0.25, mY+mR*0.02, mR*0.07, blendHex(bright, base, 0.48), 0.8, opNormal)
+	paintMoonSphere(b, mX, mY, mR, phase, ts, cols, haloCol(bright, state.Palette.Accent))
 	b.endLayer()
 
 	// --- shooting stars: slotted, fading tails
@@ -287,13 +268,8 @@ func (s *nightScene) paint(b *buffer, p *paletteModel, t time.Duration, w, h int
 		col := blendHex(bright, base, 1-fx)
 		b.fillCircleHexF(st.x+rippleAt(yDest), yDest, 0.22+st.mag*0.14, col, fx, opNormal)
 	}
-	// mirrored moon: squashed, dimmed, rippling per row
-	mCols := moonColsFrom(
-		blendHex(bright, base, 0.62),
-		blendHex(bright, base, 0.32),
-		blendHex(bright, base, 0.12),
-		blendHex(state.Palette.Surface, base, 0.35),
-	)
+	// mirrored moon: squashed, dimmed, rippling per row (the same tones
+	// as the direct disc, dimmed by the water)
 	yTop := layH + (layH-(mY+mR))*squash
 	yBot := layH + (layH-(mY-mR))*squash
 	ssF := float64(fSSV())
