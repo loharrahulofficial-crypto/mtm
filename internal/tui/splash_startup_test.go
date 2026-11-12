@@ -205,8 +205,16 @@ func TestRenderSplashDump(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if got := brightLetterCells(frame); got < 4 {
+		t.Fatalf("t=1.2 shows %d bright cells in the wordmark band, want >= 4 (the letters mid-rise)", got)
+	}
+	// fully landed letters at t=2.5 are bright across the block
+	frame, err = RenderSplashDump(cfg, s, sync.New(s.Root), 100, 30, 2.5)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got := brightLetterCells(frame); got < 24 {
-		t.Fatalf("t=1.2 shows %d bright cells in the wordmark band, want >= 24 (the rising letters)", got)
+		t.Fatalf("t=2.5 shows %d bright cells in the wordmark band, want >= 24 (fully-lit letters)", got)
 	}
 
 	// every reviewed time stays free of the old magenta sentinel
