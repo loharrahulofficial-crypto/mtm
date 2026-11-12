@@ -571,6 +571,14 @@ failure. `mtm demo-seed` itself only runs inside a sandbox
 (`MTM_SANDBOX=1` + temp dirs) and refuses repos whose marker says
 `kind: real`.
 
+**The ambient scene does not reach the very edge of a Ghostty window.**
+Ghostty pads the window (`window-padding-x`/`window-padding-y`) and by
+default fills that padding with the background color, so the scene stops
+a few pixels short of the edge. Set `window-padding-color = extend-always`
+in `~/.config/ghostty/config` (or `$XDG_CONFIG_HOME/ghostty/config`) and
+restart Ghostty. `mtm doctor` warns about this combination (read-only —
+it never edits your terminal config).
+
 **Waybar shows nothing.** Check `mtm waybar` by hand; it prints one JSON
 line or an error payload. The module needs `"custom/mtm"` in the waybar
 modules list and `"return-type": "json"`.

@@ -292,6 +292,14 @@ func Run(opts Options) Report {
 	}
 	rep.add(LevelInfo, "terminal", "", "detected terminal: %s; color mode: %s (%s)", detected.Program, mode, source)
 
+	// --- terminal window padding (Ghostty) ---
+	// Read-only: mtm never edits the terminal config. When Ghostty's
+	// padding uses the background color (or is set with no explicit
+	// color), the scene may not reach the window edge.
+	if detected.Program == "ghostty" {
+		rep.Findings = append(rep.Findings, ghosttyPaddingFindings(ghosttyConfigPath(os.Getenv))...)
+	}
+
 	// --- theme health: malformed roles recorded at load ---
 	// mtm's palettes fall back to the default for a malformed role; the
 	// bad role name lands in the diagnostics lists and is surfaced here.
@@ -310,6 +318,98 @@ func Run(opts Options) Report {
 	}
 
 	return finish()
+}
+
+// ghosttyConfigPath returns the Ghostty config path: $XDG_CONFIG_HOME/
+// ghostty/config, else ~/.config/ghostty/config. Empty when neither is set.
+func ghosttyConfigPath(getenv func(string) string) string {
+	if x := strings.TrimSpace(getenv("XDG_CONFIG_HOME")); x != "" {
+		return filepath.Join(x, "ghostty", "config")
+	}
+	if h := strings.TrimSpace(getenv("HOME")); h != "" {
+		return filepath.Join(h, ".config", "ghostty", "config")
+	}
+	return ""
+}
+
+var ghosttyIntRe = regexp.MustCompile(`\d+`)
+
+// ghosttyPaddingFindings parses the Ghostty config (read-only) and warns
+// when the scene may not reach the window edge: window-padding-color is
+// "background", or padding is set while window-padding-color is unset.
+// A missing config file means Ghostty's defaults (no padding) — silent.
+func ghosttyPaddingFindings(path string) []Finding {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return []Finding{{Check: "padding", Level: LevelInfo, Path: path, Message: fmt.Sprintf("ghostty: config unreadable (%v) — padding check skipped", err)}}
+	}
+	padX, padY := -1, -1 // -1 = key absent
+	color := ""
+	colorSet := false
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.ToLower(strings.TrimSpace(key))
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		ints := func() []int {
+			out := []int{}
+			for _, m := range ghosttyIntRe.FindAllString(value, -1) {
+				v := 0
+				for _, r := range m {
+					v = v*10 + int(r-'0')
+				}
+				out = append(out, v)
+			}
+			return out
+		}
+		switch key {
+		case "window-padding-x":
+			padX = maxInts(ints())
+		case "window-padding-y":
+			padY = maxInts(ints())
+		case "window-padding-color":
+			color = strings.ToLower(strings.TrimSpace(value))
+			colorSet = true
+		}
+	}
+	paddingSet := padX > 0 || padY > 0
+	if colorSet && color == "background" {
+		return []Finding{{Check: "padding", Level: LevelWarn, Path: path,
+			Message: "ghostty: window-padding-color = background — the ambient scene may not reach the window edge; set window-padding-color = extend-always in " + path}}
+	}
+	if !colorSet && paddingSet {
+		show := func(v int) int {
+			if v < 0 {
+				return 0
+			}
+			return v
+		}
+		return []Finding{{Check: "padding", Level: LevelWarn, Path: path,
+			Message: fmt.Sprintf("ghostty: window padding is set (x=%d, y=%d) but window-padding-color is unset — the ambient scene may not reach the window edge; set window-padding-color = extend-always in %s", show(padX), show(padY), path)}}
+	}
+	return nil
+}
+
+func maxInts(vs []int) int {
+	m := 0
+	for _, v := range vs {
+		if v > m {
+			m = v
+		}
+	}
+	return m
 }
 
 // isUnder reports whether slash-separated dir is or sits below a directory

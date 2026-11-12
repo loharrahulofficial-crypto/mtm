@@ -483,3 +483,105 @@ func TestRenderFindingsAndAmbientModeSextant(t *testing.T) {
 		t.Fatal("ambient bytes per frame missing in sextant mode")
 	}
 }
+
+func TestGhosttyPaddingWarnsOnBackgroundColor(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config")
+	if err := os.WriteFile(cfgPath, []byte("window-padding-color = background\nwindow-padding-x = 8\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	findings := ghosttyPaddingFindings(cfgPath)
+	if len(findings) != 1 {
+		t.Fatalf("got %d findings, want 1: %+v", len(findings), findings)
+	}
+	f := findings[0]
+	if f.Level != LevelWarn || f.Check != "padding" {
+		t.Errorf("finding = %+v, want warn-level padding finding", f)
+	}
+	if !strings.Contains(f.Message, "extend-always") {
+		t.Errorf("message should suggest extend-always: %q", f.Message)
+	}
+}
+
+func TestGhosttyPaddingWarnsOnUnsetColorWithPadding(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config")
+	if err := os.WriteFile(cfgPath, []byte("window-padding-x = 8\nwindow-padding-y = 4\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	findings := ghosttyPaddingFindings(cfgPath)
+	if len(findings) != 1 {
+		t.Fatalf("got %d findings, want 1: %+v", len(findings), findings)
+	}
+	if !strings.Contains(findings[0].Message, "extend-always") {
+		t.Errorf("message should suggest extend-always: %q", findings[0].Message)
+	}
+}
+
+func TestGhosttyPaddingSilentWhenExtendAlways(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config")
+	if err := os.WriteFile(cfgPath, []byte("window-padding-color = extend-always\nwindow-padding-x = 8\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if findings := ghosttyPaddingFindings(cfgPath); len(findings) != 0 {
+		t.Fatalf("extend-always must not warn: %+v", findings)
+	}
+}
+
+func TestGhosttyPaddingSilentWhenUnsetAndNoPadding(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config")
+	// zero padding keys set to 0, color unset: Ghostty's own default gap
+	// is not mtm's business.
+	if err := os.WriteFile(cfgPath, []byte("window-padding-x = 0\nwindow-padding-y = 0\n# window-padding-color is a comment away\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if findings := ghosttyPaddingFindings(cfgPath); len(findings) != 0 {
+		t.Fatalf("zero padding must not warn: %+v", findings)
+	}
+}
+
+func TestGhosttyPaddingSilentWhenExtend(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config")
+	if err := os.WriteFile(cfgPath, []byte("window-padding-x = 12\nwindow-padding-color = extend\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if findings := ghosttyPaddingFindings(cfgPath); len(findings) != 0 {
+		t.Fatalf("extend color must not warn: %+v", findings)
+	}
+}
+
+func TestGhosttyPaddingMissingConfigIsSilent(t *testing.T) {
+	if findings := ghosttyPaddingFindings(filepath.Join(t.TempDir(), "does-not-exist")); len(findings) != 0 {
+		t.Fatalf("missing config must not warn: %+v", findings)
+	}
+	if findings := ghosttyPaddingFindings(""); len(findings) != 0 {
+		t.Fatalf("empty path must not warn: %+v", findings)
+	}
+}
+
+func TestGhosttyConfigPathPrefersXDG(t *testing.T) {
+	got := ghosttyConfigPath(func(k string) string {
+		if k == "XDG_CONFIG_HOME" {
+			return "/tmp/xdgcfg"
+		}
+		if k == "HOME" {
+			return "/home/someone"
+		}
+		return ""
+	})
+	if got != "/tmp/xdgcfg/ghostty/config" {
+		t.Errorf("XDG path = %q", got)
+	}
+	got = ghosttyConfigPath(func(k string) string {
+		if k == "HOME" {
+			return "/home/someone"
+		}
+		return ""
+	})
+	if got != "/home/someone/.config/ghostty/config" {
+		t.Errorf("fallback path = %q", got)
+	}
+}

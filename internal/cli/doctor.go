@@ -34,6 +34,10 @@ func newDoctorCmd() *cobra.Command {
                defaults per role (neutral warning, not a failure)
   terminal     detected terminal and color mode (truecolor | xterm-256),
                and where the override came from (env, config or auto)
+  padding      Ghostty only (read-only): warns when window padding uses
+               the background color, or padding is set with
+               window-padding-color unset — the ambient scene may not
+               reach the window edge (set extend-always)
   render       ui.ambient_render setting (auto | halfblock | braille |
                ascii | quadrant | sextant) and the resolution the ambient
                animations run at; ambient numbers are measured with it
