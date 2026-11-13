@@ -190,6 +190,8 @@ type Model struct {
 
 	// Phase 4b-B ambient state
 	ambientSettingSel int
+	ambientDirty      bool          // unsaved edits on the :ambient screen
+	ambientSaved      bool          // last save succeeded
 	ambientT          time.Duration // accumulated scene clock
 	ambientArmed      bool          // the ambient ticker is running
 	lastAmbientTick   time.Time     // for frame delta math

@@ -8,18 +8,33 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
+	"github.com/loharrahulofficial-crypto/mtm/internal/config"
 )
 
 // ambient_settings.go — the :ambient screen. A live, full-terminal preview
-// on the left (the scene re-renders as settings change) and a mood/settings
-// picker on the right. Changes apply to the session; persistence stays in
-// ~/.config/mtm/config.yaml (ui.* keys).
+// on the left (the scene re-renders as settings change) and a grouped
+// settings list on the right. Changes apply to the session immediately;
+// "save settings" writes the ui.* keys this screen manages into
+// ~/.config/mtm/config.yaml (atomic write, .bak of the previous file).
 
-// ambientSettingRow{ label, value, adjust } — adjust cycles the value.
+// ambientSettingRow{ label, value, adjust } — adjust cycles the value;
+// group buckets rows under a caps header in the settings list.
 type ambientSettingRow struct {
+	group  string
 	label  string
 	value  func(m Model) string
 	adjust func(m *Model, dir int)
+}
+
+// ambientGroups preserves row order and emits the list's caps headers.
+var ambientGroups = []struct {
+	key    string
+	header string
+}{
+	{"scene", "S C E N E"},
+	{"places", "P L A C E S"},
+	{"feel", "F E E L"},
+	{"actions", "A C T I O N S"},
 }
 
 func ambientRows() []ambientSettingRow {
@@ -61,25 +76,45 @@ func ambientRows() []ambientSettingRow {
 		i = (i + dir + len(options)) % len(options)
 		return options[i]
 	}
+	dirty := func(m *Model) { m.ambientDirty = true }
 	return []ambientSettingRow{
 		{
-			label: "scene (mood)",
+			group: "scene", label: "scene (mood)",
 			value: func(m Model) string { return m.cfg.UI.Scene },
 			adjust: func(m *Model, dir int) {
 				m.cfg.UI.Scene = cycleStr(m.cfg.UI.Scene, dir, scenes)
 				m.ambientSceneName = m.sceneForLaunch()
 				m.sceneName = "" // rebuild
+				dirty(m)
 			},
 		},
 		{
-			label: "surfaces",
+			group: "scene", label: "render",
+			value: func(m Model) string { return m.cfg.UI.AmbientRender },
+			adjust: func(m *Model, dir int) {
+				m.cfg.UI.AmbientRender = cycleStr(m.cfg.UI.AmbientRender, dir, renders)
+				m.sceneName = "" // rebuild
+				dirty(m)
+			},
+		},
+		{
+			group: "scene", label: "fps",
+			value: func(m Model) string { return fmt.Sprintf("%d", m.cfg.UI.AmbientFPS) },
+			adjust: func(m *Model, dir int) {
+				m.cfg.UI.AmbientFPS = cycleI(m.cfg.UI.AmbientFPS, dir, fpsSteps)
+				dirty(m)
+			},
+		},
+		{
+			group: "places", label: "surfaces",
 			value: func(m Model) string { return m.cfg.UI.Ambient },
 			adjust: func(m *Model, dir int) {
 				m.cfg.UI.Ambient = cycleStr(m.cfg.UI.Ambient, dir, surfaces)
+				dirty(m)
 			},
 		},
 		{
-			label: "sidebar window",
+			group: "places", label: "sidebar window",
 			value: func(m Model) string {
 				if m.cfg.UI.AmbientSidebar {
 					return "on"
@@ -88,10 +123,11 @@ func ambientRows() []ambientSettingRow {
 			},
 			adjust: func(m *Model, dir int) {
 				m.cfg.UI.AmbientSidebar = !m.cfg.UI.AmbientSidebar
+				dirty(m)
 			},
 		},
 		{
-			label: "animations",
+			group: "feel", label: "animations",
 			value: func(m Model) string {
 				if m.animations {
 					return "on"
@@ -100,17 +136,19 @@ func ambientRows() []ambientSettingRow {
 			},
 			adjust: func(m *Model, dir int) {
 				m.animations = !m.animations
+				dirty(m)
 			},
 		},
 		{
-			label: "splash seconds",
+			group: "feel", label: "splash seconds",
 			value: func(m Model) string { return fmt.Sprintf("%.1fs", m.cfg.UI.SplashSeconds) },
 			adjust: func(m *Model, dir int) {
 				m.cfg.UI.SplashSeconds = cycleF(m.cfg.UI.SplashSeconds, dir, fmtSeconds)
+				dirty(m)
 			},
 		},
 		{
-			label: "reward animation",
+			group: "feel", label: "reward animation",
 			value: func(m Model) string {
 				if m.cfg.UI.RewardAnimation {
 					return "on"
@@ -119,25 +157,11 @@ func ambientRows() []ambientSettingRow {
 			},
 			adjust: func(m *Model, dir int) {
 				m.cfg.UI.RewardAnimation = !m.cfg.UI.RewardAnimation
+				dirty(m)
 			},
 		},
 		{
-			label: "fps",
-			value: func(m Model) string { return fmt.Sprintf("%d", m.cfg.UI.AmbientFPS) },
-			adjust: func(m *Model, dir int) {
-				m.cfg.UI.AmbientFPS = cycleI(m.cfg.UI.AmbientFPS, dir, fpsSteps)
-			},
-		},
-		{
-			label: "render",
-			value: func(m Model) string { return m.cfg.UI.AmbientRender },
-			adjust: func(m *Model, dir int) {
-				m.cfg.UI.AmbientRender = cycleStr(m.cfg.UI.AmbientRender, dir, renders)
-				m.sceneName = "" // rebuild
-			},
-		},
-		{
-			label: "rain lightning",
+			group: "feel", label: "rain lightning",
 			value: func(m Model) string {
 				if m.cfg.UI.RainLightning {
 					return "on"
@@ -146,16 +170,41 @@ func ambientRows() []ambientSettingRow {
 			},
 			adjust: func(m *Model, dir int) {
 				m.cfg.UI.RainLightning = !m.cfg.UI.RainLightning
+				dirty(m)
 			},
 		},
 		{
-			label: "persist",
-			value: func(m Model) string { return "config.yaml → ui.*" },
+			group: "actions", label: "save settings",
+			value: func(m Model) string { return "config.yaml" },
 			adjust: func(m *Model, dir int) {
-				m.statusMsg = "kept for this session — copy ui.* into ~/.config/mtm/config.yaml to persist"
+				m.saveAmbientUI()
 			},
 		},
 	}
+}
+
+// saveAmbientUI writes the ui.* keys this screen manages to config.yaml.
+// On success the dirty flag clears and the footer note reflects the path;
+// on failure the file is left untouched (previous content is kept as .bak).
+func (m *Model) saveAmbientUI() {
+	kv := map[string]interface{}{
+		"scene":            m.cfg.UI.Scene,
+		"ambient":          m.cfg.UI.Ambient,
+		"ambient_sidebar":  m.cfg.UI.AmbientSidebar,
+		"animations":       m.animations,
+		"splash_seconds":   m.cfg.UI.SplashSeconds,
+		"reward_animation": m.cfg.UI.RewardAnimation,
+		"ambient_fps":      m.cfg.UI.AmbientFPS,
+		"ambient_render":   m.cfg.UI.AmbientRender,
+		"rain_lightning":   m.cfg.UI.RainLightning,
+	}
+	if err := config.SaveUIKeys("", kv); err != nil {
+		m.statusMsg = "save failed: " + err.Error()
+		return
+	}
+	m.ambientDirty = false
+	m.ambientSaved = true
+	m.statusMsg = "ambient settings saved to " + config.Path()
 }
 
 func (m Model) commandScene(arg string) (Model, tea.Cmd) {
@@ -196,87 +245,114 @@ func (m Model) commandScene(arg string) (Model, tea.Cmd) {
 // renderAmbientSettings renders the :ambient screen full-screen.
 func (m Model) renderAmbientSettings() string {
 	w, h := m.width, m.height
-	base := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base))
+	fill := lipgloss.NewStyle().Background(lipgloss.Color(m.palette.Base))
 	edge := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.AccentSoft)).Background(lipgloss.Color(m.palette.Base))
-	fill := base
 	bright := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.BrightText)).Background(lipgloss.Color(m.palette.Base)).Bold(true)
 	muted := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Base))
 	mutedBase := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.MutedSoft)).Background(lipgloss.Color(m.palette.Base))
 	accent := lipgloss.NewStyle().Foreground(lipgloss.Color(m.palette.Accent)).Background(lipgloss.Color(m.palette.Base)).Bold(true)
 
-	// Panel dims: full terminal minus a margin.
 	pw := w - 4
 	ph := h - 2
 	top := titledBorder(m, "A M B I E N T", pw, true, edge)
 	bot := titledBorder(m, "", pw, false, edge)
 
-	// Right column: settings list. Preview on the left.
-	listW := 34
-	prevW := pw - listW - 3
-	prevH := ph - 4
+	const listW = 36
+	const listLabelW = 20
+	innerW := pw - 2
+	prevW := innerW - listW - 1
+	contentRows := ph - 3 // top border + hint row + bottom border
+	previewH := contentRows
+
+	// Left column: live preview (or blank fill when too small).
 	preview := []string{}
-	if prevW >= 12 && prevH >= 4 {
-		pw2 := prevW
-		ph2 := prevH
-		preview = m.sceneFrame(m.ambientT, pw2, ph2, false)
+	if prevW >= 12 && previewH >= 4 {
+		preview = m.sceneFrame(m.ambientT, prevW, previewH, false)
 	}
 
-	rows := ambientRows()
+	// Right column: grouped settings list.
+	listLines := m.ambientListLines(listW, listLabelW, previewH, fill, bright, muted, mutedBase, accent)
+
+	out := make([]string, 0, ph)
+	out = append(out, top)
+	for i := 0; i < contentRows; i++ {
+		leftRow := fill.Render(strings.Repeat(" ", prevW))
+		if i < len(preview) {
+			leftRow = padLeftExact(preview[i], prevW, fill)
+		}
+		right := fill.Render(strings.Repeat(" ", listW))
+		if i < len(listLines) {
+			right = listLines[i]
+		}
+		body := leftRow + fill.Render(" ") + right
+		body = padLeftExact(body, innerW, fill)
+		out = append(out, edge.Render("│")+body+edge.Render("│"))
+	}
+
+	// Hint row, with the unsaved indicator right-aligned.
+	hint := muted.Render("  j/k move · h/l adjust · s save · esc exit")
+	hintRight := ""
+	switch {
+	case m.ambientDirty:
+		hintRight = accent.Render("● unsaved  ")
+	case m.ambientSaved:
+		hintRight = mutedBase.Render("saved ✓  ")
+	}
+	hint = padLeftExact(hint, innerW-fastWidth(hintRight), fill) + hintRight
+	hint = padLeftExact(hint, innerW, fill)
+	out = append(out, edge.Render("│")+hint+edge.Render("│"))
+	out = append(out, bot)
+	return strings.Join(out, "\n")
+}
+
+// ambientListLines lays the grouped settings rows out, one line each,
+// tracking the selection marker and value alignment. When vertical space
+// is tight the group headers/spacers are dropped (compact list).
+func (m Model) ambientListLines(listW, labelW, rows int, fill lipgloss.Style, bright, muted, mutedBase, accent lipgloss.Style) []string {
+	rowsDef := ambientRows()
 	sel := m.ambientSettingSel
-	if sel >= len(rows) {
-		sel = len(rows) - 1
+	if sel >= len(rowsDef) {
+		sel = len(rowsDef) - 1
 	}
 	if sel < 0 {
 		sel = 0
 	}
-	lines := []string{}
-	for i, row := range rows {
+	compact := rows < len(rowsDef)+8
+	out := []string{}
+	lastGroup := ""
+	for i, row := range rowsDef {
+		if !compact && row.group != lastGroup {
+			if lastGroup != "" {
+				out = append(out, fill.Render(strings.Repeat(" ", listW)))
+			}
+			header := " "
+			for _, g := range ambientGroups {
+				if g.key == row.group {
+					header = " " + g.header
+				}
+			}
+			out = append(out, muted.Render(header)+fill.Render(strings.Repeat(" ", listW-fastWidth(header))))
+			lastGroup = row.group
+		}
 		marker := "  "
-		style := muted
+		style := mutedBase
+		vstyle := mutedBase
 		if i == sel {
 			marker = "▸ "
 			style = bright
-		}
-		line := marker + style.Render(row.label) + "\n"
-		_ = line
-		val := row.value(m)
-		vstyle := mutedBase
-		if i == sel {
 			vstyle = accent
 		}
-		text := marker + style.Render(row.label) + "  " + vstyle.Render(val)
-		lines = append(lines, text)
-	}
-
-	// Compose columns
-	body := []string{}
-	for i := 0; i < prevH; i++ {
-		leftRow := ""
-		if i < len(preview) {
-			leftRow = preview[i]
+		label := style.Render(truncatePlain(row.label, labelW))
+		seg := padLeftExact(marker+label, 2+labelW, fill)
+		val := row.value(m)
+		valW := listW - (2 + labelW) - 1 // one trailing cell before the padding
+		if fastWidth(val) > valW {
+			val = truncatePlain(val, valW)
 		}
-		left := padLeftExact(leftRow, prevW, fill)
-		var right string
-		if i < len(lines) {
-			right = lines[i]
-		} else {
-			right = ""
-		}
-		right = padLeftExact(right, listW, fill)
-		body = append(body, left+fill.Render(" ")+right)
+		line := seg + fill.Render(strings.Repeat(" ", valW-fastWidth(val)+1)) + vstyle.Render(val)
+		out = append(out, line)
 	}
-
-	// header row inside panel: title + mood line
-	moodLine := muted.Render("  mood · ") + bright.Render(strings.ToUpper(m.cfg.UI.AmbientRender)) + muted.Render("  · live preview")
-	header := moodLine
-	header = padLeftExact(header, pw-2, fill)
-
-	out := []string{top}
-	out = append(out, body...)
-	_ = header
-	out = append(out, edge.Render("│")+padLeftExact(bright.Render("  esc closes · j/k pick · h/l adjust · enter toggles"), pw-2, fill)+edge.Render("│"))
-	out = append(out, bot)
-	return strings.Join(out, "\n")
+	return out
 }
 
 // padLeftExact pads/clips a (possibly styled) line to exactly w cells.
@@ -307,6 +383,8 @@ func (m Model) updateAmbientKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		rows[m.ambientSettingSel].adjust(&m, -1)
 	case "l", "right", "enter", " ":
 		rows[m.ambientSettingSel].adjust(&m, 1)
+	case "s":
+		m.saveAmbientUI()
 	}
 	return m, m.armAmbient()
 }

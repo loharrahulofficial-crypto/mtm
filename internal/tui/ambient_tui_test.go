@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -286,5 +287,148 @@ func TestAmbientFPSClampedUniformSurface(t *testing.T) {
 		if got := ambientFPS(m); got != tc.want {
 			t.Errorf("cfg %d: splash surface = %d, want %d", tc.cfg, got, tc.want)
 		}
+	}
+}
+
+// TestAmbientScreenSavePersists: the save row writes managed ui.* keys to
+// config.yaml (atomic, .bak of the previous file), preserves unrelated
+// content, and flips the dirty flag off.
+func TestAmbientScreenSavePersists(t *testing.T) {
+	m := freshAmbientModel(t) // fixedEnv() inside pins XDG to fresh temp dirs
+	base := t.TempDir()
+	for k, v := range map[string]string{
+		"HOME":            base,
+		"XDG_CONFIG_HOME": base + "/config",
+		"XDG_DATA_HOME":   base + "/data",
+		"XDG_CACHE_HOME":  base + "/cache",
+		"XDG_STATE_HOME":  base + "/state",
+	} {
+		t.Setenv(k, v)
+	}
+	// paths re-resolve per call, so the save lands here now
+	cfgDir := base + "/config/mtm"
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	original := "# user comment — keep me\ndata_repo: /data/repo\ndefault_project: college/dbms\nui:\n  icons: unicode\n  future_key: keepme\n"
+	if err := os.WriteFile(cfgDir+"/config.yaml", []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m.mode = modeAmbient
+	// Simulate a user having adjusted settings: render through the actual
+	// adjust path so the save key shares one code path.
+	m.cfg.UI.AmbientRender = "braille"
+	m.cfg.UI.Scene = "night"
+	m.cfg.UI.AmbientFPS = 30
+	m.animations = false
+	m.ambientDirty = true
+
+	rows := ambientRows()
+	saveRow := -1
+	for i, r := range rows {
+		if r.group == "actions" {
+			saveRow = i
+		}
+	}
+	if saveRow < 0 {
+		t.Fatal("no actions (save) row found")
+	}
+	m.ambientSettingSel = saveRow
+	up, _ := m.updateAmbientKey(keyMsg("enter"))
+	m = up.(Model)
+	if m.ambientDirty {
+		t.Error("save row did not clear the dirty flag")
+	}
+	if !m.ambientSaved {
+		t.Error("save row did not mark the save as done")
+	}
+	if !strings.Contains(m.statusMsg, "saved") {
+		t.Errorf("statusMsg = %q, want it to mention saved", m.statusMsg)
+	}
+
+	data, err := os.ReadFile(cfgDir + "/config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	for _, want := range []string{
+		"# user comment — keep me", // comment preserved
+		"data_repo: /data/repo",    // non-ui sections preserved
+		"default_project: college/dbms",
+		"icons: unicode", // unrelated ui key preserved
+		"future_key: keepme",
+		"ambient_render: braille", // managed keys written
+		"scene: night",
+		"ambient_fps: 30",
+		"animations: false",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("saved config.yaml missing %q:\n%s", want, got)
+		}
+	}
+	if _, err := os.Stat(cfgDir + "/config.yaml.bak"); err != nil {
+		t.Error("previous config.yaml was not backed up to .bak")
+	}
+}
+
+// TestAmbientScreenSaveFailure: a corrupt config.yaml keeps the settings
+// in the session, reports the error, and stays dirty.
+func TestAmbientScreenSaveFailure(t *testing.T) {
+	m := freshAmbientModel(t)
+	base := t.TempDir()
+	for k, v := range map[string]string{
+		"HOME":            base,
+		"XDG_CONFIG_HOME": base + "/config",
+		"XDG_DATA_HOME":   base + "/data",
+		"XDG_CACHE_HOME":  base + "/cache",
+		"XDG_STATE_HOME":  base + "/state",
+	} {
+		t.Setenv(k, v)
+	}
+	cfgDir := base + "/config/mtm"
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgDir+"/config.yaml", []byte("ui: [unclosed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m.mode = modeAmbient
+	m.ambientDirty = true
+	up, _ := m.updateAmbientKey(keyMsg("s"))
+	m = up.(Model)
+	if !strings.HasPrefix(m.statusMsg, "save failed:") {
+		t.Errorf("statusMsg = %q, want it to start with save failed:", m.statusMsg)
+	}
+	if !m.ambientDirty {
+		t.Error("dirty flag cleared despite a failed save")
+	}
+	if m.ambientSaved {
+		t.Error("ambientSaved set despite a failed save")
+	}
+}
+
+// TestAmbientScreenSaveKeyMatchesButton: `s` and the ACTIONS row share the
+// same save path.
+func TestAmbientScreenSaveKeyMatchesButton(t *testing.T) {
+	m := freshAmbientModel(t)
+	base := t.TempDir()
+	for k, v := range map[string]string{
+		"HOME":            base,
+		"XDG_CONFIG_HOME": base + "/config",
+		"XDG_DATA_HOME":   base + "/data",
+		"XDG_CACHE_HOME":  base + "/cache",
+		"XDG_STATE_HOME":  base + "/state",
+	} {
+		t.Setenv(k, v)
+	}
+	m.mode = modeAmbient
+	m.ambientDirty = true
+	up, _ := m.updateAmbientKey(keyMsg("s"))
+	m = up.(Model)
+	if m.ambientDirty || !m.ambientSaved {
+		t.Errorf("s did not save: dirty=%v saved=%v", m.ambientDirty, m.ambientSaved)
+	}
+	if !strings.Contains(m.statusMsg, "saved") {
+		t.Errorf("statusMsg = %q, want it to mention saved", m.statusMsg)
 	}
 }
