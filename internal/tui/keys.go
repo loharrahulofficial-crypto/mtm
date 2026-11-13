@@ -436,9 +436,9 @@ func (m *Model) ensureCursorVisible() {
 }
 
 func (m Model) visibleListRows() int {
-	// The list body excludes the footer (1), the panel chrome (2) and the
-	// pinned header row (1).
-	h := m.height - 1 - 2 - 1
+	// The list body excludes the bottom bleed row (1), the footer (1), the
+	// panel chrome (2) and the pinned header row (1).
+	h := m.height - 2 - 1 - 2 - 1
 	if h < 1 {
 		return 1
 	}
@@ -543,8 +543,8 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Footer tabs?
-	if y == m.height-1 {
+	// Footer tabs? (the last row is the uniform bleed row, not the footer)
+	if y == m.height-2 {
 		if v, ok := m.footerPillAt(x); ok {
 			m.view = v
 			if v == viewBoard {
@@ -634,7 +634,7 @@ func (m Model) sidebarIndexAt(y int) int {
 	if innerW < 1 {
 		innerW = 1
 	}
-	innerH := m.height - 1 - 2
+	innerH := m.height - 2 - 2
 	top, _, _, _ := sidebarRowPlan(m, innerW, innerH)
 	row := 1 + brandLines
 	for i, r := range sidebarRows(m.sidebarItems) {

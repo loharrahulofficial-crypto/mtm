@@ -91,7 +91,7 @@ func (m Model) ambientActive() bool {
 		}
 	}
 	if m.mode == modeNormal && m.view == viewHome && m.ambientAllowHome() {
-		if _, ok := homeSceneCornerRect(m, m.mainW(), m.height-1); ok {
+		if _, ok := homeSceneCornerRect(m, m.mainW(), m.height-2); ok {
 			return true
 		}
 	}

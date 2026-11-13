@@ -7,7 +7,7 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 )
 
-func mainHOf(m Model) int { return m.height - 1 }
+func mainHOf(m Model) int { return m.height - 2 }
 
 // bandWith finds the band containing panel title.
 func findBand(bands [][]homeRect, title string) (int, []homeRect) {

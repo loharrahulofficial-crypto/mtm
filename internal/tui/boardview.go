@@ -1054,9 +1054,9 @@ func (m Model) clickBoard(x, y int, release bool) (tea.Model, tea.Cmd) {
 	}
 	local := x - 2 // panel pad (1) + body inset (1)
 	view := winStart + visCols
-	// Same body height the renderer uses: contentH = m.height-1, panel
-	// chrome 2 → body h = m.height-3.
-	bodyH := boardBodyH(m, m.height-3, colsModel, cols, winStart, view)
+	// Same body height the renderer uses: contentH = m.height-2, panel
+	// chrome 2 → body h = m.height-4.
+	bodyH := boardBodyH(m, m.height-4, colsModel, cols, winStart, view)
 	slots, startRow := boardSlots(m, cols, innerW, bodyH)
 	col := -1
 	for i := winStart; i < view; i++ {

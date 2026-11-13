@@ -71,9 +71,9 @@ func (m Model) viewInner() string {
 		return fscreen
 	}
 	if m.projectPage != "" {
-		page := m.renderProjectPage(m.width, m.height-1)
+		page := m.renderProjectPage(m.width, m.height-2)
 		footer := m.renderFooterBar(m.width)
-		screen := joinBlocksV([]string{page, footer})
+		screen := joinBlocksV([]string{page, footer, bleedRow(m.width, baseColor)})
 		switch m.mode {
 		case modeHelp:
 			return overlay(m.width, m.height, screen, renderHelpBox(m.keymap, m.styles, m.width, m.height, m.helpScroll), baseColor)
@@ -92,7 +92,7 @@ func (m Model) viewInner() string {
 		return normalizeBlock(screen, m.width, m.height, baseColor)
 	}
 
-	contentH := m.height - 1 // footer
+	contentH := m.height - 2 // footer + 1-row base bleed at the very bottom
 
 	sidebarW := sideWidth(m.width, m.sidebarHidden)
 	detailW := detailWidth(m.width, m.detailOn)
@@ -132,7 +132,7 @@ func (m Model) viewInner() string {
 
 	footerKey := panelKey{stamp: m.viewStamp, w: m.width, h: 1, theme: m.themeVersion}
 	footer := cachedStringPanel(footerPC, footerKey, func() string { return m.renderFooterBar(m.width) })
-	screen := joinBlocksV([]string{middle, footer})
+	screen := joinBlocksV([]string{middle, footer, bleedRow(m.width, baseColor)})
 	if p := viewFadeProgress(m); p < 1 {
 		if armFrame == "" || !armStamp.Equal(m.viewFadeStart) {
 			armFrame = stableFrame
@@ -196,6 +196,16 @@ func (m Model) renderMain(w, h int) string {
 		chips := filterChipsText(m, (w*45)/100)
 		return renderPanel(m, listPanelTitle(m), w, h, focused, body, "", chips)
 	}
+}
+
+// bleedRow renders the grid's last line: a uniform base-color row with no
+// glyphs and no accent. Terminals that extend the outermost cells into the
+// window padding (e.g. Ghostty window-padding-color = extend-always) mirror
+// this row at the window edge; a uniform row mirrors invisibly, so the
+// accent pill in the footer two rows from the edge never reappears below
+// the statusline as a hanging slab.
+func bleedRow(width int, bg lipgloss.Color) string {
+	return paint("", width, 1, bg)
 }
 
 // overlay centers box over base. baseColor is the background the base block

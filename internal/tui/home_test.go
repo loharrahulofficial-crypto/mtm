@@ -58,7 +58,7 @@ func TestHomeNoPanelExceedsBlankRatio(t *testing.T) {
 				t.Fatal("could not probe the surface background")
 			}
 
-			mainH := size.h - 1 // footer row
+			mainH := size.h - 2 // footer + bleed row
 			for _, band := range homeLayout(m, mainW, mainH) {
 				for _, r := range band {
 					blank := 0

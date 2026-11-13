@@ -60,7 +60,7 @@ func TestAmbientTickChangesOnlyWindowLines(t *testing.T) {
 
 	// Row-level: only the window rows may differ, and they must differ.
 	w := sideWidth(m.width, m.sidebarHidden)
-	contentH := m.height - 1
+	contentH := m.height - 2
 	innerW := w - 2
 	innerH := contentH - 2
 	_, rendered, _, winH := sidebarRowPlan(m, innerW, innerH)

@@ -175,7 +175,7 @@ func mainPaneSize(m Model) (w, h int) {
 	if w < 20 {
 		w = 20
 	}
-	return w, m.height - 1 // footer
+	return w, m.height - 2 // footer + bottom bleed row
 }
 
 // coursesDetailFor measures the dashboard detail pane — width, visible

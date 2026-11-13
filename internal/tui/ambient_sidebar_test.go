@@ -74,7 +74,7 @@ func TestSidebarAmbientWindowBelowCourseList(t *testing.T) {
 	defer func() { _ = s.Close() }()
 	m := BuildDumpModel(nightDumpConfig(), s, sync.New(s.Root), "home", 160, 45, DumpFixedTime)
 	sideW := sideWidth(m.width, m.sidebarHidden)
-	innerH := m.height - 1 - 2
+	innerH := m.height - 2 - 2
 	_, rendered, _, winH := sidebarRowPlan(m, sideW-2, innerH)
 	if winH < ambientSidebarMinRows {
 		t.Fatalf("window plan is %d rows, want >= %d", winH, ambientSidebarMinRows)
@@ -111,7 +111,7 @@ func TestSidebarAmbientWindowCollapsesOnShortTerminals(t *testing.T) {
 			defer func() { _ = s.Close() }()
 			m := BuildDumpModel(nightDumpConfig(), s, sync.New(s.Root), "home", 140, h, DumpFixedTime)
 			sideW := sideWidth(m.width, m.sidebarHidden)
-			innerH := h - 1 - 2
+			innerH := h - 2 - 2
 			_, _, _, winH := sidebarRowPlan(m, sideW-2, innerH)
 			frame := m.View()
 			_, _, ok := windowSpan(frame, sideW)
@@ -154,7 +154,7 @@ func TestSidebarAmbientWindowEveryLineWidth(t *testing.T) {
 	defer func() { _ = s.Close() }()
 	m := BuildDumpModel(nightDumpConfig(), s, sync.New(s.Root), "home", 140, 40, DumpFixedTime)
 	sideW := sideWidth(m.width, m.sidebarHidden)
-	innerH := m.height - 1 - 2
+	innerH := m.height - 2 - 2
 	_, _, _, winH := sidebarRowPlan(m, sideW-2, innerH)
 	win := m.ambientSidebarWindow(sideW-2, winH)
 	if win == nil {

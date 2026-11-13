@@ -55,7 +55,7 @@ func TestSceneCornerHiddenWhenNarrow(t *testing.T) {
 	defer func() { _ = s.Close() }()
 	m := cornerModel(t, s, 100, 50)
 	_, mainW := mainPaneGeometry(m)
-	if _, ok := homeSceneCornerRect(m, mainW, m.height-1); ok {
+	if _, ok := homeSceneCornerRect(m, mainW, m.height-2); ok {
 		t.Fatal("scene corner shown in a 100-col terminal")
 	}
 }
@@ -66,7 +66,7 @@ func TestSceneCornerHiddenWhenNoFreeRows(t *testing.T) {
 	for _, h := range []int{24, 30} {
 		m := cornerModel(t, s, 120, h)
 		_, mainW := mainPaneGeometry(m)
-		mainH := m.height - 1
+		mainH := m.height - 2
 		free, _ := homeFreeRows(m, mainW, mainH)
 		_, ok := homeSceneCornerRect(m, mainW, mainH)
 		if free < sceneCornerMinRows && ok {
@@ -83,7 +83,7 @@ func TestSceneCornerFitsFreeSpace(t *testing.T) {
 	defer func() { _ = s.Close() }()
 	m := cornerModel(t, s, 200, 50)
 	_, mainW := mainPaneGeometry(m)
-	mainH := m.height - 1
+	mainH := m.height - 2
 	bands := homeLayout(m, mainW, mainH)
 	used := bandBottom(bands)
 	free, _ := homeFreeRows(m, mainW, mainH)
@@ -118,7 +118,7 @@ func TestSceneCornerNeverOverlapsIdeasBand(t *testing.T) {
 		w, h := size[0], size[1]
 		m := cornerModel(t, s, w, h)
 		_, mainW := mainPaneGeometry(m)
-		mainH := m.height - 1
+		mainH := m.height - 2
 		bands := homeLayout(m, mainW, mainH)
 		irect, ideasOK := findBandRect(bands, "IDEAS")
 		if !ideasOK {
@@ -217,7 +217,7 @@ func TestSceneCornerSitsInsideSurfaceBand(t *testing.T) {
 	m := cornerModel(t, s, 200, 50)
 	_, mainW := mainPaneGeometry(m)
 	paneX, _ := mainPaneGeometry(m)
-	rect, ok := homeSceneCornerRect(m, mainW, m.height-1)
+	rect, ok := homeSceneCornerRect(m, mainW, m.height-2)
 	if !ok {
 		t.Fatal("no scene corner on a 200x50 empty Home")
 	}
@@ -322,7 +322,7 @@ func TestCornerIsTheLargerOptionalPanel(t *testing.T) {
 	defer func() { _ = s.Close() }()
 	m := ambientModel(t, s, func(c *config.Config) { c.UI.Ambient = "home" }, 200, 50)
 	_, mainW := mainPaneGeometry(m)
-	rect, ok := homeSceneCornerRect(m, mainW, m.height-1)
+	rect, ok := homeSceneCornerRect(m, mainW, m.height-2)
 	if !ok {
 		t.Fatal("corner rect missing on a 200x50 empty Home")
 	}

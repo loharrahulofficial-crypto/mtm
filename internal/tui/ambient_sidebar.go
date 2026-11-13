@@ -76,7 +76,7 @@ func sidebarFreeRows(m Model) (free, innerW int, ok bool) {
 	if innerW < 1 {
 		innerW = 1
 	}
-	innerH := m.height - 1 - 2
+	innerH := m.height - 2 - 2
 	if innerH < 0 {
 		innerH = 0
 	}

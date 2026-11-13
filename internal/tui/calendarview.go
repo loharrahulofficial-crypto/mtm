@@ -22,7 +22,7 @@ const maxAgendaEntries = 8
 // clamps can never drift from the render.
 func calendarBodyDims(m Model) (w, h int) {
 	mainW, _ := mainPaneSize(m)
-	return mainW - 2, m.height - 1 - 2
+	return mainW - 2, m.height - 2 - 2
 }
 
 // agendaCapFor computes how many agenda entries fit: body height minus the
