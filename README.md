@@ -11,17 +11,38 @@ One Go binary, two interfaces over one shared core:
 Tasks are stored as one Markdown file per task, inside a git repo that can
 auto-sync between devices. No database.
 
-> **Status: Phase 5 complete (v1-ready).** Phases 1–5 ship: the file store and
-> CLI core, smart natural-language add, the TUI, academic features (courses,
-> exams, weighted grades, Pomodoro), stats and weekly review, export
+> **Status: v1.0.0 released.** Phase 5 is complete: the file store and CLI
+> core, smart natural-language add, the TUI, academic features (courses, exams,
+> weighted grades, Pomodoro), stats and weekly review, export
 > (markdown/CSV/JSON), iCal export and serving, reminders, systemd timers,
-> Waybar integration, and shell completions. Ideas/milestones and the dev-log
-> landed in the project-tools phase.
+> Waybar integration, shell completions, ideas/milestones/dev-log, and the
+> ambient scene engine. See [Commands](#commands) and
+> [Configuration reference](#configuration-reference).
+
+## Requirements
+
+- **Go ≥ 1.27** to build from source (`go.mod` pins `go 1.27`), and **git** on
+  `PATH`. A prebuilt binary needs neither — only `git`.
+- **Linux.** Developed on Omarchy (Arch + Hyprland); the TUI, notifications and
+  desktop integrations assume a Linux desktop session.
+- A **truecolor terminal** for the ambient scenes. Detection is automatic and
+  falls back to xterm-256 (see `ui.truecolor`); Ghostty, kitty, WezTerm,
+  alacritty, foot and tmux all work.
+- **Nerd Font** (optional). `ui.icons: nerd` is the default; set `unicode` or
+  `none` if you do not use one.
+- `notify-send` (optional) — desktop reminders. Without it `mtm remind` still
+  records state and prints, but sends nothing.
+- `gh` (optional) — read-only open issue/PR counts for linked repositories.
+- `$EDITOR` (optional) — `mtm edit`, `mtm log` and `mtm idea` fall back to
+  `$VISUAL`, then `vi`.
+
+Runtime needs nothing beyond the `mtm` binary and `git`; `mtm init` creates the
+data repo and default config.
 
 ## Install
 
 ```sh
-git clone <this repo> && cd mtm
+git clone git@github.com:loharrahulofficial-crypto/mtm.git && cd mtm
 make install        # installs to ~/.local: bin/mtm, the man page, completions
 ```
 
@@ -29,13 +50,12 @@ make install        # installs to ~/.local: bin/mtm, the man page, completions
 
 - `mtm` → `~/.local/bin/mtm`
 - the man page → `~/.local/share/man/man1/` (`man mtm`)
-- bash/zsh/fish completions → `~/.local/share/{bash-completion/completions,zsh/site-functions,fish/vendor_completions.d}`
+- bash/zsh/fish completions →
+  `~/.local/share/{bash-completion/completions,zsh/site-functions,fish/vendor_completions.d}`
 
 Prefix is configurable (`make install PREFIX=/usr/local`). Uninstall with
 `make uninstall`. For a plain binary: `make build` (`bin/mtm`) or
 `go install github.com/loharrahulofficial-crypto/mtm/cmd/mtm@latest`.
-
-Requires Go ≥ 1.25 and git on PATH.
 
 ## Quick start
 
@@ -44,70 +64,452 @@ mtm init                                   # creates the data repo + default con
 mtm add "buy milk"                         # natural language: dates, !priority, #tags, @project
 mtm add "submit report friday !high #urgent @college/dbms"
 mtm today                                  # what's due today
-mtm                                       # the TUI (0 Home · 1 List · 2 Board · 3 Calendar · 4 Courses · 5 Stats)
+mtm                                        # the TUI (0 Home · 1 List · 2 Board · 3 Calendar ·
+                                           #   4 Courses · 5 Stats · 6 Ideas)
 mtm done 3db991                            # mark done
 mtm summary                                # a two-line status block for your shell
 mtm stats                                  # stats for the week
 mtm review                                 # the weekly review ritual
 ```
 
-## Commands, grouped
+First run? `make demo` launches the TUI against a throwaway 80+ task sandbox —
+it never touches your real data.
 
-### Tasks
-`mtm add`, `list`, `today`, `week`, `overdue`, `show`, `edit`, `done`, `rm`,
-`status`, `sub`, `note`, `search`, `archive`, `view`, `views`, `init`
+## How it works
 
-### Academics — courses, exams and grades
-`mtm course` (list/show/edit), `exam`, `grade`, `grades`, `hours`,
-`timer`, `pomo`
+### Architecture
 
-### Stats and review
-`mtm stats` (`--week|--month|--semester|--since DATE`), `review`
-(interactive weekly ritual), `summary` (shell status line)
-
-### Incubator and projects
-`mtm idea` / `ideas` (capture, list, rate, promote to a project),
-`mtm milestone` (`add|list|show|edit|done`; link tasks with `mtm add … --milestone <id>`),
-`mtm log` / `logs` (per-project dev-log),
-`mtm project link` (read-only GitHub stats: commit sparkline, last commit,
-streak; open issue/PR counts via `gh` when authenticated, cached 15 min)
-
-### Import and export
-`mtm export` (`--format md|csv|json [--out FILE] [--project X] [--course X] [--since DATE]`),
-`mtm ical` (`--out FILE`, `--serve [--bind host:port] [--token SECRET]`,
-`--include tasks,exams,milestones`, `--alarm 30m`)
-
-### Shell and bars
-`mtm summary`, `mtm waybar` (Waybar `custom/` module JSON), `mtm completion bash|zsh|fish`
-
-### System
-`mtm remind` (one-shot reminder check; run it from a timer),
-`mtm systemd install|uninstall|status` (user sync + reminder timers),
-`mtm version`, `mtm sync`, `mtm tui`, `mtm doctor` (read-only health checks,
-`--json` for scripting). `make demo` builds a throwaway 73-task demo sandbox
-
-Run `mtm <command> -h` for a command's own reference and examples.
-
-## Setup
-
-```sh
-mtm init                 # creates ~/.local/share/mtm as a git repo + default config at ~/.config/mtm/config.yaml
-mtm init --remote <url>  # also wire a git remote (e.g. a private GitHub repo for sync)
+```
+cmd/mtm
+  ├── internal/cli      Cobra command tree (the CLI)
+  └── internal/tui      Bubble Tea model/view (the TUI)
+        ↓
+  internal/actions      use cases (add, done, grade, sync, remind, …)
+        ↓
+  internal/core         domain models and rules (Task, Project, grades, dates)
+        ↓
+  internal/store        one Markdown file per task, git commits, index cache
 ```
 
-The data repo auto-commits every change (`add: Buy milk`, `done: ...`).
-With a remote configured, each change also pulls `--rebase` and pushes
-(best effort: works offline, commits pile up locally). Conflicts are **never
-auto-resolved** — sync pauses, `mtm sync --status` shows the state and the
-conflicting files; fix them, commit, then `mtm sync`, or `mtm sync --abort`
-to drop the pull entirely.
+Supporting packages: `config` (YAML config + defaults), `paths` (every
+directory, with the sandbox guard), `parse` (natural-language add), `dates`,
+`text`, `theme` (live Omarchy colors), `caps` (terminal capabilities),
+`ambient` (scene engine), `gauges` (charts/bars), `ical`, `sync`, `doctor`,
+`marker` (`.mtm-data`), `demo`, `perf`, `clock`.
 
-## Multi-device setup (sync over SSH)
+The CLI and TUI contain no business logic; both call `internal/actions` and
+`internal/core`.
 
-`mtm` syncs the data repo (`~/.local/share/mtm`) through any git remote.
-The recommended setup is a private GitHub repo reached over a dedicated SSH
-host alias with its own deploy key, so `mtm` never touches your personal
-GitHub credentials.
+### Storage model
+
+- One task = one Markdown file with YAML frontmatter; everything below the
+  fence is free-form notes.
+- Files live under `projects/<project>/`, with `ideas/`, per-project
+  `milestones/` and `devlog/`, `archive/<project>/` and `templates/` beside
+  them. See [Data layout](#data-layout).
+- Every change is a git commit (`add: Buy milk`, `done: …`). With a remote, each
+  change also pulls `--rebase` and pushes, best effort.
+- The index (`~/.cache/mtm/index.json`) is a local cache; delete it and the next
+  command rebuilds it from the files.
+- Config is `~/.config/mtm/config.yaml`; runtime state (timer, reminders,
+  splash stamp) is `~/.local/state/mtm/`. Neither is required to be in the repo.
+
+### Sync and conflicts
+
+With a remote configured, `mtm` auto-syncs after each change (configurable via
+`sync.auto`/`sync.debounce_seconds`). Sync **never auto-resolves conflicts**: it
+pauses, `mtm sync --status` shows the state and the conflicting files, and you
+either fix them and run `mtm sync --continue`, or `mtm sync --abort` to drop the
+pull. The paused flag lives in the repo's `.git` directory
+(`mtm-sync-state.json`).
+
+### Configuration and environment
+
+Config is plain YAML read over built-in defaults; every key is optional. All
+four directories resolve through one table (highest wins):
+
+| directory | override | XDG variable | default |
+|---|---|---|---|
+| data | `MTM_DATA_DIR` | `XDG_DATA_HOME` | `~/.local/share/mtm` |
+| config | `MTM_CONFIG_DIR` | `XDG_CONFIG_HOME` | `~/.config/mtm` |
+| cache | — | `XDG_CACHE_HOME` | `~/.cache/mtm` |
+| state | `MTM_STATE_DIR` | `XDG_STATE_HOME` | `~/.local/state/mtm` |
+
+Useful environment switches: `MTM_SANDBOX=1` (refuse the real roots; tests and
+`make demo` rely on it), `MTM_NO_AMBIENT=1`, `MTM_NO_SPLASH=1`,
+`MTM_TRUECOLOR=1|0`, `NO_MOTION=1`, `MTM_SYSTEMD_USER_DIR`,
+`MTM_PPROF=cpu:FILE`, `MTM_GH` (override the `gh` binary), `NO_COLOR`.
+
+### The TUI
+
+`mtm` opens the Study Desk dashboard. Views: `0` Home · `1` List · `2` Board ·
+`3` Calendar · `4` Courses · `5` Stats · `6` Ideas (all reachable with `tab`).
+Panels derive their colors from the active Omarchy theme at runtime, so theme
+changes apply immediately. See [The TUI](#the-tui).
+
+## Commands
+
+Run `mtm <command> -h` for any command's own reference and examples. Global
+flags on every command: `--no-ambient`, `--no-splash`.
+
+### Tasks
+
+| command | what it does |
+|---|---|
+| `mtm add <title...>` | quick add; natural language + flags |
+| `mtm list` | list tasks (hides done unless `--all`) |
+| `mtm today` / `week` / `overdue` | due today / next 7 days / past due |
+| `mtm show <id>` | show one task (id or unique prefix) |
+| `mtm edit <id>` | edit the task file in `$EDITOR` |
+| `mtm done <id>` | mark done (the project's first done status) |
+| `mtm rm <id>` | remove a task (`--force` to skip confirmation) |
+| `mtm status <id> <status>` | set a status that exists in the project workflow |
+| `mtm sub <parent> <title...>` | create a subtask |
+| `mtm note <id> <text...>` | append a line of notes |
+| `mtm search <query...>` | full-text search over title, notes, tags |
+| `mtm archive` | move done tasks to `archive/<project>/` (`--older-than 30d`) |
+| `mtm view <name>` / `views` | run a built-in or saved view / list views |
+| `mtm init` | create the data repo + default config (`--remote URL`) |
+
+`mtm add` understands dates and times (`tomorrow`, `friday 6pm`, `next monday`,
+`in 3 days`, `14 nov`), `!priority` (`!low !med !high !urgent`), `#tags`,
+`@project`, `~estimate` (`~2h`, `~45m`) and recurrence (`every week`, `daily`,
+`every monday`). Flags always win over parsed values; leftover words become the
+title.
+
+```
+mtm add "submit report friday 6pm !high #college @dbms"
+mtm add "Submit report" --due 2026-11-14 --priority high
+mtm add "read chapter 4" --kind study --weight 10 --milestone ms0001
+```
+
+`add` flags: `--due`, `--kind task|assignment|exam|study|project`,
+`--milestone`, `--priority`, `--project`/`-p`, `--tag`/`-t`, `--weight`.
+`list` flags: `--all`, `--archived`, `--due today|week|overdue`, `--json`,
+`--priority`, `--project`, `--status`, `--tag`, `--weighted`.
+
+### Academics — courses, exams, grades, time
+
+- `mtm course add|edit|list|show|syllabus` — courses are projects with a course
+  block in `project.yaml`. `syllabus` turns a `.md`/`.yaml` syllabus (or a
+  `templates/<name>` file) into chapter tasks and subtopic subtasks, reusing
+  existing entries on re-run.
+- `mtm exam add|list|plan` — exams are `kind:exam` tasks tied to a course.
+  `plan` generates one `kind:study` task per exam topic, spread before the exam
+  (`--est` minutes per session).
+- `mtm grade <id> <score>` — record a score (`--max`, `--weight`).
+- `mtm grades` — per-course weighted totals and what you need to hit the target
+  (`--course`, `--target`, `--json`).
+- `mtm hours` — logged time per course (`--week`, `--course`, `--json`).
+- `mtm timer start|status|stop` — stopwatch on a task; `stop` accrues into
+  `time_logged_minutes`.
+- `mtm pomo [id]` — foreground Pomodoro (25m work / 5m break, long break every
+  4th round; configurable). Ctrl-C stops early and logs accrued work minutes.
+
+### Stats and review
+
+- `mtm stats` — completed tasks, on-time rate, hours by course, busiest day,
+  estimate accuracy, per-course breakdown, current/longest active-day streaks.
+  Scopes: `--week` (default, trailing 7 days), `--month`, `--semester`
+  (since `ui.semester_start`), `--since DATE`.
+- `mtm review` — interactive weekly ritual: what finished, what slipped, the
+  next 7 days; overdue items handled one by one (`r`eschedule, `a`rchive,
+  `k`eep, `q`uit).
+- `mtm summary` — compact two-line status block for shell startup (< 50 ms).
+
+### Ideas, projects, milestones, dev-log
+
+- `mtm idea [title...]` — capture an idea (`--tag`, `--rating`); with no
+  argument, `$EDITOR` opens a scaffold.
+- `mtm idea show|edit|status|rate|note|rm|promote <id>` — manage ideas.
+  `promote` turns one into a project with an initial milestone and starter tasks
+  (`--template <name>`).
+- `mtm ideas` — list (`--status`, `--tag`).
+- `mtm project add|edit|list|rm|link` — projects and their custom statuses.
+  `link --path <repo> [--repo owner/name]` reads a git repo read-only: 12-week
+  commit sparkline, last commit, last 5 subjects, commit streak; with `--repo`
+  and an authenticated `gh`, open issue/PR counts (cached 15 min).
+- `mtm milestone add|list|show|edit|done` — milestones; link tasks with
+  `mtm add … --milestone <id>`.
+- `mtm log <project> [text...]` / `mtm logs <project>` — per-project dev-log
+  (`--with-timer`, `--from-commits`, `--mood`, `--tag`; `logs --since 7d`).
+
+```
+mtm idea "local-first sync" --tag sync --rating 4
+mtm idea promote ide0001 --template web
+mtm milestone add college/dbms "v0.1 — study MVP" --target 2026-12-15
+mtm add "normalize the orders schema" --project college/dbms --milestone ms0001
+mtm log college/dbms "3NF, then lossless joins"
+```
+
+### Import and export
+
+```sh
+mtm export                     # markdown report to stdout (grouped by course)
+mtm export --format json --out export.json
+mtm export --format csv --project college/dbms
+mtm ical                       # RFC 5545 calendar to stdout
+mtm ical --out ~/mtm.ics
+mtm ical --serve --bind 127.0.0.1:8765          # read-only endpoint
+mtm ical --serve --token secret --bind 0.0.0.0   # remote read access (warns loudly)
+```
+
+- **Markdown** is a readable report grouped by course: grades, exams, task
+  lists (nested subtasks), hours.
+- **JSON** carries a top-level `schema_version` (currently `2`), documented
+  below in [Export schema](#export-schema-version-2). Since version 2 the
+  `ideas`, `milestones` and `devlog` arrays are fully populated.
+- **CSV** is a flat task table with stable columns (one row per task; subtasks
+  included with `parent` set).
+- **iCal** events: timed tasks and exams are timed events (1h duration);
+  date-only tasks are all-day events. Milestones are all-day events on their
+  target date (`--include tasks,exams,milestones`). UIDs derive from task and
+  milestone ids, so re-imports update instead of duplicating. Dates stored
+  local-naive export as floating local times; set `ical.timezone` to emit
+  `TZID` parameters. `--alarm 30m` adds a VALARM to every event.
+- The `--serve` endpoint serves exactly `/mtm.ics` (or `/<token>/mtm.ics` with
+  `--token`), GET/HEAD only, read-only, regenerated per request. The default
+  bind is loopback; non-loopback prints a loud warning.
+
+### Shell, bars and system
+
+- `mtm summary` — shell status line (see below).
+- `mtm waybar` — one JSON line for a Waybar `custom/` module.
+- `mtm completion bash|zsh|fish` — completion scripts.
+- `mtm remind` — one-shot reminder check (`--dry-run`).
+- `mtm systemd install|uninstall|status` — user sync + reminder timers.
+- `mtm sync` (`--status`, `--continue`, `--abort`, `--json`).
+- `mtm doctor` — read-only health checks (`--json`).
+- `mtm tui` — launch the TUI explicitly (bare `mtm` does the same on a TTY).
+- `mtm version` — embedded version, commit and build date.
+
+## Configuration reference
+
+`~/.config/mtm/config.yaml`. Every key is optional; defaults are shown. Every
+value is validated on load — a typo is reported, not silently ignored.
+
+```yaml
+data_repo: ~/.local/share/mtm   # where the data lives (git repo)
+default_project: inbox          # where new tasks land without a project
+editor: ""                      # $EDITOR, else $VISUAL, else vi
+date_format: "2006-01-02"       # parsed for completeness; not yet wired into display
+week_start: monday              # or "sunday"
+
+sort:                           # task-list sort, applied in order
+  - done                        # open first
+  - due
+  - priority
+  - title
+
+board:
+  done_days: 14                 # board Done column window (0 = all)
+
+heatmap:
+  weeks: 26                     # completion heatmap width (clamped 4–52)
+
+sync:
+  auto: true                    # sync after each change
+  debounce_seconds: 2
+  remote: origin
+
+pomodoro:
+  work_minutes: 25
+  short_break_minutes: 5
+  long_break_minutes: 15
+  long_every: 4
+
+saved_views: []                 # [{name: ..., filter: ...}]
+
+keys: {}                        # TUI key overrides: action -> key(s), e.g. quit: Q
+
+ui:
+  animations: true              # caps animations; honors reduced motion
+  icons: nerd                   # nerd | unicode | none
+  density: comfortable          # comfortable | compact (compact drops the
+                                # blank line between a card's title and badges)
+  semester_start: ""            # "2026-09-01" — enables the brand-header week chip
+  semester_weeks: 16
+
+  # Ambient scenes: master switch + placement.
+  ambient: both                 # off | splash | sidebar | home | both
+                                # both = splash + sidebar window;
+                                # sidebar = framed window below the sidebar
+                                # list; home = larger panel in Home free
+                                # space, hidden while the window is on;
+                                # Focus + reward ride on any non-off value
+  ambient_sidebar: true         # framed window below the sidebar list (≥ 8 rows,
+                                # collapses on short terminals); toggle in :ambient
+  scene: auto                   # auto (by local hour) | random | night |
+                                # bonsai | ocean | rain | koi | snow | campfire |
+                                # mountains | river | meteor
+  splash_seconds: 3.0           # startup splash length (0–30)
+  splash: on                    # on | off | once-a-day — once-a-day shows it
+                                # only on the first launch of each local day
+                                # (stamp: ~/.local/state/mtm/splash.stamp)
+  reward_animation: true        # 1.5s scene burst when a task is completed
+                                # (rate-limited to 3 per minute)
+  ambient_fps: 60               # animation cap (1–60)
+  ambient_idle: slow            # slow | pause | off — slow drops Home/sidebar
+                                # to ~4 FPS after 30s idle and freezes after
+                                # 5 min; Focus/splash exempt while the timer runs
+  ambient_render: auto          # auto | halfblock (▀▄ 2x vertical) | braille | ascii |
+                                # quadrant (2x2 subcells, square pixels) |
+                                # sextant (2x3 subcells, mosaic glyphs)
+  ambient_dither: on            # limited terminals only: nearest xterm-256 entry,
+                                # optionally ordered-dithered between the two nearest
+  rain_lightning: false         # rare lightning in the rain scene
+  truecolor: auto               # auto | on | off — 24-bit color; auto detects
+                                # from the environment; MTM_TRUECOLOR=1|0 overrides
+  reduced_motion: false         # no crossfades/dissolves; also honors NO_MOTION=1
+  wordmark: caps                # caps ("MTM") | lower ("mtm") splash wordmark
+
+stats:
+  streak_min_minutes: 15        # a day is active with ≥1 completion OR this many
+                                # logged minutes; 0 = only completions count
+
+ical:
+  timezone: ""                  # IANA name (e.g. "Europe/London"); empty = floating local times
+
+devlog:
+  suggest_from_commits: false   # prefill `mtm log <project>` with recent commits
+
+reminders:
+  due_soon_minutes: 0           # >0: also notify for tasks due within N minutes
+  quiet_hours: ""               # "22:00-07:00" (spans midnight) — empty disables
+```
+
+## Data layout
+
+```
+~/.local/share/mtm/                # the data repo (syncs)
+├── projects/<project>/<id>-<slug>.md
+├── projects/<project>/project.yaml   # statuses, color, course block, github/repo_path (read-only link)
+├── projects/<project>/milestones/<id>-<slug>.md
+├── projects/<project>/devlog/<YYYY-MM-DD>-<id>.md
+├── ideas/<id>-<slug>.md               # incubator items (sync-safe, one per file)
+├── archive/<project>/            # mtm archive moves done tasks here
+├── templates/<name>.md           # optional starter-task templates for `mtm idea promote`
+├── .mtm-data                     # repo marker: UUID, creation date, kind: real|demo
+└── .git/
+
+~/.cache/mtm/index.json           # index; never committed; safe to delete
+~/.cache/mtm/github.json          # gh issue/PR counts cache (15-minute TTL; never in the data repo)
+~/.local/state/mtm/timer.json     # timer/Pomodoro state (outside the repo)
+~/.local/state/mtm/timer.lock
+~/.local/state/mtm/reminders.json # sent reminders (dedup; outside the repo)
+~/.local/state/mtm/splash.stamp   # once-a-day splash marker
+~/.local/share/mtm/.git/mtm-sync-state.json  # sync paused flag (inside the data repo's .git directory)
+```
+
+Each task is one Markdown file:
+
+```markdown
+---
+id: 3db991
+title: Submit DBMS assignment 2
+project: college/dbms
+status: doing
+priority: high          # low | medium | high | urgent
+tags: [assignment, exam]
+due: 2026-11-14T23:59   # local-naive; date-only also allowed
+kind: assignment        # task | assignment | exam | study | project
+estimate_minutes: 90
+time_logged_minutes: 45
+weight: 15              # grade weight %, for assignments and exams
+score: 88               # set by `mtm grade`
+score_max: 100          # default 100
+parent: abc123          # set for subtasks
+milestone: ms0001       # set when linked to a milestone
+completed: 2026-11-09T18:30   # set when done
+---
+
+Free-form Markdown notes here.
+```
+
+Ideas, milestones and dev-log entries are Markdown files too:
+
+```markdown
+---                     # ideas/<id>-<slug>.md
+id: ide0001
+title: Local-first sync engine
+status: exploring        # seed | exploring | parked | promoted | dropped
+tags: [sync, go]
+created: 2026-10-01T10:00
+updated: 2026-11-02T10:00
+rating: 5                # 1-5; 0/absent = unrated
+links: []
+promoted_to: college/dbms   # set by `mtm idea promote`
+---
+
+---                     # projects/<project>/milestones/<id>-<slug>.md
+id: ms0001
+title: v0.1 — study MVP
+target: 2026-12-15      # local-naive date
+status: active          # planned | active | done | missed
+description: Course companion features
+created: 2026-10-20T09:00
+updated: 2026-11-05T10:00
+---
+
+---                     # projects/<project>/devlog/<YYYY-MM-DD>-<id>.md
+id: dl00001
+title: Week 2 wrap
+mood: flow              # optional
+time_spent_minutes: 90  # optional (--with-timer attaches the running timer)
+tags: [study]
+created: 2026-11-04T21:30
+---
+```
+
+TUI panels derive their colors from the active Omarchy theme at runtime;
+themes, icons and layout changes apply immediately with no restart.
+
+## The TUI
+
+`mtm` opens the Study Desk dashboard. Views: `0` Home · `1` List · `2` Board ·
+`3` Calendar · `4` Courses · `5` Stats · `6` Ideas (all reachable with `tab`).
+
+- `a` add · `A` add subtask · `x` done/un-done
+- `/` filter · `ctrl+p` palette · `?` keybindings (scrollable)
+- `F` focus mode (Pomodoro on the selected task)
+- ambient scenes (auto by time of day, or `ui.scene:`): `alt+s` cycle scenes ·
+  `:scene <name>` switch · `:ambient` opens the live preview + settings (save
+  writes the managed `ui.*` keys to the config) · `--no-ambient` disables for
+  one run · `--no-splash` skips the splash
+- board: `h`/`l` move between columns · `D` toggle the Done filter
+- calendar: `h`/`l` move the day · `J`/`K` change months
+- courses: `g` record a grade · `:exam <course>` in the palette to add an exam
+- ideas: `a` capture · `r` rate 1–5 · `p` promote to a project · `s` cycle
+  status · `m`/`M` notes
+- project page (`enter` on a project in the sidebar, or `:roadmap`):
+  `[`/`]` switch tabs (Overview · Tasks · Roadmap · Dev-log) · `h`/`l` pan the
+  roadmap timeline · `j`/`k` move · `enter` opens the selected task · `esc`
+  closes
+- help overlay shows every binding (`?`)
+
+All keybindings are overridable via `keys:` in the config; see `?` inside the
+TUI.
+
+### Ambient scenes
+
+Ten deterministic scenes: `night` (starfield, real moon phase, aurora),
+`bonsai`, `ocean`, `rain` (cabin), `koi`, `snow`, `campfire`, `mountains`
+(dusk valley), `river` (golden hour) and `meteor` (shower). `ui.scene: auto`
+picks by local hour: 5–8 mountains, 8–15 ocean, 15–17 river, 17–20 rain,
+20–23 night, 23–5 meteor.
+
+Scenes appear as the startup splash, the framed sidebar window, the Focus
+backdrop and the task-complete reward burst. `ui.ambient_render` picks the
+raster mode: `auto` (halfblock), `halfblock`, `braille`, `ascii`, `quadrant`
+(2×2 subcells, square pixels) or `sextant` (2×3 subcells, mosaic glyphs).
+`ui.ambient_idle` throttles idle CPU; `ui.ambient_fps` caps the frame rate.
+
+## Sync and multi-device
+
+`mtm` syncs the data repo (`~/.local/share/mtm`) through any git remote. The
+recommended setup is a private GitHub repo reached over a dedicated SSH host
+alias with its own deploy key, so `mtm` never touches your personal GitHub
+credentials.
 
 ```sshconfig
 # ~/.ssh/config
@@ -142,9 +544,9 @@ per-machine and rebuilt automatically.
 
 ## Reminders and systemd
 
-`mtm remind` is a one-shot check for tasks whose `reminder` time passed,
-plus — when `reminders.due_soon_minutes` is set — tasks due within that
-window. It sends `notify-send` and records each task+occurrence in
+`mtm remind` is a one-shot check for tasks whose `reminder` time passed, plus —
+when `reminders.due_soon_minutes` is set — tasks due within that window. It
+sends `notify-send` and records each task+occurrence in
 `~/.local/state/mtm/reminders.json`, so every reminder fires at most once.
 Notifications never fire inside `reminders.quiet_hours` (e.g. `22:00-07:00`);
 quiet-hours-held reminders fire after the window ends.
@@ -156,89 +558,83 @@ mtm remind --dry-run     # preview, send/record nothing
 `mtm systemd install` writes two user timers (no changes to the data repo):
 
 - `mtm-sync.timer` → runs `mtm sync` every 15 minutes (plain `mtm sync`; it
-  refuses while the data repo is conflicted/paused, per D-003)
+  refuses while the data repo is conflicted/paused)
 - `mtm-remind.timer` → runs `mtm remind` every 5 minutes
 
 and enables them with `systemctl --user enable --now`. Uninstall with
-`mtm systemd uninstall`; inspect with `mtm systemd status`. `--dry-run`
-prints the plan without writing anything; `MTM_SYSTEMD_USER_DIR` overrides
-the unit directory (tests use it; the real `~/.config/systemd/user` is never
-touched unless you ask).
+`mtm systemd uninstall`; inspect with `mtm systemd status`. `--dry-run` prints
+the plan without writing anything; `MTM_SYSTEMD_USER_DIR` overrides the unit
+directory (tests use it; the real `~/.config/systemd/user` is never touched
+unless you ask).
 
-## Ideas incubator, milestones and dev-log
+## Shell integration
 
-Half-formed ideas live in `ideas/` until they prove themselves:
+### Startup summary
 
-```sh
-mtm idea "local-first sync" --tag sync --rating 4
-mtm ideas                            # list (seed/exploring/parked live up top)
-mtm idea note ide0001 "check CRDT vs oplog"
-mtm idea status ide0001 exploring    # seed → exploring → parked → dropped
-mtm idea promote ide0001             # → project with todo/doing/done, an initial
-                                      #   milestone and a linked starter task list
-mtm idea promote ide0001 --template web  # starter tasks from templates/web.md
+`mtm summary` prints a two-line block (needs `< 50ms`; ~17ms measured):
+
+```text
+3 today · 2 overdue · exam in 13d: dbms final exam
+inbox 2/5 (40%) · college/dbms 1/4 (25%)
 ```
 
-Projects carry milestones; tasks link to them with `--milestone`:
+Add to your shell rc (`.bashrc` / `.zshrc`):
 
 ```sh
-mtm milestone add college/dbms "v0.1 — study MVP" --target 2026-12-15
-mtm add "normalize the orders schema" --project college/dbms --milestone ms0001
-mtm milestone list college/dbms      # progress bar per milestone (tasks+subtasks)
-mtm milestone done ms0001
+mtm summary 2>/dev/null || true
 ```
 
-`mtm log <project>` appends to the project's dev-log
-(`projects/<project>/devlog/<YYYY-MM-DD>-<id>.md`):
+### Waybar module
+
+`mtm waybar` prints one JSON line for a Waybar `custom/` module. Text is
+bar-sized: today's open task count, plus an exam chip (`✦<days>`) within 30 days
+and an active-timer chip. Class priority: `overdue` > `exam` (≤3d) > `timer` >
+`normal`. It never exits non-zero and never prints anything but JSON.
+
+`~/.config/waybar/config.jsonc` (Omarchy's Waybar config):
+
+```jsonc
+"custom/mtm": {
+  "exec": "mtm waybar",
+  "return-type": "json",
+  "interval": 30,
+  "format": "{}",
+  "tooltip": true
+}
+```
+
+and add `"custom/mtm"` to the `modules-right` list. `style.css`:
+
+```css
+#custom-mtm.overdue { color: @red; }
+#custom-mtm.exam { color: @yellow; }
+#custom-mtm.timer { color: @blue; }
+#custom-mtm.normal { color: @foreground; }
+```
+
+### Hyprland: floating quick-add
+
+A one-shot terminal for `mtm add`, sized small and focused:
+
+```ini
+# ~/.config/hypr/hyprland.conf
+bind = $mainMod, T, exec, hyprctl dispatch exec [float;size 800 400;center] "alacritty --class mtm-quick -e mtm add"
+windowrulev2 = float, class:^(mtm-quick)$
+windowrulev2 = size 800 400, class:^(mtm-quick)$
+windowrulev2 = center, class:^(mtm-quick)$
+```
+
+(Omarchy ships alacritty; swap in foot if you use it.)
+
+### Shell completions
+
+Installed by `make install`. To do it by hand:
 
 ```sh
-mtm log college/dbms "3NF, then lossless joins"
-mtm log college/dbms                  # scaffold in $EDITOR (commits prefilled
-                                      #   with devlog.suggest_from_commits: true)
-mtm log college/dbms --with-timer "evening block"   # attach the running timer
-mtm log college/dbms --from-commits   # body prefilled with recent commits
-mtm logs college/dbms --since 7d
+mtm completion bash > ~/.local/share/bash-completion/completions/mtm
+mtm completion zsh  > "${fpath[1]}/_mtm"        # then: autoload -U compinit && compinit
+mtm completion fish > ~/.config/fish/completions/mtm.fish
 ```
-
-`mtm project link <project> --path ~/Projects/foo [--repo owner/name]` reads
-the linked repo read-only: a 12-week commit sparkline, last commit, last 5
-subjects and a commit streak (sidebar and Home chips); with `--repo` and an
-authenticated `gh` it also shows open issue/PR counts and the latest few
-(cached 15 minutes, in the cache dir, never in the data repo).
-
-The project page (`enter` on a project in the sidebar, or `:roadmap` in the
-TUI) has four tabs: **Overview** (description, combined progress, velocity,
-hours, GitHub section), **Tasks**, **Roadmap** (12-week timeline, milestone
-bars with progress, today marker, at-risk/overdue colours) and **Dev-log**.
-
-## Import and export
-
-```sh
-mtm export                     # markdown report to stdout (grouped by course)
-mtm export --format json --out export.json
-mtm export --format csv --project college/dbms
-mtm ical                       # RFC 5545 calendar to stdout
-mtm ical --out ~/mtm.ics
-mtm ical --serve --bind 127.0.0.1:8765          # read-only endpoint
-mtm ical --serve --token secret --bind 0.0.0.0   # remote read access (warns loudly)
-```
-
-- **Markdown** is a readable report grouped by course: grades, exams, task
-  lists (nested subtasks), hours.
-- **JSON** carries a top-level `schema_version` (currently `2`), documented
-  below in *Export schema*. Since version 2 the `ideas`, `milestones` and
-  `devlog` arrays are fully populated.
-- **CSV** is a flat task table with stable columns (one row per task;
-  subtasks included with `parent` set).
-- **iCal** events: timed tasks and exams are timed events (1h duration);
-  date-only tasks are all-day events. Milestones are all-day events on their
-  target date (`--include tasks,exams,milestones`). UIDs derive from task and
-  milestone ids, so re-imports update instead of duplicating. Dates stored
-  local-naive export as floating local times; set `ical.timezone` to emit
-  `TZID` parameters. `--alarm 30m` adds a VALARM to every event.
-- The `--serve` endpoint serves exactly `/mtm.ics` (or `/<token>/mtm.ics`
-  with `--token`), GET/HEAD only, read-only, regenerated per request. The
-  default bind is loopback; non-loopback prints a loud warning.
 
 ## Export schema (version 2)
 
@@ -278,344 +674,92 @@ keys — upgrade to version 2 for the new sections.
 Round-trip by `mtm export --format json`; the tests validate the structure
 against this schema.
 
-## Configuration reference
-
-`~/.config/mtm/config.yaml`. Every key is optional; defaults are shown.
-`mtm init` writes the generated default file (plain YAML, no comments).
-
-```yaml
-data_repo: ~/.local/share/mtm   # where the data lives (git repo)
-default_project: inbox          # where new tasks land without a project:
-editor: ""                      # $EDITOR, else $VISUAL, else vi
-date_format: "2006-01-02"       # reserved (not yet wired)
-week_start: monday              # or "sunday"
-
-sort:                           # task-list sort, applied in order
-  - done                        # open first
-  - due
-  - priority
-  - title
-
-board:
-  done_days: 14                 # board Done column window (0 = all)
-
-heatmap:
-  weeks: 26                     # completion heatmap width (clamped 4–52)
-
-sync:
-  auto: true                    # sync after each change
-  debounce_seconds: 2
-  remote: origin
-
-pomodoro:
-  work_minutes: 25
-  short_break_minutes: 5
-  long_break_minutes: 15
-  long_every: 4
-
-saved_views: []                 # [{name: ..., filter: ...}]
-
-keys: {}                        # TUI key overrides: action -> key(s), e.g. quit: Q
-
-ui:
-  animations: true              # 400ms animation cap; honors reduce-motion
-  icons: nerd                   # nerd | unicode | none
-  density: comfortable          # comfortable | compact (compact drops the
-                                # blank line between a card's title and badges)
-  semester_start: ""            # "2026-09-01" — enables the brand-header week chip
-  semester_weeks: 16
-  ambient: both                 # off | splash | sidebar | home | both — ambient
-                                # scenes (both = splash + sidebar window;
-                                # sidebar = framed window below the sidebar
-                                # list; home = larger panel in Home free
-                                # space, hidden while the window is on;
-                                # Focus + reward ride on any non-off value)
-  ambient_sidebar: true         # framed window below the sidebar list (≥ 8 rows,
-                                # collapses on short terminals); toggle in :ambient
-  scene: auto                   # auto (by local hour) | random | night |
-                                # bonsai | ocean | rain | koi | snow | campfire
-                                # | mountains | river | meteor
-  splash_seconds: 3.0           # startup splash length
-  reward_animation: true        # 1.5s scene burst when a task is completed
-                                # (rate-limited to 3 per minute)
-                                # tab switches dissolve between the old
-                                # and new view over ~150ms (skipped with
-                                # reduced motion)
-  ambient_fps: 60               # animation cap (max 60)
-  ambient_render: auto          # auto | halfblock (▀▄ 2x vertical) | braille | ascii |
-                                # quadrant (2x2 subcells, square pixels) |
-                                # sextant (2x3 subcells, mosaic glyphs)
-  rain_lightning: false         # rare lightning in the rain scene
-  truecolor: auto               # auto | on | off — 24-bit color; auto =
-                                # truecolor unless the terminal shows
-                                # positive evidence of limited palette
-                                # (TERM=linux|dumb, NO_COLOR, Apple Terminal,
-                                # TERM=screen* without COLORTERM);
-                                # MTM_TRUECOLOR=1|0 overrides for a run
-  splash: on                    # on | off | once-a-day — once-a-day shows
-                                # the splash only on the first launch of
-                                # each local day (stamp: ~/.local/state/mtm/
-                                # splash.stamp); --no-splash /
-                                # MTM_NO_SPLASH=1 suppresses for a run
-  ambient_dither: on            # only relevant on limited terminals: nearest
-                                # xterm-256 entry per color, optionally
-                                # ordered-dithered between the two nearest
-                                # (never per-channel)
-
-stats:
-  streak_min_minutes: 15        # a day is active with ≥1 completion OR this many logged minutes
-                                # 0 = only completions count
-
-ical:
-  timezone: ""                  # IANA name (e.g. "Europe/London"); empty = floating local times
-
-devlog:
-  suggest_from_commits: false   # prefill `mtm log <project>` $EDITOR scaffold with recent commits
-
-reminders:
-  due_soon_minutes: 0           # >0: also notify for tasks due within N minutes
-  quiet_hours: ""               # "22:00-07:00" (spans midnight) — empty disables
-```
-
-## Data layout
-
-```
-~/.local/share/mtm/                # the data repo (syncs)
-├── projects/<project>/<id>-<slug>.md
-├── projects/<project>/project.yaml   # statuses, color, course block, github/repo_path (read-only link)
-├── projects/<project>/milestones/<id>-<slug>.md
-├── projects/<project>/devlog/<YYYY-MM-DD>-<id>.md
-├── ideas/<id>-<slug>.md               # incubator items (sync-safe, one per file)
-├── archive/<project>/            # mtm archive moves done tasks here
-├── templates/<name>.md           # optional starter-task templates for `mtm idea promote`
-├── .mtm-data                     # repo marker: UUID, creation date, kind: real|demo
-└── .git/
-
-~/.cache/mtm/index.json           # index; never committed; safe to delete
-~/.cache/mtm/github.json          # gh issue/PR counts cache (15-minute TTL; never in the data repo)
-~/.local/state/mtm/timer.json     # timer/Pomodoro state (outside the repo)
-~/.local/state/mtm/timer.lock
-~/.local/state/mtm/reminders.json # sent reminders (dedup; outside the repo)
-~/.local/share/mtm/.git/mtm-sync-state.json  # sync paused flag (inside the data repo's .git directory)
-```
-
-Each task is one Markdown file:
-
-```markdown
----
-id: 3db991
-title: Submit DBMS assignment 2
-project: college/dbms
-status: doing
-priority: high          # low | medium | high | urgent
-tags: [assignment, exam]
-due: 2026-11-14T23:59   # local-naive; date-only also allowed
-kind: assignment        # task | assignment | exam | study | project
-estimate_minutes: 90
-time_logged_minutes: 45
-weight: 15              # grade weight %, for assignments and exams
-parent: abc123          # set for subtasks
-milestone: ms0001       # set when linked to a milestone
-completed: 2026-11-09T18:30   # set when done
----
-Free-form Markdown notes here.
-```
-
-Ideas and milestones are Markdown files too:
-
-```markdown
----                     # ideas/<id>-<slug>.md
-id: ide0001
-title: Local-first sync engine
-status: exploring        # seed | exploring | parked | promoted | dropped
-tags: [sync, go]
-created: 2026-10-01T10:00
-updated: 2026-11-02T10:00
-rating: 5                # 1-5; 0/absent = unrated
-links: []
-promoted_to: college/dbms   # set by `mtm idea promote`
----
-
----                     # projects/<project>/milestones/<id>-<slug>.md
-id: ms0001
-title: v0.1 — study MVP
-target: 2026-12-15      # local-naive date
-status: active          # planned | active | done | missed
-description: Course companion features
-created: 2026-10-20T09:00
-updated: 2026-11-05T10:00
----
-
----                     # projects/<project>/devlog/<YYYY-MM-DD>-<id>.md
-id: dl00001
-title: Week 2 wrap
-mood: flow              # optional
-time_spent_minutes: 90  # optional (--with-timer attaches the running timer)
-tags: [study]
-created: 2026-11-04T21:30
----
-
-TUI panels derive their colors from the active Omarchy theme at runtime;
-themes, icons and layout scale changes apply immediately with no restart.
-
-## Shell startup summary
-
-`mtm summary` prints a two-line block (needs `< 50ms`; ~17ms measured):
-
-```text
-3 today · 2 overdue · exam in 13d: dbms final exam
-inbox 2/5 (40%) · college/dbms 1/4 (25%)
-```
-
-Add to your shell rc (`.bashrc` / `.zshrc`):
-
-```sh
-mtm summary 2>/dev/null || true
-```
-
-## Waybar module
-
-`mtm waybar` prints one JSON line for a Waybar `custom/` module. Text is
-bar-sized: today's open task count, plus an exam chip (`✦<days>`) within
-30 days and an active-timer chip. Class priority: `overdue` > `exam` (≤3d) >
-`timer` > `normal`.
-
-`~/.config/waybar/config.jsonc` (Omarchy's Waybar config):
-
-```jsonc
-"custom/mtm": {
-  "exec": "mtm waybar",
-  "return-type": "json",
-  "interval": 30,
-  "format": "{}",
-  "tooltip": true
-}
-```
-
-and add `"custom/mtm"` to the `modules-right` list. `style.css`:
-
-```css
-#custom-mtm.overdue { color: @red; }
-#custom-mtm.exam { color: @yellow; }
-#custom-mtm.timer { color: @blue; }
-#custom-mtm.normal { color: @foreground; }
-```
-
-## Hyprland: floating quick-add
-
-A one-shot terminal for `mtm add`, sized small and focused:
-
-```ini
-# ~/.config/hypr/hyprland.conf
-bind = $mainMod, T, exec, hyprctl dispatch exec [float;size 800 400;center] "alacritty --class mtm-quick -e mtm add"
-windowrulev2 = float, class:^(mtm-quick)$
-windowrulev2 = size 800 400, class:^(mtm-quick)$
-windowrulev2 = center, class:^(mtm-quick)$
-```
-
-(Omarchy ships alacritty; swap in foot if you use it.)
-
-## Shell completions
-
-Installed by `make install`. To do it by hand:
-
-```sh
-mtm completion bash > ~/.local/share/bash-completion/completions/mtm
-mtm completion zsh  > "${fpath[1]}/_mtm"        # then: autoload -U compinit && compinit
-mtm completion fish > ~/.config/fish/completions/mtm.fish
-```
-
-## The TUI in short
-
-`mtm` opens the Study Desk dashboard. Views: `0` Home · `1` List · `2` Board ·
-`3` Calendar · `4` Courses · `5` Stats · `6` Ideas (all reachable with `tab`).
-
-- `a` add · `A` add subtask · `x` done/un-done
-- `/` filter · `ctrl+p` palette · `?` keybindings
-- `F` focus mode (pomodoro on the selected task)
-- ambient scenes (auto by time of day, or `ui.scene:`): `alt+s` cycle scenes
-  · `:scene <name>` switch · `:ambient` opens the live preview + mood picker
-  · `--no-ambient` disables for one run · `--no-splash` skips the splash
-- board: `h`/`l` move between columns · `D` toggle the Done filter
-- calendar: `h`/`l` move the day · `J`/`K` change months
-- courses: `g` record a grade · `:exam <course>` in the palette to add an exam
-- ideas: `a` capture · `r` rate 1–5 · `p` promote to a project · `s` cycle
-  status · `m`/`M` notes
-- project page (`enter` on a project in the sidebar, or `:roadmap`):
-  `[`/`]` switch tabs (Overview · Tasks · Roadmap · Dev-log) · `h`/`l` pan
-  the roadmap timeline · `j`/`k` move · `enter` opens the selected task ·
-  `esc` closes
-- help overlay shows every binding (`?`)
-
-All keybindings are overridable via `keys:` in the config; see `?` inside the
-TUI.
-
 ## Troubleshooting
 
-**The TUI/index looks stale or weird after moving machines.** The index
-is a local cache; rebuild it: `rm ~/.cache/mtm/index.json` and run any
-command — it reindexes from the files.
+**The TUI/index looks stale or weird after moving machines.** The index is a
+local cache; rebuild it: `rm ~/.cache/mtm/index.json` and run any command — it
+reindexes from the files.
 
-**`mtm sync` keeps saying "sync is paused".** A pull conflicted. Fix the
-files, `mtm sync --status` shows what's unmerged, then
-`mtm sync --continue` (or `--abort` to drop the pull and get writing again).
-Sync never auto-resolves.
+**A config value is rejected.** `mtm` validates every key on load and prints
+`mtm: config …: <problem>`. Check the spelling against
+[Configuration reference](#configuration-reference); unknown `ui.*` values are
+errors, not warnings.
 
-**Suspect demo/fixture data in the real repo, or something feels off.**
-Run `mtm doctor` — it checks the marker (`.mtm-data`), the git repo, the
-remote, your git identity, every task file's frontmatter, demo-corpus
-ids/commit messages (e.g. `dn0055`, `lt0001`, `od0001` — only flagged when
-the repo marker says `kind: real`), a paused/conflicted sync and stale
-timer state. `mtm doctor --json` for scripting; exits non-zero on any
-failure. `mtm demo-seed` itself only runs inside a sandbox
-(`MTM_SANDBOX=1` + temp dirs) and refuses repos whose marker says
-`kind: real`.
+**`mtm sync` keeps saying "sync is paused".** A pull conflicted. Fix the files,
+`mtm sync --status` shows what's unmerged, then `mtm sync --continue` (or
+`--abort` to drop the pull and get writing again). Sync never auto-resolves.
 
-**The ambient scene does not reach the very edge of a Ghostty window.**
-Ghostty pads the window (`window-padding-x`/`window-padding-y`) and by
-default fills that padding with the background color, so the scene stops
-a few pixels short of the edge. Set `window-padding-color = extend-always`
-in `~/.config/ghostty/config` (or `$XDG_CONFIG_HOME/ghostty/config`) and
-restart Ghostty. `mtm doctor` warns about this combination (read-only —
-it never edits your terminal config).
+**Suspect demo/fixture data in the real repo, or something feels off.** Run
+`mtm doctor` — it checks the git repo, the marker (`.mtm-data`), the remote,
+your git identity, every task file's frontmatter, demo-corpus ids/commit
+messages (e.g. `dn0055`, `lt0001`, `od0001` — only flagged when the repo marker
+says `kind: real`), a paused/conflicted sync, stale timer state, malformed theme
+roles, the detected terminal/color mode, the configured ambient render, and
+Ghostty window padding. `mtm doctor --json` for scripting; exits non-zero on
+any failure. `mtm demo-seed` itself only runs inside a sandbox
+(`MTM_SANDBOX=1` + temp dirs) and refuses repos whose marker says `kind: real`.
 
-**Waybar shows nothing.** Check `mtm waybar` by hand; it prints one JSON
-line or an error payload. The module needs `"custom/mtm"` in the waybar
-modules list and `"return-type": "json"`.
+**The ambient scene does not reach the very edge of a Ghostty window.** Ghostty
+pads the window (`window-padding-x`/`window-padding-y`) and by default fills
+that padding with the background color, so the scene stops a few pixels short
+of the edge. Set `window-padding-color = extend-always` in
+`~/.config/ghostty/config` (or `$XDG_CONFIG_HOME/ghostty/config`) and restart
+Ghostty. `mtm doctor` warns about this combination (read-only — it never edits
+your terminal config). mtm also paints a uniform base row at the very bottom so
+the padding mirrors invisibly instead of replicating the footer pill.
 
-**`mtm remind` never fires.** Reminders are one-shot per task+occurrence
-in `~/.local/state/mtm/reminders.json` — check whether it's already there
-(delete the entry to re-fire), and check `quiet_hours` in the config.
-`--dry-run` shows what would fire right now.
+**Waybar shows nothing.** Check `mtm waybar` by hand; it prints one JSON line
+or an error payload. The module needs `"custom/mtm"` in the waybar modules list
+and `"return-type": "json"`.
 
-**A timer shows time I didn't work.** `mtm timer stop` banks the elapsed
-time capped at the session; nothing starts by itself. (Focus mode shows
-the ring at 00:00 until `space`.)
+**`mtm remind` never fires.** Reminders are one-shot per task+occurrence in
+`~/.local/state/mtm/reminders.json` — check whether it's already there (delete
+the entry to re-fire), and check `quiet_hours` in the config. `--dry-run` shows
+what would fire right now.
 
-**Where does mtm write outside the repo?** Only `~/.cache/mtm` (index) and
-`~/.local/state/mtm` (timer, reminders). Your tasks live in the git repo
-and in nowhere else.
+**A timer shows time I didn't work.** `mtm timer stop` banks the elapsed time
+capped at the session; nothing starts by itself. (Focus mode shows the ring at
+00:00 until `space`.)
+
+**Where does mtm write outside the repo?** Only `~/.cache/mtm` (index, GitHub
+cache) and `~/.local/state/mtm` (timer, reminders, splash stamp). Your tasks
+live in the git repo and in nowhere else.
 
 ## Development
 
 ```sh
 make test vet fmt       # go test ./..., go vet, gofmt check
+make check              # fmt + vet + test
 make build              # bin/mtm
 make man                # man pages into ./man (via cobra docs)
 make install            # binary + man page + completions into ~/.local
 make demo               # throwaway sandbox with example data (never your real data)
 make smoke              # full CLI lifecycle in a throwaway sandbox
+make perf               # CPU/paint measurements under a pty (sandboxed)
 ```
+
+Tests and demos are sandboxed: `contrib/sandbox-env.sh` redirects `HOME`, every
+XDG root and `MTM_SANDBOX=1` into a temp dir, and `internal/paths` panics if a
+sandboxed process would touch the real roots. `mtm tui --dump` renders one
+deterministic frame (`--view`, `--size WxH`, `--no-color`, `--scene`, `--render`,
+`--ppm FILE`) and only runs inside the sandbox; it backs the golden tests in
+`internal/tui/testdata/`.
+
+Layering: `cmd/mtm` → `internal/cli` (Cobra) / `internal/tui` (Bubble Tea) →
+`internal/actions` → `internal/core` → `internal/store`. The TUI has no business
+logic.
+
+Commit messages in the data repo are deliberately free of tooling noise; user
+data belongs to the user.
 
 ## Measuring performance (`make perf`)
 
 `make perf` runs the TUI under a pseudo-terminal in a **throwaway sandbox**
-(`HOME`, every XDG root and `MTM_SANDBOX=1` pointed at a temp dir) and
-reports, per scenario, the user+sys CPU time over the run (from
-`wait4`), the paint rate (alt-screen flushes counted as `ESC[H`), bytes
-per paint, allocations per paint (from the `--profile` stats file) and
-allocations per `View()` rebuild — plus the top 15 functions from a CPU
-profile (`go tool pprof -top`).
+(`HOME`, every XDG root and `MTM_SANDBOX=1` pointed at a temp dir) and reports,
+per scenario, the user+sys CPU time over the run (from `wait4`), the paint rate
+(alt-screen flushes counted as `ESC[H`), bytes per paint, allocations per paint
+(from the `--profile` stats file) and allocations per `View()` rebuild — plus
+the top 15 functions from a CPU profile (`go tool pprof -top`).
 
 ```sh
 make perf                                   # all four scenarios, ~6.5 min
@@ -629,36 +773,29 @@ The four scenarios (120x40 by default):
 | scenario | what it measures | shipped target |
 |---|---|---|
 | `home-ambient-off` | Home idle, ambient off | ≤ 2% of a core |
-| `home-ambient-12fps` | Home + sidebar window (label kept for comparability; the Home/sidebar cap is 8 FPS since the idle-policy change) | ≤ 20% of a core |
+| `home-ambient-12fps` | Home + sidebar window (label kept for comparability; the Home/sidebar idle cap is lower) | ≤ 20% of a core |
 | `focus-24fps` | Focus mode behind a running Pomodoro | ≤ 30% of a core |
 | `idle-ambient-5m` | Ambient on, untouched; defaults to 300 s | ≤ 5% of a core |
 
-The harness answers the terminal's capability queries (`OSC 11` and
-`DSR`) like a real terminal, so colours render through the truecolor
-path instead of an ASCII fallback. Profiling refuses to run outside the
-sandbox (`MTM_PPROF=cpu:/path/to.pprof` or `mtm tui --profile FILE`).
+The harness answers the terminal's capability queries (`OSC 11` and `DSR`) like
+a real terminal, so colours render through the truecolor path instead of an
+ASCII fallback. Profiling refuses to run outside the sandbox
+(`MTM_PPROF=cpu:/path/to.pprof` or `mtm tui --profile FILE`).
 
-To measure on your own hardware, run it on the machine you care about.
-The numbers in this repo's commit history were taken on an i3-1115G4 and
-cover the `mtm` process only (the pty reader is off the clock); your
-numbers will differ on a faster or busier machine.
+To measure on your own hardware, run it on the machine you care about. The
+numbers in this repo's commit history were taken on an i3-1115G4 and cover the
+`mtm` process only (the pty reader is off the clock); your numbers will differ
+on a faster or busier machine.
 
-Layering: `cmd/mtm` → `internal/cli` (Cobra) / `internal/tui` (Bubble Tea)
-→ `internal/actions` → `internal/core` → `internal/store`.
-The TUI has no business logic.
+## Release
 
-Commit messages in the data repo are deliberately free of tooling noise;
-user data belongs to the user.
-
-## Tagging v1.0.0
-
-The `v1.0.0` tag is intentionally **not** applied yet. When you confirm the
-release, tag it yourself:
+`v1.0.0` is tagged at the release commit. `make build` embeds the version from
+`git describe --tags`, so a checkout at the tag builds `mtm v1.0.0`. To cut the
+next release, commit, tag and push:
 
 ```sh
-git tag -a v1.0.0 -m "v1.0.0"
+git tag -a v1.1.0 -m "v1.1.0"
 git push --tags
 ```
 
-(and `git describe --tags` will produce `v1.0.0` for `make` builds.)
-                                                                                                                                                                                                                                                                                                                  
+See `CHANGELOG.md` for the per-release notes.

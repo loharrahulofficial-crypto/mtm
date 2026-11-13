@@ -319,9 +319,9 @@ func Load() (Config, error) {
 	if strings.TrimSpace(cfg.UI.Scene) == "" {
 		cfg.UI.Scene = "auto"
 	} else {
-		known := map[string]bool{"auto": true, "random": true, "night": true, "bonsai": true, "ocean": true, "rain": true, "koi": true, "snow": true, "campfire": true}
+		known := map[string]bool{"auto": true, "random": true, "night": true, "bonsai": true, "ocean": true, "rain": true, "koi": true, "snow": true, "campfire": true, "mountains": true, "river": true, "meteor": true}
 		if !known[strings.ToLower(strings.TrimSpace(cfg.UI.Scene))] {
-			return cfg, fmt.Errorf("config %s: ui.scene must be auto|random|night|bonsai|ocean|rain|koi|snow|campfire, got %q", Path(), cfg.UI.Scene)
+			return cfg, fmt.Errorf("config %s: ui.scene must be auto|random|night|bonsai|ocean|rain|koi|snow|campfire|mountains|river|meteor, got %q", Path(), cfg.UI.Scene)
 		}
 		cfg.UI.Scene = strings.ToLower(strings.TrimSpace(cfg.UI.Scene))
 	}

@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to mtm. Format based on Keep a Changelog; versions
-follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
+follow semver. `v1.0.0` is tagged — see the note at the bottom.
 
 ## [Unreleased] — 2026-11-10
 
@@ -231,6 +231,20 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
   project page footer shows the tab keys as `[` `]`, not `[ ]`
 - Letterspaced labels on the project page keep word gaps via the shared
   sectionLabelText path
+- `ui.scene: mountains|river|meteor` is accepted by the config validation
+  again (the scenes exist and `:scene`/`--scene` select them; only the config
+  key list was stale) — pinned by a scene-validation test
+- README.md and CHANGELOG.md had trailing NUL-byte corruption (both were
+  detected as binary by grep/editors); stripped
+
+### Changed
+
+- README.md rewritten (2026-11-13): Requirements and How-it-works sections,
+  a complete command reference, corrected configuration reference (ambient_idle,
+  wordmark, reduced_motion added; reward_animation comment fixed; scene list
+  completed), 80+ task demo, Go ≥ 1.27 requirement, data layout completed
+  (splash.stamp, GitHub cache, sync state), and the release section updated
+  to v1.0.0
 
 ## [Unreleased] — 2026-11-09
 
@@ -324,15 +338,12 @@ follow semver. `v1.0.0` is not tagged yet — see the note at the bottom.
 - The sync timer only ever runs plain `mtm sync`, which refuses while the
   data repo is conflicted or paused.
 
-## Tagging v1.0.0
+## v1.0.0
 
-`v1.0.0` is deliberately not tagged yet. When you confirm the release:
+`v1.0.0` is tagged at 4d89867. `git describe --tags` produces `v1.0.0` for
+`make` builds, and the man page shows it too. To cut the next release:
 
 ```sh
-git tag -a v1.0.0 -m "v1.0.0"
+git tag -a v1.1.0 -m "v1.1.0"
 git push --tags
 ```
-
-`git describe --tags` then feeds `make` builds (`VERSION`), and
-`man mtm` shows `v1.0.0` as the source.
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                

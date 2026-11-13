@@ -316,6 +316,43 @@ func TestAmbientIdleValidation(t *testing.T) {
 	}
 }
 
+func TestSceneValidation(t *testing.T) {
+	fixedXDG(t)
+	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	write("default_project: inbox\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UI.Scene != "auto" {
+		t.Fatalf("default scene = %q, want auto", cfg.UI.Scene)
+	}
+	for _, v := range []string{"auto", "random", "night", "bonsai", "ocean", "rain", "koi", "snow", "campfire", "mountains", "river", "meteor"} {
+		write("ui:\n  scene: " + v + "\n")
+		cfg, err = Load()
+		if err != nil {
+			t.Fatalf("scene %q rejected: %v", v, err)
+		}
+		if cfg.UI.Scene != v {
+			t.Fatalf("scene = %q, want %q", cfg.UI.Scene, v)
+		}
+	}
+	write("ui:\n  scene: sunset\n")
+	if _, err := Load(); err == nil {
+		t.Fatal("scene: sunset was accepted")
+	}
+}
+
 func TestAmbientDitherValidation(t *testing.T) {
 	fixedXDG(t)
 	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mtm")
