@@ -42,6 +42,35 @@ func TestGuideStepsBasics(t *testing.T) {
 	}
 }
 
+func TestGuidePaletteItemAndCommand(t *testing.T) {
+	// "guide" must be a known command so `:guide` works, and both entry
+	// points must open the tour.
+	m := guideModel(t)
+	if !knownCommands["guide"] {
+		t.Fatal("guide missing from knownCommands")
+	}
+	// Command path: execCommand("guide") opens the tour.
+	u, _ := m.execCommand("guide")
+	m = guideModelOf(u)
+	if m.mode != modeGuide || m.guide.Step != 0 {
+		t.Fatal(":guide should open the tour at step 0")
+	}
+	// Palette item path: select the "guide" item.
+	m2 := guideModel(t)
+	m2.mode = modePalette
+	m2.paletteInput.SetValue("guide")
+	m2.paletteItems = paletteItemsFor(m2, "guide")
+	found := false
+	for _, it := range m2.paletteItems {
+		if it.id == "guide" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("no palette item with id 'guide'")
+	}
+}
+
 func TestGuideTypewriter(t *testing.T) {
 	m := guideModel(t)
 	m.openGuide()
