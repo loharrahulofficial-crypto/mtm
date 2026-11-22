@@ -332,9 +332,8 @@ type Model struct {
 	animFrame  int // 0 = idle; >0 = frames left in a pop/ease animation
 	animTaskID string
 
-	// guide (Mo guided tour)
-	guide      guideState
-	guideArmed bool
+	// guide (built-in guide tab)
+	guide guideState
 
 	viewFadeStart time.Time // zero unless a tab-switch fade is in flight
 

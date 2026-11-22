@@ -39,7 +39,7 @@ func (m Model) buildPaletteItems() []paletteItem {
 		{id: "archive", label: "Archive completed tasks", hint: "", group: "Commands"},
 		{id: "reload", label: "Reload tasks", hint: "", group: "Commands"},
 		{id: "help", label: "Help / keybindings", hint: m.keymap.Seq(aHelp), group: "Commands"},
-		{id: "guide", label: "Mo: start the guided tour", hint: m.keymap.Seq(aGuide), group: "Commands"},
+		{id: "guide", label: "Guide: open the built-in MTM guide", hint: m.keymap.Seq(aGuide), group: "Commands"},
 		{id: "timer:toggle", label: "Timer: start/stop on selected task", hint: ":", group: "Actions"},
 		{id: "pomo:start", label: "Pomodoro: start on selected task", hint: ":", group: "Actions"},
 		{id: "exam:add", label: "Exam: add…", hint: ":exam", group: "Actions"},
@@ -355,7 +355,6 @@ func (m Model) executePaletteAction(id string) (Model, tea.Cmd) {
 	switch id {
 	case "guide":
 		m.openGuide()
-		return m, m.armGuide()
 	case "view:home":
 		m.view = viewHome
 	case "view:list":

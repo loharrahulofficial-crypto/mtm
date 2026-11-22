@@ -46,7 +46,7 @@ func (m Model) View() string {
 
 func (m Model) viewInner() string {
 	if m.mode == modeGuide {
-		return m.renderGuide(m.width, m.height)
+		return m.renderGuidePanel()
 	}
 	return m.viewInnerNoGuide()
 }

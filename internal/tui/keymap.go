@@ -129,7 +129,7 @@ var actionDescriptions = map[string]string{
 	aEnter:              "open the selected course's tasks",
 	aCycleScene:         "cycle ambient scene",
 	aToggleCalendarDone: "calendar: show/hide completed tasks",
-	aGuide:              "start the Mo guided tour",
+	aGuide:              "open the built-in guide",
 }
 
 // KeyMap maps action -> key sequence (e.g. "gg", "ctrl+d", "?"). Built from

@@ -247,8 +247,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, viewFadeTickCmd()
 		}
 		return m, nil
-	case guideTickMsg:
-		return m.handleGuideTick()
 	}
 	return m.dispatch(msg)
 }

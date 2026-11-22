@@ -411,7 +411,6 @@ func (m Model) execCommand(value string) (tea.Model, tea.Cmd) {
 		return m, m.armAmbient()
 	case "guide":
 		m.openGuide()
-		return m, m.armGuide()
 	case "quit", "q":
 		return m.quitWithFlush()
 	case "help":
