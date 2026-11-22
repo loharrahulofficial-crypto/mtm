@@ -19,6 +19,9 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if armCmd := nm.armAmbient(); armCmd != nil {
 			cmds = append(cmds, armCmd)
 		}
+		if armCmd := nm.armGuide(); armCmd != nil {
+			cmds = append(cmds, armCmd)
+		}
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -43,10 +46,11 @@ func (m Model) dispatchRaw(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.FocusMsg:
 		m.ambientFocused = true
 		m.lastInput = m.clock.Now()
-		return m, m.armAmbient()
+		return m, tea.Batch(m.armAmbient(), m.armGuide())
 	case tea.BlurMsg:
 		m.ambientFocused = false
 		m.ambientArmed = false
+		m.guideArmed = false
 		return m, nil
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -142,6 +146,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updatePickerKey(msg)
 	case modeConfirm:
 		return m.updateConfirmKey(msg)
+	case modeGuide:
+		return m.updateGuideKey(msg)
 	case modeHelp:
 		switch msg.String() {
 		case "j", "down":
@@ -274,6 +280,9 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 	switch act {
 	case aQuit:
 		return m.quitWithFlush()
+	case aGuide:
+		m.openGuide()
+		return m, m.armGuide()
 	case aViewList:
 		m.view = viewList
 		return m, nil

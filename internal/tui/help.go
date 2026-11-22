@@ -22,7 +22,7 @@ func renderHelpBox(km KeyMap, s styles, width, height, scroll int) string {
 		{"task", []string{aAdd, aAddSubtask, aToggleDone, aDelete, aStatus, aPriority, aDue, aTags, aTitle, aArchive, aToggleCalendarDone, aGrade, aRate}},
 		{"notes", []string{aNotes, aNotesEditor, aEditFile, aDetail}},
 		{"sync", []string{aSync, aConflicts}},
-		{"meta", []string{aHelp, aQuit, aPaletteColon}},
+		{"meta", []string{aHelp, aQuit, aPaletteColon, aGuide}},
 	}
 	entries := map[string][3]string{}
 	for _, e := range HelpEntries(km) {

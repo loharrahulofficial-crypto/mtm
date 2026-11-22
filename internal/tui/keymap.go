@@ -61,6 +61,7 @@ const (
 	aMonthNext          = "month_next"
 	aGrade              = "grade"
 	aRate               = "rate"
+	aGuide              = "guide"
 )
 
 var actionOrder = []string{
@@ -72,7 +73,7 @@ var actionOrder = []string{
 	aDetail, aSidebar, aFocusLeft, aFocusRight, aConflicts, aHelp,
 	aToggleCalendarDone,
 	aEnter,
-	aCycleScene, aJumpLeft, aJumpRight, aMonthPrev, aMonthNext, aGrade, aRate,
+	aCycleScene, aJumpLeft, aJumpRight, aMonthPrev, aMonthNext, aGrade, aRate, aGuide,
 }
 
 var actionDescriptions = map[string]string{
@@ -128,6 +129,7 @@ var actionDescriptions = map[string]string{
 	aEnter:              "open the selected course's tasks",
 	aCycleScene:         "cycle ambient scene",
 	aToggleCalendarDone: "calendar: show/hide completed tasks",
+	aGuide:              "start the Mo guided tour",
 }
 
 // KeyMap maps action -> key sequence (e.g. "gg", "ctrl+d", "?"). Built from
@@ -193,6 +195,7 @@ func DefaultKeyMap() KeyMap {
 		aGrade:              "g",
 		aCycleScene:         "alt+s",
 		aRate:               "r",
+		aGuide:              "alt+g",
 	}}
 }
 

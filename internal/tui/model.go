@@ -106,6 +106,7 @@ const (
 	modeSplash          // startup ambient splash (Phase 4b-B)
 	modePalette         // command palette overlay
 	modeAmbient         // :ambient settings screen with live preview
+	modeGuide           // Mo guided tour overlay
 )
 
 // inputKind identifies what the input bar is editing.
@@ -330,6 +331,10 @@ type Model struct {
 	// animations
 	animFrame  int // 0 = idle; >0 = frames left in a pop/ease animation
 	animTaskID string
+
+	// guide (Mo guided tour)
+	guide      guideState
+	guideArmed bool
 
 	viewFadeStart time.Time // zero unless a tab-switch fade is in flight
 

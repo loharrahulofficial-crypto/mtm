@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/loharrahulofficial-crypto/mtm/internal/ambient"
 	"github.com/loharrahulofficial-crypto/mtm/internal/caps"
@@ -17,6 +18,21 @@ import (
 	"github.com/loharrahulofficial-crypto/mtm/internal/sync"
 	"github.com/loharrahulofficial-crypto/mtm/internal/tui"
 )
+
+// newGuideCmd implements `mtm guide`: launches the interactive TUI and
+// immediately starts Mo's guided tour.
+func newGuideCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "guide",
+		Short: "Launch mtm and start the Mo guided tour",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
+				return cmd.Help()
+			}
+			return tui.Run("", true)
+		},
+	}
+}
 
 // parseSize parses "120x40" into (120, 40).
 func parseSize(s string) (int, int, error) {

@@ -45,6 +45,13 @@ func (m Model) View() string {
 }
 
 func (m Model) viewInner() string {
+	if m.mode == modeGuide {
+		return m.renderGuide(m.width, m.height)
+	}
+	return m.viewInnerNoGuide()
+}
+
+func (m Model) viewInnerNoGuide() string {
 	if m.width == 0 || m.height == 0 {
 		return "loading…"
 	}

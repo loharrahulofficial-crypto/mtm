@@ -110,6 +110,7 @@ func NewRootCmd() *cobra.Command {
 		newWaybarCmd(),
 		newCompletionCmd(root),
 		newTuiCmd(),
+		newGuideCmd(),
 		newDemoSeedCmd(),
 		newVersionCmd(),
 	)

@@ -17,7 +17,9 @@ import (
 // Run opens the data repo and launches the interactive TUI. profilePath,
 // when non-empty (--profile FILE), requests a CPU profile exactly like
 // MTM_PPROF=cpu:FILE. Profiling refuses to start outside the sandbox.
-func Run(profilePath string) error {
+// When startGuide is true, Mo's guided tour opens on startup (the `mtm
+// guide` subcommand).
+func Run(profilePath string, startGuide ...bool) error {
 	stopProfile, err := perf.Setup(profilePath)
 	if err != nil {
 		return err
@@ -34,6 +36,9 @@ func Run(profilePath string) error {
 	printDiagnostics := func() {}
 	_ = printDiagnostics
 	m := New(cfg, s, sync.New(s.Root))
+	if len(startGuide) > 0 && startGuide[0] {
+		m.openGuide()
+	}
 	isTTY := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 	m.startSplashIfEnabled(isTTY)
 	// Cap Bubble Tea's flush rate at the highest surface cap mtm can ask

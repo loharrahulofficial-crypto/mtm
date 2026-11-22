@@ -65,6 +65,20 @@ func fitRaster(src Raster, w, h int) Raster {
 	return out
 }
 
+// RasterFromPixels builds a Raster by calling f for every pixel. The
+// callback returns premultiplied float RGBA in 0..1; a zero-alpha result is
+// transparent. It lets non-ambient packages build rasters without exporting
+// the private pixel type (see internal/mascot).
+func RasterFromPixels(w, h int, f func(x, y int) (r, g, b, a float32)) Raster {
+	out := Raster{W: w, H: h, Pix: make([]fpix, w*h)}
+	for i := range out.Pix {
+		x, y := i%w, i/w
+		r, g, b, a := f(x, y)
+		out.Pix[i] = fpix{r: r, g: g, b: b, a: a}
+	}
+	return out
+}
+
 // BaseRaster returns a raster filled with the base color.
 func BaseRaster(baseHex string, w, h int) Raster {
 	baseF := mustBaseF(baseHex)
