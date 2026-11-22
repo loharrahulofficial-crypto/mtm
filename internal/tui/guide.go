@@ -9,8 +9,8 @@ import (
 
 // guide.go — the built-in comprehensive MTM guide. A clean, scrollable
 // reference: the essentials every user should know to get the most out of
-// MTM, plus how it supports a better daily rhythm. There is no mascot here;
-// this is a text reference tab.
+// MTM, plus how it supports a better daily rhythm. No mascot; this is the
+// built-in "guide" tab — open it with alt+g, `:guide`, or `mtm guide`.
 
 type guideSection struct {
 	title string

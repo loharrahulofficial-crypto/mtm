@@ -1,0 +1,42 @@
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                                                                 │
+│    MTM Guide — j/k scroll · esc closes                                                                                                                          │
+│                                                                                                                                                                 │
+│  ── Welcome to MTM ─                                                                                                                                            │
+│  MTM is your terminal task manager: keyboard-first, Pomodoro-native, with a calendar, a kanban board, courses/exams, and a heatmap so you can see your rhythm.  │
+│  Open the guide anytime: `:guide` in the palette, `alt+g` anywhere, or `mtm guide` at launch.                                                                   │
+│  Close it with esc or q.                                                                                                                                        │
+│                                                                                                                                                                 │
+│  ── Getting started ─                                                                                                                                           │
+│  One-time setup: `mtm init` (creates the repo, git, config), then `mtm` or `mtm tui`.                                                                           │
+│  Run the throwaway demo: `make demo` — 80 tasks in a temp sandbox, never touching your real data.                                                               │
+│  Check your install: `mtm doctor`.                                                                                                                              │
+│  Launch options: `mtm --no-splash` (skip the startup words), `mtm --no-ambient` (off ambient scenes).                                                           │
+│                                                                                                                                                                 │
+│  ── The quick-add syntax ─                                                                                                                                      │
+│  Everything you need in one line: `mtm add "title !priority #tag @project ~90m"`                                                                                │
+│    !high   !medium   !low    — priority                                                                                                                         │
+│    #tag    #javascript #docs — tags                                                                                                                             │
+│    @project              — project                                                                                                                              │
+│    ~90m                  — estimate ("~" for vague guesses)                                                                                                     │
+│  You can edit anything with the `e` / `s` / `p` / `t` / `m` keys.                                                                                               │
+│                                                                                                                                                                 │
+│  ── Views ─                                                                                                                                                     │
+│  Home  (0) — the everyday dashboard: TODAY band (3 tasks), streak chips, heatmap, EXAMS, UP NEXT.                                                               │
+│  List  (1) — the main list with cursor, j/k navigate, / search, groups by week.                                                                                 │
+│  Board (2) — kanban columns (To Do / Progress / Done, plus a Done column). Drag cards with the mouse, or use h/l and x/X. `D` toggles the Done column view.     │
+│  Calendar (3) — the week agenda with tasks; `d` toggles Done tasks inside a cell.                                                                               │
+│  Courses (4) — master–detail: list on the left, course dashboard on the right (grade gauge, hours, upcoming tasks).                                             │
+│  Stats (5)  — streaks and monthly heatmaps summary.                                                                                                             │
+│  Ideas (6)  — your captured ideas, capture with the `I` key (journal or note idea views).                                                                       │
+│                                                                                                                                                                 │
+│  ── Working with tasks ─                                                                                                                                        │
+│  Add: `mtm add "..."` or `a` in the TUI. Edit: `e` title, `E` file. Delete: `dd`.                                                                               │
+│  Complete: `x` (toggles done). Archive: `X` (asks). Archive list: `:archive`.                                                                                   │
+│  Focus: `F` on a task for a full-screen Pomodoro. Timer statusline shows when it's running.                                                                     │
+│  Notes: `m` (built-in editor) or `M` (open in $EDITOR). Ideas: capture anywhere you like it — put it in the Ideas view.                                         │
+│                                                                                                                                                                 │
+│                                                                                                                                                                 │
+│    j/k scroll · 1-34 of 66 · esc closes                                                                                                                         │
+│                                                                                                                                                                 │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

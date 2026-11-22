@@ -200,7 +200,7 @@ func newTuiCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&profilePath, "profile", "", "write a CPU profile to FILE while the TUI runs (sandbox-only, like MTM_PPROF=cpu:FILE)")
 	cmd.Flags().BoolVar(&dump, "dump", false, "render one frame to stdout (hidden; requires MTM_SANDBOX=1 and temp XDG roots)")
-	cmd.Flags().StringVar(&view, "view", "home", "view to dump: home|list|board|calendar|courses|focus|stats")
+	cmd.Flags().StringVar(&view, "view", "home", "view to dump: home|list|board|calendar|courses|focus|stats|guide")
 	cmd.Flags().StringVar(&size, "size", "120x40", "frame size as WxH, e.g. 120x40")
 	cmd.Flags().BoolVar(&noColor, "no-color", false, "strip ANSI escape sequences")
 	cmd.Flags().StringVar(&sceneName, "scene", "", "dump an ambient scene frame instead of a TUI view: night|bonsai|ocean|rain|koi|snow|campfire")

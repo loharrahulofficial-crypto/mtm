@@ -28,7 +28,7 @@ var DumpFixedTime = time.Date(2026, 11, 7, 14, 32, 0, 0, time.UTC)
 // blank-ratio test) renders: fixed clock, fixed default theme, nerd icons
 // unless cfg says otherwise, focus pinned to the first row.
 //
-// view: home|list|board|calendar|courses|focus|stats|ideas|project|roadmap|devlog
+// view: home|list|board|calendar|courses|focus|stats|ideas|project|roadmap|devlog|guide
 func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, t time.Time) Model {
 	// Golden frames must not depend on the machine's speed: the ambient
 	// adaptive-quality loop otherwise steps the supersampling down when a
@@ -61,6 +61,8 @@ func BuildDumpModel(cfg config.Config, s *store.Store, repo sync.Repo, view stri
 		m = openDumpProject(m, projectTabRoadmap)
 	case "devlog":
 		m = openDumpProject(m, projectTabDevlog)
+	case "guide":
+		m.openGuide()
 	case "focus":
 		m.view = viewList
 		if task := m.selectedTask(); task != nil {
@@ -108,9 +110,9 @@ func RenderSplashDump(cfg config.Config, s *store.Store, repo sync.Repo, w, h in
 // RenderDump renders exactly one deterministic frame of the requested view.
 func RenderDump(cfg config.Config, s *store.Store, repo sync.Repo, view string, w, h int, noColor bool, t time.Time) (string, error) {
 	switch view {
-	case "home", "list", "board", "calendar", "courses", "focus", "stats", "ideas", "project", "roadmap", "devlog":
+	case "home", "list", "board", "calendar", "courses", "focus", "stats", "ideas", "project", "roadmap", "devlog", "guide":
 	default:
-		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|courses|focus|stats|ideas|project|roadmap|devlog)", view)
+		return "", fmt.Errorf("unknown view %q (want home|list|board|calendar|courses|focus|stats|ideas|project|roadmap|devlog|guide)", view)
 	}
 	m := BuildDumpModel(cfg, s, repo, view, w, h, t)
 	frame := m.View()
