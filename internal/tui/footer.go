@@ -77,6 +77,7 @@ func (m Model) footerPillSegments(width int) []pillSeg {
 		{m.keymap.Seq(aViewCourses), "Courses", m.icon("course"), viewCourses},
 		{m.keymap.Seq(aViewStats), "Stats", m.icon("stats"), viewStats},
 		{m.keymap.Seq(aViewIdeas), "Ideas", m.icon("idea"), viewIdeas},
+		{m.keymap.Seq(aViewGuide), "Guide", m.icon("help"), viewGuide},
 	}
 	compact := width < 115   // icons + 7 pills + clock + help don't fit below this
 	activeOnly := width < 90 // the pill row yields to clock+help below this

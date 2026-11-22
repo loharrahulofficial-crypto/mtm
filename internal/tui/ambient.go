@@ -488,8 +488,8 @@ func markSplashShown(t time.Time) {
 
 // startSplashIfEnabled arms the splash when policy allows. Called by Run.
 func (m *Model) startSplashIfEnabled(isTTY bool) bool {
-	if m.mode == modeGuide {
-		// The user asked for the tour — don't spend the splash on it.
+	if m.view == viewGuide {
+		// The user asked for the guide — don't spend the splash on it.
 		return false
 	}
 	if !m.ambientAllowSplash() || !m.animations {

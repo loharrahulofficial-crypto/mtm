@@ -135,6 +135,9 @@ func detailWidth(width int, on bool) int {
 }
 
 func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.view == viewGuide && m.mode == modeNormal {
+		return m.updateGuideKey(msg)
+	}
 	switch m.mode {
 	case modeInput:
 		return m.updateInputKey(msg)
@@ -142,8 +145,6 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updatePickerKey(msg)
 	case modeConfirm:
 		return m.updateConfirmKey(msg)
-	case modeGuide:
-		return m.updateGuideKey(msg)
 	case modeHelp:
 		switch msg.String() {
 		case "j", "down":
@@ -276,8 +277,9 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 	switch act {
 	case aQuit:
 		return m.quitWithFlush()
-	case aGuide:
+	case aViewGuide:
 		m.openGuide()
+		return m, nil
 	case aViewList:
 		m.view = viewList
 		return m, nil
@@ -305,7 +307,7 @@ func (m Model) doAction(act string) (tea.Model, tea.Cmd) {
 		m.ideaScroll = 0
 		return m, nil
 	case aCycleView:
-		m.view = (m.view + 1) % 7
+		m.view = (m.view + 1) % (viewGuide + 1)
 		return m, nil
 	case aFocus:
 		if t := m.selectedTask(); t != nil {
@@ -478,6 +480,11 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 	case tea.MouseWheelUp:
 		m.focusTo(x, sidebarW, mainW, detailW)
+		if m.view == viewGuide && m.focus != focusSidebar {
+			m.guide.Scroll = clampInt(m.guide.Scroll-3, 0, 1<<30)
+			m.guideSync()
+			return m, nil
+		}
 		if m.focus == focusDetail {
 			m.detailScroll = clampInt(m.detailScroll-3, 0, m.maxDetailScroll())
 			return m, nil
@@ -500,6 +507,11 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.MouseWheelDown:
 		m.focusTo(x, sidebarW, mainW, detailW)
+		if m.view == viewGuide && m.focus != focusSidebar {
+			m.guide.Scroll = clampInt(m.guide.Scroll+3, 0, 1<<30)
+			m.guideSync()
+			return m, nil
+		}
 		if m.focus == focusDetail {
 			m.detailScroll = clampInt(m.detailScroll+3, 0, m.maxDetailScroll())
 			return m, nil
@@ -587,6 +599,13 @@ func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Main pane: rows.
+	if m.view == viewGuide {
+		// Clicking a section chip jumps to it.
+		if idx, ok := m.guideChipHit(mainX-1, y-1, m.guideContentWidth()); ok {
+			m.guideJump(idx)
+			return m, nil
+		}
+	}
 	m.focus = focusMain
 	switch m.view {
 	case viewList:

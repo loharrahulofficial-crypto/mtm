@@ -39,7 +39,7 @@ func (m Model) buildPaletteItems() []paletteItem {
 		{id: "archive", label: "Archive completed tasks", hint: "", group: "Commands"},
 		{id: "reload", label: "Reload tasks", hint: "", group: "Commands"},
 		{id: "help", label: "Help / keybindings", hint: m.keymap.Seq(aHelp), group: "Commands"},
-		{id: "guide", label: "Guide: open the built-in MTM guide", hint: m.keymap.Seq(aGuide), group: "Commands"},
+		{id: "guide", label: "Guide: open the built-in MTM guide", hint: m.keymap.Seq(aViewGuide), group: "Commands"},
 		{id: "timer:toggle", label: "Timer: start/stop on selected task", hint: ":", group: "Actions"},
 		{id: "pomo:start", label: "Pomodoro: start on selected task", hint: ":", group: "Actions"},
 		{id: "exam:add", label: "Exam: add…", hint: ":exam", group: "Actions"},

@@ -45,13 +45,6 @@ func (m Model) View() string {
 }
 
 func (m Model) viewInner() string {
-	if m.mode == modeGuide {
-		return m.renderGuidePanel()
-	}
-	return m.viewInnerNoGuide()
-}
-
-func (m Model) viewInnerNoGuide() string {
 	if m.width == 0 || m.height == 0 {
 		return "loading…"
 	}
@@ -103,6 +96,9 @@ func (m Model) viewInnerNoGuide() string {
 
 	sidebarW := sideWidth(m.width, m.sidebarHidden)
 	detailW := detailWidth(m.width, m.detailOn)
+	if m.view == viewGuide {
+		sidebarW = 0 // the guide is a full-width reference page
+	}
 	if m.view == viewCourses {
 		detailW = 0 // course dashboard is read-only; no detail pane
 	}
@@ -111,6 +107,9 @@ func (m Model) viewInnerNoGuide() string {
 	}
 	if m.view == viewIdeas {
 		detailW = 0 // ideas are notes; the panel is the room
+	}
+	if m.view == viewGuide {
+		detailW = 0 // the guide is a reference page; the panel is the room
 	}
 	mainW, _ := mainPaneSize(m)
 
@@ -191,6 +190,8 @@ func (m Model) renderMain(w, h int) string {
 	case viewIdeas:
 		open := len(m.store.Ideas())
 		return panel("IDEAS · "+fmt.Sprintf("%d", open), renderIdeasBody(m, w-2, h-2))
+	case viewGuide:
+		return m.renderGuidePane(w, h, focused)
 	case viewBoard:
 		return panel("board", renderBoardBody(m, w-2, h-2))
 	case viewCalendar:

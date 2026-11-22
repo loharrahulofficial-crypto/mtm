@@ -82,6 +82,7 @@ const (
 	viewCourses
 	viewStats
 	viewIdeas
+	viewGuide // built-in MTM guide tab
 )
 
 type focusID int
@@ -106,7 +107,6 @@ const (
 	modeSplash          // startup ambient splash (Phase 4b-B)
 	modePalette         // command palette overlay
 	modeAmbient         // :ambient settings screen with live preview
-	modeGuide           // Mo guided tour overlay
 )
 
 // inputKind identifies what the input bar is editing.

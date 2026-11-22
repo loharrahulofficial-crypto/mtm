@@ -160,8 +160,11 @@ func sortExamsByDays(exams []courseExam) {
 // are measured on the same geometry.
 func mainPaneSize(m Model) (w, h int) {
 	sidebarW := sideWidth(m.width, m.sidebarHidden)
+	if m.view == viewGuide {
+		sidebarW = 0 // the guide is a full-width reference page
+	}
 	detailW := detailWidth(m.width, m.detailOn)
-	if m.view == viewCourses || m.view == viewStats || m.view == viewIdeas {
+	if m.view == viewCourses || m.view == viewStats || m.view == viewIdeas || m.view == viewGuide {
 		detailW = 0 // read-only dashboards; no detail pane
 	}
 	gutters := 0

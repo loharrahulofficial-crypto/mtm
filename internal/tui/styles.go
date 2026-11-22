@@ -67,6 +67,9 @@ type styles struct {
 	mText   lipgloss.Style // floating modal text on raised
 	mMuted  lipgloss.Style
 	mAccent lipgloss.Style
+
+	guideKey  lipgloss.Style // inline `code` badge in the guide
+	guideChip lipgloss.Style // inactive guide section chip
 }
 
 func newStyles(p theme.Palette) styles {
@@ -135,6 +138,9 @@ func newStyles(p theme.Palette) styles {
 	s.mText = lipgloss.NewStyle().Foreground(fg).Background(raised)
 	s.mMuted = lipgloss.NewStyle().Foreground(muted).Background(raised)
 	s.mAccent = lipgloss.NewStyle().Foreground(accent).Background(raised).Bold(true)
+
+	s.guideKey = lipgloss.NewStyle().Foreground(accent).Background(strong).Bold(true).Padding(0, 1)
+	s.guideChip = lipgloss.NewStyle().Foreground(mutedRaw).Background(surface)
 	return s
 }
 

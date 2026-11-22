@@ -458,6 +458,10 @@ func TestViewSwitchingAndTab(t *testing.T) {
 		t.Fatal("tab 4 -> want Ideas")
 	}
 	m = press(t, m, "tab")
+	if m.view != viewGuide {
+		t.Fatal("tab 4 -> want Guide")
+	}
+	m = press(t, m, "tab")
 	if m.view != viewHome {
 		t.Fatal("tab 5 -> want Home")
 	}

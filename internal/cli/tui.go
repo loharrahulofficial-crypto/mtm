@@ -20,11 +20,11 @@ import (
 )
 
 // newGuideCmd implements `mtm guide`: launches the interactive TUI and
-// immediately starts Mo's guided tour.
+// opens the built-in guide tab.
 func newGuideCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "guide",
-		Short: "Launch mtm and start the Mo guided tour",
+		Short: "Launch mtm and open the built-in guide",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
 				return cmd.Help()

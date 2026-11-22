@@ -17,8 +17,8 @@ import (
 // Run opens the data repo and launches the interactive TUI. profilePath,
 // when non-empty (--profile FILE), requests a CPU profile exactly like
 // MTM_PPROF=cpu:FILE. Profiling refuses to start outside the sandbox.
-// When startGuide is true, Mo's guided tour opens on startup (the `mtm
-// guide` subcommand).
+// When startGuide is true, the built-in guide tab opens on startup (the
+// `mtm guide` subcommand).
 func Run(profilePath string, startGuide ...bool) error {
 	stopProfile, err := perf.Setup(profilePath)
 	if err != nil {

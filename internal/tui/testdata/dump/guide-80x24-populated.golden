@@ -1,26 +1,24 @@
-╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│                                                                                                                                                                 │
-│    MTM Guide — j/k scroll · esc closes                                                                                                                          │
-│                                                                                                                                                                 │
-│  ── Welcome to MTM ─                                                                                                                                            │
-│  MTM is your terminal task manager: keyboard-first, Pomodoro-native, with a calendar, a kanban board, courses/exams, and a heatmap so you can see your rhythm.  │
-│  Open the guide anytime: `:guide` in the palette, `alt+g` anywhere, or `mtm guide` at launch.                                                                   │
-│  Close it with esc or q.                                                                                                                                        │
-│                                                                                                                                                                 │
-│  ── Getting started ─                                                                                                                                           │
-│  One-time setup: `mtm init` (creates the repo, git, config), then `mtm` or `mtm tui`.                                                                           │
-│  Run the throwaway demo: `make demo` — 80 tasks in a temp sandbox, never touching your real data.                                                               │
-│  Check your install: `mtm doctor`.                                                                                                                              │
-│  Launch options: `mtm --no-splash` (skip the startup words), `mtm --no-ambient` (off ambient scenes).                                                           │
-│                                                                                                                                                                 │
-│  ── The quick-add syntax ─                                                                                                                                      │
-│  Everything you need in one line: `mtm add "title !priority #tag @project ~90m"`                                                                                │
-│    !high   !medium   !low    — priority                                                                                                                         │
-│    #tag    #javascript #docs — tags                                                                                                                             │
-│    @project              — project                                                                                                                              │
-│    ~90m                  — estimate ("~" for vague guesses)                                                                                                     │
-│  You can edit anything with the `e` / `s` / `p` / `t` / `m` keys.                                                                                               │
-│                                                                                                                                                                 │
-│    j/k scroll · 1-18 of 66 · esc closes                                                                                                                         │
-│                                                                                                                                                                 │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ M T M   G U I D E ──────────────────────────────────────────────── 1/9 · 0% ╮
+│ 1 Welcome  2 Setup  3 Quick-add  4 Views  5 Tasks  6 Focus  7 Daily life     │
+│ 8 Automation  9 Keys                                                         │
+│                                                                              │
+│    WELCOME TO MTM                                                          ▐│
+│  ───────────────────────────────────────────────────────                    ▐│
+│                                                                             ││
+│  MTM is your terminal task manager: keyboard-first, Pomodoro-native, with a ││
+│  calendar, a kanban board, courses/exams, and a heatmap so you can see your ││
+│  rhythm.                                                                    ││
+│  Open this guide anytime with  7 ,  :guide  in the palette, or  mtm guide   ││
+│  at launch.                                                                 ││
+│  Close it with  esc  or  q . Switch sections with  1 - 9  or  h / l ;       ││
+│  scroll with  j / k .                                                       ││
+│  One task done beats ten planned.                                           ││
+│                                                                             ││
+│    GETTING STARTED                                                         ││
+│  ──────────────────────────────────────────────────────                     ││
+│                                                                             ││
+│  One-time setup:  mtm init  (creates the repo, git, config), then  mtm  or  ││
+│   mtm tui .                                                                 ││
+╰───────────── 1-9/h/l section · j/k scroll · ? keys · esc close ──────────────╯
+ 7 Guide                        local repo                        14:32  ? help 
+                                                                                

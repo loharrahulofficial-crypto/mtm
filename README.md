@@ -143,8 +143,8 @@ Useful environment switches: `MTM_SANDBOX=1` (refuse the real roots; tests and
 ### The TUI
 
 `mtm` opens the Study Desk dashboard. Views: `0` Home · `1` List · `2` Board ·
-`3` Calendar · `4` Courses · `5` Stats · `6` Ideas (all reachable with `tab`).
-Panels derive their colors from the active Omarchy theme at runtime, so theme
+`3` Calendar · `4` Courses · `5` Stats · `6` Ideas · `7` Guide (all reachable with
+`tab`). The built-in guide is a scrollable, section-switchable reference. Panels derive their colors from the active Omarchy theme at runtime, so theme
 changes apply immediately. See [The TUI](#the-tui).
 
 ## Commands
@@ -467,7 +467,8 @@ themes, icons and layout changes apply immediately with no restart.
 ## The TUI
 
 `mtm` opens the Study Desk dashboard. Views: `0` Home · `1` List · `2` Board ·
-`3` Calendar · `4` Courses · `5` Stats · `6` Ideas (all reachable with `tab`).
+`3` Calendar · `4` Courses · `5` Stats · `6` Ideas · `7` Guide (all reachable with
+`tab`). The built-in guide is a scrollable, section-switchable reference.
 
 - `a` add · `A` add subtask · `x` done/un-done
 - `/` filter · `ctrl+p` palette · `?` keybindings (scrollable)
